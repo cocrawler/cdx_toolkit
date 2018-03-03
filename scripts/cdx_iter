@@ -1,0 +1,59 @@
+import os
+import logging
+import argparse
+import json
+import csv
+import sys
+
+import cdx_toolkit
+
+loglevel = os.getenv('LOGLEVEL') or 'INFO'
+logging.basicConfig(level=loglevel)
+
+ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
+ARGS.add_argument('--cc', action='store_true', help='direct the query to the Common Crawl CDX server')
+ARGS.add_argument('--ia', action='store_true', help='direct the query to the Internet Archive CDX server')
+ARGS.add_argument('--cc-duration', action='store', default='90d')
+ARGS.add_argument('--limit', type=int, action='store', default=1000000)
+ARGS.add_argument('--fields', action='store', default='url,status,timestamp', help='urlkey,timestamp,url,status,digest,length')
+ARGS.add_argument('--jsonl', action='store_true')
+ARGS.add_argument('--csv', action='store_true')
+ARGS.add_argument('url')
+
+args = ARGS.parse_args()
+
+if not args.url:
+    raise ValueError('must specify an url to iterate, example: commoncrawl.org/*')
+if (args.cc and args.ia) or not (args.cc or args.ia):
+    raise ValueError('must pick one of -cc or --ia')
+
+if args.cc:
+    cdx = cdx_toolkit.CDXFetcher(source='cc', cc_duration=args.cc_duration)
+if args.ia:
+    cdx = cdx_toolkit.CDXFetcher(source='ia')
+
+fields = set(args.fields.split(','))
+
+fields_to_cc = {'statuscode': 'status', 'original': 'url'}
+
+if args.csv:
+    writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
+    writer.writeheader()
+
+for obj in cdx.items(args.url, limit=args.limit):
+    try:
+        if args.ia:
+            for k, v in fields_to_cc.items():
+                if k in obj:
+                    obj[v] = obj[k]
+                    del obj[k]
+        printme = dict([(k, obj[k]) for k in fields])
+    except KeyError:
+        print('Missing field, fields are {!r} and object is {!r}'.format(fields, obj))
+        raise
+    if args.jsonl:
+        print(json.dumps(printme, sort_keys=True))
+    elif args.csv:
+        writer.writerow(printme)
+    else:
+        print(printme)
