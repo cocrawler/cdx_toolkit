@@ -9,10 +9,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 def myrequests_get(url, params=None):
+    if params and 'from_ts' in params:
+        params['from'] = params['from_ts']
+        del params['from_ts']
+    # setting user-agent correctly involves installing setuptools_scm
+    headers = {'user-agent': 'pypi_cdx_toolkit/0.9'}
+
     retry = True
     while retry:
         try:
-            resp = requests.get(url, params=params)
+            resp = requests.get(url, params=params, headers=headers)
             if resp.status_code == 400 and 'page' not in params:
                 raise RuntimeError('invalid url of some sort: '+url)
             if resp.status_code in (400, 404):
@@ -177,6 +183,7 @@ class CDXFetcher:
         self.source = source
         self.cc_duration = cc_duration
         self.cc_sort = cc_sort
+        self.source = source
 
         if source == 'cc':
             self.index_list = get_cc_endpoints(cc_duration, cc_sort)
@@ -195,6 +202,8 @@ class CDXFetcher:
         params['output'] = 'json'  # XXX document me
         if 'limit' not in params:
             params['limit'] = 10000  # XXX document me
+        if 'closest' in kwargs and self.source == 'cc':
+            LOGGER.warning('closest and common-crawl do not work together')
 
         ret = []
         for endpoint in self.index_list:
@@ -212,6 +221,9 @@ class CDXFetcher:
         params['url'] = url
         params['output'] = 'json'
         # XXX document me, limit not set
+        if 'closest' in kwargs and self.source == 'cc':
+            LOGGER.warning('closest and common-crawl do not work together')
+
         return CDXFetcherIter(self, params=params)
 
     def get_for_iter(self, endpoint, page, params={}):
