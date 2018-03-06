@@ -1,5 +1,7 @@
 # cdx_toolkit
 
+[![Build Status](https://travis-ci.org/cocrawler/cdx_toolkit.svg?branch=master)](https://travis-ci.org/cocrawler/cdx_toolkit) [![Coverage Status](https://coveralls.io/repos/github/cocrawler/cdx_toolkit/badge.svg?branch=master)](https://coveralls.io/github/cocrawler/cdx_toolkit?branch=master) [![Apache License 2.0](https://img.shields.io/github/license/cocrawler/cdx_toolkit.svg)](LICENSE)
+
 cdx_toolkit is a set of tools for working with CDX indices of web
 crawls and archives, including those at CommonCrawl and the Internet
 Archive's Wayback Machine.
