@@ -55,7 +55,7 @@ if args.csv:
 kwargs = {}
 if args.limit:
     kwargs['limit'] = args.limit
-if 'from' in vars(args):  # python, uh
+if 'from' in vars(args):  # python, uh, from is a reserved word
     kwargs['from'] = vars(args)['from']
 if args.to:
     kwargs['to'] = args.to
