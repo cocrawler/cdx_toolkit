@@ -59,6 +59,8 @@ def get_cc_endpoints(cc_duration, cc_sort):
     ret = []
     if cc_duration.endswith('d') and cc_duration[:-1].isdigit():
         days = int(cc_duration[:-1])
+        days += 21  # add 3 weeks; crawl happens before the date on the index
+
         TIMESTAMP_8 = '%Y%m%d'
         startdate = datetime.datetime.fromtimestamp(time.time()) - datetime.timedelta(days=days)
         startdate = startdate.strftime(TIMESTAMP_8)
