@@ -15,6 +15,14 @@ index.
 * https://github.com/webrecorder/pywb/wiki/CDX-Server-API
 * https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server
 
+## Installing
+
+```
+$ pip install cdx_toolkit
+```
+
+or clone this repo and use `python setup.py install`.
+
 ## Example
 
 ```
@@ -119,16 +127,13 @@ timestamp. If you'd like pure ascending, set **--cc-sort** or
 **cc_sort=** to 'ascending'. You may want to also specify **--from**
 or **from_ts=** to set a starting timestamp.
 
-The main problem with this ascending sort order is that it's a pain
-to get the most recent N captures for something.
+The main problem with this ascending sort order is that it's a pain to
+get the most recent N captures: --limit and limit= will return the
+oldest N captures.
 
 ## TODO
 
 Add a call to download a capture from ia or cc, given an URL and a timestamp.
-
-Unit tests / CI / coverage
-
-End-to-end tests
 
 ## Status
 
