@@ -1,0 +1,27 @@
+dist: xenial # 16.04 LTS
+
+language: python
+python:
+  - 3.2
+  - 3.3
+  - 3.4
+  - 3.5
+  - 3.6
+  - 3.7-dev
+  - nightly
+
+matrix:
+  fast_finish: true
+  allow_failures:
+  - python: 3.7-dev
+  - python: nightly
+  include:
+  - python: 3.5.0
+    env: LOGLEVEL=DEBUG
+
+#install: "pip install -r requirements.txt"
+
+script:
+  - make test_coverage
+after_success:
+  coveralls
