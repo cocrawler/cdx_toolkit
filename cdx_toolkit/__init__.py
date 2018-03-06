@@ -42,7 +42,7 @@ def myrequests_get(url, params=None):
     return resp
 
 
-def get_cc_endpoints(cc_duration, cc_sort):
+def get_cc_endpoints():
     # TODO: cache me
     r = myrequests_get('http://index.commoncrawl.org/collinfo.json')
     if r.status_code != 200:
@@ -53,33 +53,10 @@ def get_cc_endpoints(cc_duration, cc_sort):
     if len(endpoints) < 30:  # last seen to be 39
         raise ValueError('Surprisingly few endoints for common crawl index')
 
-    # sort newest to oldest to apply the cc_duration
-    endpoints = sorted(endpoints, reverse=True)
+    # endpoints arrive sorted oldest to newest, but let's force that anyawy
+    endpoints = sorted(endpoints)
 
-    ret = []
-    if cc_duration.endswith('d') and cc_duration[:-1].isdigit():
-        days = int(cc_duration[:-1])
-        days += 21  # add 3 weeks; crawl happens before the date on the index
-
-        TIMESTAMP_8 = '%Y%m%d'
-        startdate = datetime.datetime.fromtimestamp(time.time()) - datetime.timedelta(days=days)
-        startdate = startdate.strftime(TIMESTAMP_8)
-
-        timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
-        # I think these are ISO weeks
-        CC_TIMESTAMP = '%Y-%W-%w'
-        for timestamp in timestamps:
-            thisdate = datetime.datetime.strptime(timestamp+'-0', CC_TIMESTAMP).strftime(TIMESTAMP_8)
-            if thisdate > startdate:
-                ret.append(timestamp)
-        ret = ['http://index.commoncrawl.org/CC-MAIN-'+r+'-index' for r in ret]
-    else:
-        raise ValueError('unknown cc_duration of %s', cc_duration)
-
-    if cc_sort != 'mixed':
-        ret.reverse()
-
-    return ret
+    return endpoints
 
 
 lines_per_page = 3000  # no way to get this from the API without fetching a page
@@ -139,7 +116,7 @@ def cdx_to_json(resp):
 
 
 class CDXFetcherIter:
-    def __init__(self, cdxfetcher, params={}):
+    def __init__(self, cdxfetcher, params={}, index_list=None):
         self.cdxfetcher = cdxfetcher
         self.params = params
         if 'page' in params:
@@ -148,13 +125,15 @@ class CDXFetcherIter:
         self.page = -1
         self.params['page'] = self.page
         self.cdx_objs = []
+        self.index_list = index_list
 
         self.get_more()
 
     def get_more(self):
         while True:
             self.page += 1
-            status, objs = self.cdxfetcher.get_for_iter(self.endpoint, self.page, params=self.params)
+            status, objs = self.cdxfetcher.get_for_iter(self.endpoint, self.page,
+                                                        params=self.params, index_list=self.index_list)
             if status == 'last endpoint':
                 LOGGER.debug('get_more: I have reached the end')
                 return  # caller will raise StopIteration
@@ -188,13 +167,59 @@ class CDXFetcher:
         self.source = source
 
         if source == 'cc':
-            self.index_list = get_cc_endpoints(cc_duration, cc_sort)
+            self.raw_index_list = get_cc_endpoints()
+            self.index_list = self.filter_cc_endpoints()
         elif source == 'ia':
             self.index_list = ('https://web.archive.org/cdx/search/cdx',)
         elif source.startswith('https://') or source.startswith('http://'):
             self.index_list = (source,)
         else:
             raise ValueError('could not understand source')
+
+    def customize_index_list(self, params):
+        if self.source == 'cc' and ('from' in params or 'from_ts' in params or 'to' in params):
+            LOGGER.debug('making a custom cc index list')
+            return self.filter_cc_endpoints(params=params)
+        else:
+            return self.index_list
+
+    def filter_cc_endpoints(self, params={}):
+        # sort newest to oldest, as needed by all the subsequent computation
+        endpoints = sorted(self.raw_index_list, reverse=True)
+
+        ret = []
+
+        # XXX handle from, to, closest
+        if 'closest' in params:
+            LOGGER.warning('closest and common-crawl do not work together')
+
+        if self.cc_duration.endswith('d') and self.cc_duration[:-1].isdigit():
+            days = int(self.cc_duration[:-1])
+            days += 21  # add 3 weeks; crawl happens before the date on the index
+
+            TIMESTAMP_8 = '%Y%m%d'
+            startdate = datetime.datetime.fromtimestamp(time.time()) - datetime.timedelta(days=days)
+            startdate = startdate.strftime(TIMESTAMP_8)
+
+            timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
+            # I think these are ISO weeks
+            CC_TIMESTAMP = '%Y-%W-%w'
+            for timestamp in timestamps:
+                thisdate = datetime.datetime.strptime(timestamp+'-0', CC_TIMESTAMP).strftime(TIMESTAMP_8)
+                if thisdate > startdate:
+                    ret.append(timestamp)
+            ret = ['http://index.commoncrawl.org/CC-MAIN-'+r+'-index' for r in ret]
+        else:
+            raise ValueError('unknown cc_duration of %s', self.cc_duration)
+
+        if self.cc_sort == 'ascending':
+            ret.reverse()
+        elif self.cc_sort == 'mixed':
+            pass
+        else:
+            raise ValueError('unknown cc_sort arg of '+self.cc_sort)
+
+        return ret
 
     def get(self, url, **kwargs):
         # from_ts=None, to=None, matchType=None, limit=None, sort=None, closest=None,
@@ -204,8 +229,6 @@ class CDXFetcher:
         params['output'] = 'json'  # XXX document me
         if 'limit' not in params:
             params['limit'] = 10000  # XXX document me
-        if 'closest' in kwargs and self.source == 'cc':
-            LOGGER.warning('closest and common-crawl do not work together')
 
         ret = []
         for endpoint in self.index_list:
@@ -222,22 +245,23 @@ class CDXFetcher:
         params = kwargs
         params['url'] = url
         params['output'] = 'json'
-        # XXX document me, limit not set
-        if 'closest' in kwargs and self.source == 'cc':
-            LOGGER.warning('closest and common-crawl do not work together')
 
-        return CDXFetcherIter(self, params=params)
+        index_list = self.customize_index_list(params)
+        return CDXFetcherIter(self, params=params, index_list=index_list)
 
-    def get_for_iter(self, endpoint, page, params={}):
+    def get_for_iter(self, endpoint, page, params={}, index_list=None):
         '''
         Specalized get for the iterator
         '''
-        if endpoint >= len(self.index_list):
+        if index_list is None:
+            index_list = self.index_list
+
+        if endpoint >= len(index_list):
             return 'last endpoint', []
         if params.get('limit', -1) == 0:
             return 'last endpoint', []  # a little white lie
 
-        endpoint = self.index_list[endpoint]
+        endpoint = index_list[endpoint]
         params['page'] = page
         resp = myrequests_get(endpoint, params=params)
         if resp.status_code == 400:
