@@ -167,9 +167,9 @@ def time_to_timestamp(t):
 
 
 def apply_cc_defaults(params):
-    if 'from_ts' not in params:
+    if 'from_ts' not in params or params['from_ts'] is None:
         year = 365*86400
-        if 'to' in params:
+        if 'to' in params and params['to'] is not None:
             to = pad_timestamp_up(params['to'])
             params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
             LOGGER.debug('no from but to, setting from=%s', params['from_ts'])
@@ -261,12 +261,12 @@ class CDXFetcher:
 
         if 'closest' in params:
             closest_t = timestamp_to_time(params['closest'])
-            if 'from_ts' not in params:
+            if 'from_ts' not in params or params['from_ts'] is None:
                 # not provided, make 3 months earlier
                 from_ts_t = closest_t - 3 * 30 * 86400
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])
-            if 'to' not in params:
+            if 'to' not in params or params['to'] is None:
                 # not provided, make 3 months later
                 to_t = closest_t + 3 * 30 * 86400
             else:
@@ -274,13 +274,13 @@ class CDXFetcher:
         else:
             if 'to' in params:
                 to_t = timestamp_to_time(params['to'])
-                if 'from_ts' not in params:
+                if 'from_ts' not in params or params['from_ts'] is None:
                     from_ts_t = to_t - 365 * 86400
                 else:
                     from_ts_t = timestamp_to_time(params['from_ts'])
             else:
                 to_t = None
-                if 'from_ts' not in params:
+                if 'from_ts' not in params or params['from_ts'] is None:
                     from_ts_t = time.time() - 365 * 86400
                 else:
                     from_ts_t = timestamp_to_time(params['from_ts'])
