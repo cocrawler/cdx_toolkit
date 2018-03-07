@@ -20,11 +20,12 @@ ARGS.add_argument('--limit', type=int, action='store')
 ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
 ARGS.add_argument('--from', action='store')
 ARGS.add_argument('--to', action='store')
-#ARGS.add_argument('--closest', action='store')  # this is a get() thing, not an iter thing
 ARGS.add_argument('--all-fields', action='store_true')
 ARGS.add_argument('--fields', action='store', default='url,status,timestamp', help='try --all-fields if you need the list')
 ARGS.add_argument('--jsonl', action='store_true')
 ARGS.add_argument('--csv', action='store_true')
+ARGS.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration')
+ARGS.add_argument('--closest', action='store')  # this is a get() thing, not an iter thing
 ARGS.add_argument('url')
 
 args = ARGS.parse_args()
@@ -59,8 +60,13 @@ if 'from' in vars(args) and vars(args)['from']:  # python, uh, from is a reserve
     kwargs['from_ts'] = vars(args)['from']
 if args.to:
     kwargs['to'] = args.to
+if args.closest:
+    if not args.get:
+        raise ValueError('--closest only works with --get')
+    kwargs['closest'] = args.closest
 
-for obj in cdx.items(args.url, **kwargs):
+
+def rename_fields(obj):
     try:
         if args.ia or args.source:
             for k, v in fields_to_cc.items():
@@ -74,9 +80,24 @@ for obj in cdx.items(args.url, **kwargs):
     except KeyError:
         print('Missing field, fields are {!r} and object is {!r}'.format(fields, obj))
         raise
+    return printme
+
+
+def print_line(printme):
     if args.jsonl:
         print(json.dumps(printme, sort_keys=True))
     elif args.csv:
         writer.writerow(printme)
     else:
-        print(printme)
+        print(', '.join([' '.join((k, printme[k])) for k in sorted(printme.keys())]))
+
+
+if args.get:
+    objs = cdx.get(args.url, **kwargs)
+    for obj in objs:
+        printme = rename_fields(obj)
+        print_line(printme)
+
+for obj in cdx.items(args.url, **kwargs):
+    printme = rename_fields(obj)
+    print_line(printme)
