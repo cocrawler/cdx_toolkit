@@ -15,6 +15,7 @@ logging.basicConfig(level=loglevel)
 ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
 ARGS.add_argument('--cc', action='store_true', help='direct the query to the Common Crawl CDX server')
 ARGS.add_argument('--ia', action='store_true', help='direct the query to the Internet Archive CDX server')
+ARGS.add_argument('--source', action='store', help='direct the query to this URL')
 ARGS.add_argument('--limit', type=int, action='store')
 ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
 ARGS.add_argument('--from', action='store')
@@ -30,16 +31,18 @@ args = ARGS.parse_args()
 
 if not args.url:
     raise ValueError('must specify an url to iterate, example: commoncrawl.org/*')
-if (args.cc and args.ia) or not (args.cc or args.ia):
-    raise ValueError('must pick one of -cc or --ia')
 
 if args.cc:
     kwargs = {}
     if args.cc_sort:
         kwargs['cc_sort'] = args.cc_sort
     cdx = cdx_toolkit.CDXFetcher(source='cc', **kwargs)
-if args.ia:
+elif args.ia:
     cdx = cdx_toolkit.CDXFetcher(source='ia')
+elif args.source:
+    cdx = cdx_toolkit.CDXFetcher(source=args.source)
+else:
+    raise ValueError('must specify --cc, --ia, or a --source')
 
 fields = set(args.fields.split(','))
 
@@ -59,7 +62,7 @@ if args.to:
 
 for obj in cdx.items(args.url, **kwargs):
     try:
-        if args.ia:
+        if args.ia or args.source:
             for k, v in fields_to_cc.items():
                 if k in obj:
                     obj[v] = obj[k]

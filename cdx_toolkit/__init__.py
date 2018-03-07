@@ -273,7 +273,8 @@ class CDXFetcher:
                 to_t = timestamp_to_time(params['to'])
         else:
             if 'to' in params:
-                to_t = timestamp_to_time(params['to'])
+                to = pad_timestamp_up(params['to'])
+                to_t = timestamp_to_time(to)
                 if 'from_ts' not in params or params['from_ts'] is None:
                     from_ts_t = to_t - 365 * 86400
                 else:
@@ -293,27 +294,8 @@ class CDXFetcher:
             end = min(end, len(self.raw_index_list))
         else:
             end = len(self.raw_index_list)
-        print('len raw index list', len(self.raw_index_list))
-        print('start', start, 'end', end)
-
-        print('DEBUGGING')
-        print('from_ts', time_to_timestamp(from_ts_t))
-        if to_t is not None:
-            print('to     ', time_to_timestamp(to_t))
-        else:
-            print('to     ', None)
-
-        for i in range(len(self.raw_index_list)):
-            if i == start:
-                print('start:')
-            print(i, cc_times[i], time_to_timestamp(cc_times[i]), self.raw_index_list[i])
-            if i == end-1:
-                print('end:')
 
         index_list = self.raw_index_list[start:end]
-        print('final index list:', index_list)
-
-        # set from_ts and to
         params['from_ts'] = time_to_timestamp(from_ts_t)
         if to_t is not None:
             params['to'] = time_to_timestamp(to_t)
