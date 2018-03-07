@@ -129,31 +129,43 @@ def cdx_to_json(resp):
     return ret
 
 
-TIMESTAMP = '%Y%m%d%H%M%S'
-DEFAULT_TIMESTAMP = '20180101000000'
-
 # confusingly, python's documentation refers to their float version
 # of the unix time as a 'timestamp'. This code uses 'timestamp' to
 # mean the CDX concept of timestamp.
 
+TIMESTAMP = '%Y%m%d%H%M%S'
+TIMESTAMP_LOW = '19780101000000'
+TIMESTAMP_HIGH = '29991231235959'
 
-def expand_timestamp(timestamp):
-    return timestamp + DEFAULT_TIMESTAMP[len(timestamp):]
+
+def pad_timestamp(timestamp):
+    return timestamp + TIMESTAMP_LOW[len(timestamp):]
+
+
+days_in_month = (0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+
+def pad_timestamp_up(timestamp):
+    timestamp = timestamp + TIMESTAMP_HIGH[len(timestamp):]
+    month = timestamp[4:6]
+    timestamp = timestamp[:6] + str(days_in_month[int(month)]) + timestamp[8:]
+    return timestamp
 
 
 def timestamp_to_time(timestamp):
-    return datetime.datetime.strptime(expand_timestamp(timestamp), TIMESTAMP).timestamp()
+    #return datetime.datetime.strptime(pad_timestamp(timestamp)+'UTC', TIMESTAMP+'%Z').timestamp()
+    return datetime.datetime.strptime(pad_timestamp(timestamp), TIMESTAMP).replace(tzinfo=datetime.timezone.utc).timestamp()
 
 
 def time_to_timestamp(t):
-    return datetime.datetime.fromtimestamp(t).strftime(TIMESTAMP)
+    return datetime.datetime.fromtimestamp(t, tz=datetime.timezone.utc).strftime(TIMESTAMP)
 
 
 def apply_cc_defaults(params):
     if 'from_ts' not in params:
         year = 365*86400
         if 'to' in params:
-            to = expand_timestamp(params['to'])
+            to = pad_timestamp_up(params['to'])
             params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
             LOGGER.debug('no from but to, setting from=%s', params['from_ts'])
         else:
@@ -236,7 +248,7 @@ class CDXFetcher:
         timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
         CC_TIMESTAMP = '%Y-%W-%w'  # I think these are ISO weeks
         for timestamp in timestamps:
-            t = datetime.datetime.strptime(timestamp+'-0', CC_TIMESTAMP).timestamp()
+            t = datetime.datetime(tzinfo=None).strptime(timestamp+'-0', CC_TIMESTAMP).timestamp()
             cc_times.append(t)
             cc_map[t] = endpoints.pop(0)
         # now I'm set up to bisect in cc_times and then index into cc_map to find the actual endpoint
@@ -271,27 +283,29 @@ class CDXFetcher:
         start = bisect.bisect_left(cc_times, from_ts_t) - 1
         start = max(0, start)
         if to_t is not None:
-            end = bisect.bisect_right(cc_times, to_t)  # - 1 + 1 to be after
+            end = bisect.bisect_right(cc_times, to_t) + 1
+            end = min(end, len(self.raw_index_list))
         else:
             end = len(self.raw_index_list)
-        #print('len raw index list', len(self.raw_index_list))
-        #print('start', start, 'end', end)
+        print('len raw index list', len(self.raw_index_list))
+        print('start', start, 'end', end)
 
-        #print('DEBUGGING')
-        #print('from_ts', time_to_timestamp(from_ts_t))
-        #if to_t is not None:
-        #    print('to     ', time_to_timestamp(to_t))
-        #else:
-        #    print('to     ', None)
+        print('DEBUGGING')
+        print('from_ts', time_to_timestamp(from_ts_t))
+        if to_t is not None:
+            print('to     ', time_to_timestamp(to_t))
+        else:
+            print('to     ', None)
 
-        #for i in range(len(self.raw_index_list)):
-        #    if i == start:
-        #        print('start:')
-        #    print(i, cc_times[i], time_to_timestamp(cc_times[i]), self.raw_index_list[i])
-        #    if i == end-1:
-        #        print('end:')
+        for i in range(len(self.raw_index_list)):
+            if i == start:
+                print('start:')
+            print(i, cc_times[i], time_to_timestamp(cc_times[i]), self.raw_index_list[i])
+            if i == end-1:
+                print('end:')
 
         index_list = self.raw_index_list[start:end]
+        print('final index list:', index_list)
 
         # set from_ts and to
         params['from_ts'] = time_to_timestamp(from_ts_t)
