@@ -10,7 +10,7 @@ if [ -z "$COVERAGE" ]; then COVERAGE=python; fi
 
 # these next 4 are from README.md -- we aren't checking the answer, but at least we know they didn't crash
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/*' --cc
-$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --cc-duration '90d'
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10
 
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/*' --ia
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --limit 10

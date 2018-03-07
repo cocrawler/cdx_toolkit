@@ -9,19 +9,18 @@ import cdx_toolkit
 loglevel = os.getenv('LOGLEVEL') or 'INFO'
 logging.basicConfig(level=loglevel)
 
-ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
+ARGS = argparse.ArgumentParser(description='cdx_toolkit size command line tool')
 ARGS.add_argument('--cc', action='store_true')
 ARGS.add_argument('--ia', action='store_true')
-ARGS.add_argument('--cc-duration', action='store', default='90d')
 ARGS.add_argument('url')
 
 args = ARGS.parse_args()
 
 if not (args.cc or args.ia):
-   raise ValueError('must specify one of --cc or --ia')
+    raise ValueError('must specify one of --cc or --ia')
 
 if args.cc:
-    cdx = cdx_toolkit.CDXFetcher(source='cc', cc_duration=args.cc_duration)
+    cdx = cdx_toolkit.CDXFetcher(source='cc')
     print('cc size estimate', cdx.get_size_estimate(args.url))
 
 if args.ia:

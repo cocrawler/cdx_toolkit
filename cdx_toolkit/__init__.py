@@ -3,17 +3,31 @@ import logging
 import re
 import time
 import datetime
+import bisect
 import json
+from pkg_resources import get_distribution, DistributionNotFound
+
+__version__ = 'installed-from-git'
 
 LOGGER = logging.getLogger(__name__)
+
+try:
+    # this works for the pip-installed package
+    version = get_distribution(__name__).version
+except DistributionNotFound:
+    pass
 
 
 def myrequests_get(url, params=None):
     if params and 'from_ts' in params:
         params['from'] = params['from_ts']
         del params['from_ts']
-    # setting user-agent correctly involves installing setuptools_scm
-    headers = {'user-agent': 'pypi_cdx_toolkit/0.9'}
+    if params and 'limit' in params:
+        if not isinstance(params['limit'], int):
+            # this needs to be an int because we subtract from it elsewhere
+            params['limit'] = int(params['limit'])
+
+    headers = {'user-agent': 'pypi_cdx_toolkit/'+__version__}
 
     retry = True
     while retry:
@@ -115,6 +129,38 @@ def cdx_to_json(resp):
     return ret
 
 
+TIMESTAMP = '%Y%m%d%H%M%S'
+DEFAULT_TIMESTAMP = '20180101000000'
+
+# confusingly, python's documentation refers to their float version
+# of the unix time as a 'timestamp'. This code uses 'timestamp' to
+# mean the CDX concept of timestamp.
+
+
+def expand_timestamp(timestamp):
+    return timestamp + DEFAULT_TIMESTAMP[len(timestamp):]
+
+
+def timestamp_to_time(timestamp):
+    return datetime.datetime.strptime(expand_timestamp(timestamp), TIMESTAMP).timestamp()
+
+
+def time_to_timestamp(t):
+    return datetime.datetime.fromtimestamp(t).strftime(TIMESTAMP)
+
+
+def apply_cc_defaults(params):
+    if 'from_ts' not in params:
+        year = 365*86400
+        if 'to' in params:
+            to = expand_timestamp(params['to'])
+            params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
+            LOGGER.debug('no from but to, setting from=%s', params['from_ts'])
+        else:
+            params['from_ts'] = time_to_timestamp(time.time() - year)
+            LOGGER.debug('no from, setting from=%s', params['from_ts'])
+
+
 class CDXFetcherIter:
     def __init__(self, cdxfetcher, params={}, index_list=None):
         self.cdxfetcher = cdxfetcher
@@ -160,15 +206,13 @@ class CDXFetcherIter:
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', cc_duration='365d', cc_sort='mixed'):
+    def __init__(self, source='cc', cc_sort='mixed'):
         self.source = source
-        self.cc_duration = cc_duration
         self.cc_sort = cc_sort
         self.source = source
 
         if source == 'cc':
             self.raw_index_list = get_cc_endpoints()
-            self.index_list = self.filter_cc_endpoints()
         elif source == 'ia':
             self.index_list = ('https://web.archive.org/cdx/search/cdx',)
         elif source.startswith('https://') or source.startswith('http://'):
@@ -184,54 +228,105 @@ class CDXFetcher:
             return self.index_list
 
     def filter_cc_endpoints(self, params={}):
-        # sort newest to oldest, as needed by all the subsequent computation
-        endpoints = sorted(self.raw_index_list, reverse=True)
+        endpoints = self.raw_index_list.copy()
 
-        ret = []
+        # chainsaw all of the cc index names to a time, which we'll use as the end-time of its data
+        cc_times = []
+        cc_map = {}
+        timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
+        CC_TIMESTAMP = '%Y-%W-%w'  # I think these are ISO weeks
+        for timestamp in timestamps:
+            t = datetime.datetime.strptime(timestamp+'-0', CC_TIMESTAMP).timestamp()
+            cc_times.append(t)
+            cc_map[t] = endpoints.pop(0)
+        # now I'm set up to bisect in cc_times and then index into cc_map to find the actual endpoint
 
-        # XXX handle from, to, closest
         if 'closest' in params:
-            LOGGER.warning('closest and common-crawl do not work together')
-
-        if self.cc_duration.endswith('d') and self.cc_duration[:-1].isdigit():
-            days = int(self.cc_duration[:-1])
-            days += 21  # add 3 weeks; crawl happens before the date on the index
-
-            TIMESTAMP_8 = '%Y%m%d'
-            startdate = datetime.datetime.fromtimestamp(time.time()) - datetime.timedelta(days=days)
-            startdate = startdate.strftime(TIMESTAMP_8)
-
-            timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
-            # I think these are ISO weeks
-            CC_TIMESTAMP = '%Y-%W-%w'
-            for timestamp in timestamps:
-                thisdate = datetime.datetime.strptime(timestamp+'-0', CC_TIMESTAMP).strftime(TIMESTAMP_8)
-                if thisdate > startdate:
-                    ret.append(timestamp)
-            ret = ['http://index.commoncrawl.org/CC-MAIN-'+r+'-index' for r in ret]
+            closest_t = timestamp_to_time(params['closest'])
+            if 'from_ts' not in params:
+                # not provided, make 3 months earlier
+                from_ts_t = closest_t - 3 * 30 * 86400
+            else:
+                from_ts_t = timestamp_to_time(params['from_ts'])
+            if 'to' not in params:
+                # not provided, make 3 months later
+                to_t = closest_t + 3 * 30 * 86400
+            else:
+                to_t = timestamp_to_time(params['to'])
         else:
-            raise ValueError('unknown cc_duration of %s', self.cc_duration)
+            if 'to' in params:
+                to_t = timestamp_to_time(params['to'])
+                if 'from_ts' not in params:
+                    from_ts_t = to_t - 365 * 86400
+                else:
+                    from_ts_t = timestamp_to_time(params['from_ts'])
+            else:
+                to_t = None
+                if 'from_ts' not in params:
+                    from_ts_t = time.time() - 365 * 86400
+                else:
+                    from_ts_t = timestamp_to_time(params['from_ts'])
+
+        # bisect to find the start and end of our cc indexes
+        start = bisect.bisect_left(cc_times, from_ts_t) - 1
+        start = max(0, start)
+        if to_t is not None:
+            end = bisect.bisect_right(cc_times, to_t)  # - 1 + 1 to be after
+        else:
+            end = len(self.raw_index_list)
+        #print('len raw index list', len(self.raw_index_list))
+        #print('start', start, 'end', end)
+
+        #print('DEBUGGING')
+        #print('from_ts', time_to_timestamp(from_ts_t))
+        #if to_t is not None:
+        #    print('to     ', time_to_timestamp(to_t))
+        #else:
+        #    print('to     ', None)
+
+        #for i in range(len(self.raw_index_list)):
+        #    if i == start:
+        #        print('start:')
+        #    print(i, cc_times[i], time_to_timestamp(cc_times[i]), self.raw_index_list[i])
+        #    if i == end-1:
+        #        print('end:')
+
+        index_list = self.raw_index_list[start:end]
+
+        # set from_ts and to
+        params['from_ts'] = time_to_timestamp(from_ts_t)
+        if to_t is not None:
+            params['to'] = time_to_timestamp(to_t)
+
+        if 'closest' in params:
+            pass
+            # XXX funky ordering
 
         if self.cc_sort == 'ascending':
-            ret.reverse()
+            pass  # already in ascending order
         elif self.cc_sort == 'mixed':
-            pass
+            index_list.reverse()
         else:
             raise ValueError('unknown cc_sort arg of '+self.cc_sort)
 
-        return ret
+        return index_list
 
     def get(self, url, **kwargs):
         # from_ts=None, to=None, matchType=None, limit=None, sort=None, closest=None,
         # filter=None, fl=None, page=None, pageSize=None, showNumPages=None):
         params = kwargs
         params['url'] = url
-        params['output'] = 'json'  # XXX document me
+        params['output'] = 'json'
+
         if 'limit' not in params:
-            params['limit'] = 10000  # XXX document me
+            params['limit'] = 10000
+        if self.source == 'cc':
+            apply_cc_defaults(params)
+
+        index_list = self.customize_index_list(params)
 
         ret = []
-        for endpoint in self.index_list:
+        for endpoint in index_list:
             resp = myrequests_get(endpoint, params=params)
             objs = cdx_to_json(resp)  # turns 400 and 404 into []
             ret.extend(objs)
@@ -245,6 +340,11 @@ class CDXFetcher:
         params = kwargs
         params['url'] = url
         params['output'] = 'json'
+
+        if 'limit' not in params:
+            params['limit'] = 10000
+        if self.source == 'cc':
+            apply_cc_defaults(params)
 
         index_list = self.customize_index_list(params)
         return CDXFetcherIter(self, params=params, index_list=index_list)
@@ -282,9 +382,13 @@ class CDXFetcher:
 
         params = {'url': url, 'showNumPages': 'true'}
         params.update(**kwargs)
+        if self.source == 'cc':
+            apply_cc_defaults(params)
+
+        index_list = self.customize_index_list(params)
 
         pages = 0
-        for endpoint in self.index_list:
+        for endpoint in index_list:
             resp = myrequests_get(endpoint, params=params)
             if resp.status_code == 200:
                 pages += showNumPages(resp)

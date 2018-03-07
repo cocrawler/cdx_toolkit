@@ -16,7 +16,6 @@ ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line to
 ARGS.add_argument('--cc', action='store_true', help='direct the query to the Common Crawl CDX server')
 ARGS.add_argument('--ia', action='store_true', help='direct the query to the Internet Archive CDX server')
 ARGS.add_argument('--limit', type=int, action='store')
-ARGS.add_argument('--cc-duration', action='store')
 ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
 ARGS.add_argument('--from', action='store')
 ARGS.add_argument('--to', action='store')
@@ -36,8 +35,6 @@ if (args.cc and args.ia) or not (args.cc or args.ia):
 
 if args.cc:
     kwargs = {}
-    if args.cc_duration:
-        kwargs['cc_duration'] = args.cc_duration
     if args.cc_sort:
         kwargs['cc_sort'] = args.cc_sort
     cdx = cdx_toolkit.CDXFetcher(source='cc', **kwargs)
@@ -55,8 +52,8 @@ if args.csv:
 kwargs = {}
 if args.limit:
     kwargs['limit'] = args.limit
-if 'from' in vars(args):  # python, uh, from is a reserved word
-    kwargs['from'] = vars(args)['from']
+if 'from' in vars(args) and vars(args)['from']:  # python, uh, from is a reserved word
+    kwargs['from_ts'] = vars(args)['from']
 if args.to:
     kwargs['to'] = args.to
 
