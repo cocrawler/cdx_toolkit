@@ -253,7 +253,8 @@ class CDXFetcher:
         timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
         CC_TIMESTAMP = '%Y-%W-%w'  # I think these are ISO weeks
         for timestamp in timestamps:
-            t = datetime.datetime(tzinfo=None).strptime(timestamp+'-0', CC_TIMESTAMP).timestamp()
+            utc = datetime.timezone.utc
+            t = datetime.datetime.strptime(timestamp+'-0', CC_TIMESTAMP).replace(tzinfo=utc).timestamp()
             cc_times.append(t)
             cc_map[t] = endpoints.pop(0)
         # now I'm set up to bisect in cc_times and then index into cc_map to find the actual endpoint
