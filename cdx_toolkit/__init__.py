@@ -153,8 +153,13 @@ def pad_timestamp_up(timestamp):
 
 
 def timestamp_to_time(timestamp):
-    #return datetime.datetime.strptime(pad_timestamp(timestamp)+'UTC', TIMESTAMP+'%Z').timestamp()
-    return datetime.datetime.strptime(pad_timestamp(timestamp), TIMESTAMP).replace(tzinfo=datetime.timezone.utc).timestamp()
+    utc = datetime.timezone.utc
+    timestamp = pad_timestamp(timestamp)
+    try:
+        return datetime.datetime.strptime(timestamp, TIMESTAMP).replace(tzinfo=utc).timestamp()
+    except ValueError:
+        LOGGER.error('cannot parse timestamp, is it a legal date?: '+timestamp)
+        raise
 
 
 def time_to_timestamp(t):

@@ -1,3 +1,5 @@
+import pytest
+
 import cdx_toolkit
 
 
@@ -16,3 +18,6 @@ def test_time_timestamp():
     for ts, t in tests:
         assert cdx_toolkit.timestamp_to_time(ts) == t
         assert cdx_toolkit.time_to_timestamp(t) == cdx_toolkit.pad_timestamp(ts)
+
+    with pytest.raises(ValueError):
+        cdx_toolkit.timestamp_to_time('19990231')  # invalid day of month
