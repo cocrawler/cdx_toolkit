@@ -25,4 +25,4 @@ $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --limit 10
 echo alternate source
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --source https://web.archive.org/cdx/search/cdx --limit 10
 echo closest
-$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --get --closest=2017
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --get --closest=2017 --limit 10
