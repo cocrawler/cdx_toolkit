@@ -25,7 +25,7 @@ or clone this repo and use `python setup.py install`.
 ```
 import cdx_toolkit
 
-cdx = cdx_toolkit.CDXFetcher(source='cc', cc_duration='90d')
+cdx = cdx_toolkit.CDXFetcher(source='cc')
 url = 'commoncrawl.org/*'
 
 print(url, 'size estimate', cdx.get_size_estimate(url))
