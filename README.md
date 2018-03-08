@@ -149,8 +149,7 @@ Add a call to download a capture from ia or cc, given an URL and a timestamp.
 
 ## Status
 
-cdx_toolkit has reached the "I hacked this together out of some other
-code for a hackathon this weekend" stage of development.
+cdx_toolkit has reached the beta-testing stage of development.
 
 ## License
 

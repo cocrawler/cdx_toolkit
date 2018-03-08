@@ -55,7 +55,7 @@ setup(
     scripts=scripts,
     license='Apache 2.0',
     classifiers=(
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 4 - Beta',
         'Environment :: Console',
         'Intended Audience :: Information Technology',
         'Intended Audience :: Developers',
