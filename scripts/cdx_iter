@@ -62,7 +62,7 @@ if args.to:
     kwargs['to'] = args.to
 if args.closest:
     if not args.get:
-        raise ValueError('--closest only works with --get')
+        print('note: --closest works best with --get', file=sys.stderr)
     kwargs['closest'] = args.closest
 
 

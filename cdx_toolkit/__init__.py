@@ -14,7 +14,7 @@ LOGGER = logging.getLogger(__name__)
 try:
     # this works for the pip-installed package
     version = get_distribution(__name__).version
-except DistributionNotFound:
+except DistributionNotFound:  # pragma: no cover
     pass
 
 
@@ -30,24 +30,28 @@ def myrequests_get(url, params=None):
     headers = {'user-agent': 'pypi_cdx_toolkit/'+__version__}
 
     retry = True
+    connect_errors = 0
     while retry:
         try:
             resp = requests.get(url, params=params, headers=headers)
             if resp.status_code == 400 and 'page' not in params:
-                raise RuntimeError('invalid url of some sort: '+url)
+                raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
             if resp.status_code in (400, 404):
                 LOGGER.debug('giving up with status %d', resp.status_code)
                 # 400: html error page -- probably page= is too big
                 # 404: {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
                 retry = False
                 break
-            if resp.status_code in (503, 502, 504):  # 503=slow down, 50[24] are temporary outages
+            if resp.status_code in (503, 502, 504):  # 503=slow down, 50[24] are temporary outages  # pragma: no cover
                 LOGGER.debug('retrying after 1s for %d', resp.status_code)
                 time.sleep(1)
                 continue
             resp.raise_for_status()
             retry = False
-        except ConnectionError:
+        except requests.exceptions.ConnectionError:
+            connect_errors += 1
+            if connect_errors > 10:
+                raise
             LOGGER.warning('retrying after 1s for ConnectionError')
             time.sleep(1)
         except requests.exceptions.RequestException as e:
@@ -60,12 +64,12 @@ def get_cc_endpoints():
     # TODO: cache me
     r = myrequests_get('http://index.commoncrawl.org/collinfo.json')
     if r.status_code != 200:
-        raise RuntimeError('error getting list of common crawl indices: '+str(r.status_code))
+        raise RuntimeError('error getting list of common crawl indices: '+str(r.status_code))  # pragma: no cover
 
     j = r.json()
     endpoints = [x['cdx-api'] for x in j]
     if len(endpoints) < 30:  # last seen to be 39
-        raise ValueError('Surprisingly few endoints for common crawl index')
+        raise ValueError('Surprisingly few endoints for common crawl index')  # pragma: no cover
 
     # endpoints arrive sorted oldest to newest, but let's force that anyawy
     endpoints = sorted(endpoints)
@@ -83,7 +87,7 @@ def showNumPages(r):
     elif isinstance(j, int):  # ia always returns text, parsed as a json int
         pages = j
     else:
-        raise ValueError('surprised by showNumPages value of '+str(j))
+        raise ValueError('surprised by showNumPages value of '+str(j))  # pragma: no cover
     return pages
 
 
@@ -112,12 +116,12 @@ def cdx_to_json(resp):
 
     # ia output='json' is a json list of lists
     if not text.startswith('['):
-        raise ValueError('cannot decode response, first bytes are'+text[:50])
+        raise ValueError('cannot decode response, first bytes are'+text[:50])  # pragma: no cover
 
     try:
         lines = json.loads(text)
         fields = lines.pop(0)  # first line is the list of field names
-    except (json.decoder.JSONDecodeError, KeyError):
+    except (json.decoder.JSONDecodeError, KeyError):  # pragma: no cover
         raise ValueError('cannot decode response, first bytes are'+text[:50])
 
     ret = []
@@ -355,9 +359,6 @@ class CDXFetcher:
         '''
         Specalized get for the iterator
         '''
-        if index_list is None:
-            index_list = self.index_list
-
         if endpoint >= len(index_list):
             return 'last endpoint', []
         if params.get('limit', -1) == 0:
@@ -395,7 +396,7 @@ class CDXFetcher:
             if resp.status_code == 200:
                 pages += showNumPages(resp)
             else:
-                pass  # silently ignore empty answers
+                pass  # silently ignore empty answers  # pragma: no cover
 
         if not as_pages:
             pages = pages_to_samples(pages)
