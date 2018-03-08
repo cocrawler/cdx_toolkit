@@ -112,10 +112,9 @@ purpose of a digest is to be able to easily figure out if 2 captures
 have identical content.
 
 Common Crawl publishes a new index each month. cdx_toolkit will
-automatically start using new ones as published. The **--cc-duration**
-command-line flag (and **cc_duration=** constructor argument)
-specifies how many days back to look. The default is '365d', 365
-days.
+start using new ones as soon as they are published. By default,
+cdx_toolkit will use the previous year of Common Crawl; you can
+change that using **--from** or **from=** and **--to** or **to=**.
 
 CDX implementations do not efficiently support reversed sort orders,
 so cdx_toolkit results will be ordered by ascending SURT and by
