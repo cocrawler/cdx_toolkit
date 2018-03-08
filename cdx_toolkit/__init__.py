@@ -325,7 +325,7 @@ class CDXFetcher:
         params['output'] = 'json'
 
         if 'limit' not in params:
-            params['limit'] = 10000
+            params['limit'] = 1000
         if self.source == 'cc':
             apply_cc_defaults(params)
 
@@ -348,7 +348,7 @@ class CDXFetcher:
         params['output'] = 'json'
 
         if 'limit' not in params:
-            params['limit'] = 10000
+            params['limit'] = 1000
         if self.source == 'cc':
             apply_cc_defaults(params)
 

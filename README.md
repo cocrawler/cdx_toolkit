@@ -12,9 +12,6 @@ hides these differences as best it can. cdx_toolkit also knits
 together the monthly Common Crawl CDX indices into a single, virtual
 index.
 
-* https://github.com/webrecorder/pywb/wiki/CDX-Server-API
-* https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server
-
 ## Installing
 
 ```
@@ -73,9 +70,16 @@ cdx_iter can generate jsonl or csv outputs; see
 $ cdx_iter --help
 ```
 
-for details.
+for details. Set the environment variable LOGLEVEL=DEBUG if you'd like
+more details about what's going on inside cdx_iter.
 
 ## CDX Jargon, Field Names, and such
+
+cdx_toolkit supports all of the options and fields discussed
+in the CDX API documentation:
+
+* https://github.com/webrecorder/pywb/wiki/CDX-Server-API
+* https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server
 
 A **capture** is a single crawled url, be it a copy of a webpage, a
 redirect to another page, an error such as 404 (page not found), or a
@@ -101,8 +105,17 @@ these 2 hosts actually have identical web content. The original url
 should be present in all records, if you want to know exactly what it
 is.
 
-CDX Indices support a **paged interface** for efficient access to
-large sets of URLs. cdx_toolkit uses this interface under the hood.
+The **limit** argument limits how many captures will be returned.
+There is a default limit of 1,000 captures.
+
+A **filter** allows a user to select a subset of CDX records, reducing
+network traffic between the CDX API server and the user. For
+example, filter='!=status:200' will only show captures whose http
+status is not 200. Filters and **limit** work together, with the limit
+applying to the count of captures after the filter is applied.
+
+CDX API servers support a **paged interface** for efficient access to
+large sets of URLs. cdx_toolkit iterators always use the paged interface.
 cdx_toolkit is also polite to CDX servers by being single-threaded and
 serial. If it's not fast enough for you, consider downloading Common
 Crawl's index files directly.

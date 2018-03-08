@@ -19,6 +19,8 @@ echo to 2017
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --to=2017
 echo from 2017 to 2017
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017
+echo filter
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017 --filter=!=status:200
 echo closest cc
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --get --closest=2017 --limit 3
 echo csv
