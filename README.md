@@ -120,10 +120,11 @@ A **digest** is a sha1 checksum of the contents of a capture. The
 purpose of a digest is to be able to easily figure out if 2 captures
 have identical content.
 
-Common Crawl publishes a new index each month. cdx_toolkit will
-start using new ones as soon as they are published. **By default,
-cdx_toolkit will use the 12 months of Common Crawl**; you can
-change that using **--from** or **from_ts=** and **--to** or **to=**.
+Common Crawl publishes a new index each month. cdx_toolkit will start
+using new ones as soon as they are published. **By default,
+cdx_toolkit will use the most recent 12 months of Common Crawl**; you
+can change that using **--from** or **from_ts=** and **--to** or
+**to=**.
 
 CDX implementations do not efficiently support reversed sort orders,
 so cdx_toolkit results will be ordered by ascending SURT and by
@@ -138,7 +139,8 @@ timestamp.
 
 The main problem with this ascending sort order is that it's a pain to
 get the most recent N captures: --limit and limit= will return the
-oldest N captures.
+oldest N captures. With the 'mixed' ordering, a large enough limit=
+will get close to returning the most recent N captures.
 
 ## TODO
 
