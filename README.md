@@ -14,6 +14,8 @@ index.
 
 ## Installing
 
+cdx toolkit requires Python 3.
+
 ```
 $ pip install cdx_toolkit
 ```
@@ -37,34 +39,26 @@ for obj in cdx.items(url, limit=10):
 at the moment will print:
 
 ```
-size estimate 6000
-http://commoncrawl.org/ 200
-http://commoncrawl.org/ 200
-http://commoncrawl.org/ 200
-http://www.commoncrawl.org/ 301
-https://www.commoncrawl.org/ 301
-http://www.commoncrawl.org/ 301
-http://commoncrawl.org/ 200
-http://commoncrawl.org/2011/12/mapreduce-for-the-masses/ 200
-http://commoncrawl.org/2012/03/data-2-0-summit/ 200
-http://commoncrawl.org/2012/03/twelve-steps-to-running-your-ruby-code-across-five-billion-web-pages/ 200
+commoncrawl.org/* size estimate 36000
+{'urlkey': 'org,commoncrawl)/', 'timestamp': '20180219112308', 'mime-detected': 'text/html', 'url': 'http://commoncrawl.org/', 'status': '200', 'filename': 'crawl-data/CC-MAIN-2018-09/segments/1518891812584.40/warc/CC-MAIN-20180219111908-20180219131908-00494.warc.gz', 'mime': 'text/html', 'length': '5365', 'digest': 'FM7M2JDBADOQIHKCSFKVTAML4FL2HPHT', 'offset': '81614902'}
+...
 ```
 
 ## Command-line tools
 
-The above example can also be done as
-
 ```
 $ cdx_size 'commoncrawl.org/*' --cc
-$ cdx_iter 'commoncrawl.org/*' --cc --limit 10 --cc-duration='90d'
+$ cdx_iter 'commoncrawl.org/*' --cc --limit 10
 ```
-or
+
 ```
 $ cdx_size 'commoncrawl.org/*' --ia
 $ cdx_iter 'commoncrawl.org/*' --ia --limit 10
 ```
 
-cdx_iter can generate jsonl or csv outputs; see
+cdx_iter takes a large number of command line switches, controlling
+the time period and all other CDX query options.
+It can generate jsonl and csv outputs.  See
 
 ```
 $ cdx_iter --help
@@ -95,7 +89,7 @@ A **timestmap** represents year-month-day-time as a string of digits run togther
 Example: January 5, 2016 at 12:34:56 UTC is 20160105123456. These timestamps are
 a field in the index, and are also used to pick specify the dates used
 by **--from=**, **--to**, and **--closest** on the command-line. (Programmatically,
-use from_ts=, to=, and closest=.)
+use **from_ts=**, to=, and closest=.)
 
 An **urlkey** is a SURT, which is a munged-up url suitable for
 deduplication and sorting. This sort order is how CDX indices
@@ -106,7 +100,7 @@ should be present in all records, if you want to know exactly what it
 is.
 
 The **limit** argument limits how many captures will be returned.
-There is a default limit of 1,000 captures.
+**There is a default limit of 1,000 captures.**
 
 A **filter** allows a user to select a subset of CDX records, reducing
 network traffic between the CDX API server and the user. For
@@ -125,8 +119,8 @@ purpose of a digest is to be able to easily figure out if 2 captures
 have identical content.
 
 Common Crawl publishes a new index each month. cdx_toolkit will
-start using new ones as soon as they are published. By default,
-cdx_toolkit will use the previous year of Common Crawl; you can
+start using new ones as soon as they are published. **By default,
+cdx_toolkit will use the 12 mnoths of Common Crawl**; you can
 change that using **--from** or **from=** and **--to** or **to=**.
 
 CDX implementations do not efficiently support reversed sort orders,
