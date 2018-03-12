@@ -58,7 +58,9 @@ $ cdx_iter 'commoncrawl.org/*' --ia --limit 10
 
 cdx_iter takes a large number of command line switches, controlling
 the time period and all other CDX query options.
-It can generate jsonl and csv outputs.  See
+**Note that by default, cdx_iter will iterate over the previous
+year of captures.**
+cdx_iter can generate jsonl and csv outputs.  See
 
 ```
 $ cdx_iter --help
@@ -69,7 +71,7 @@ more details about what's going on inside cdx_iter.
 
 ## CDX Jargon, Field Names, and such
 
-cdx_toolkit supports all of the options and fields discussed
+cdx_toolkit supports all (ok, most!) of the options and fields discussed
 in the CDX API documentation:
 
 * https://github.com/webrecorder/pywb/wiki/CDX-Server-API
@@ -120,8 +122,8 @@ have identical content.
 
 Common Crawl publishes a new index each month. cdx_toolkit will
 start using new ones as soon as they are published. **By default,
-cdx_toolkit will use the 12 mnoths of Common Crawl**; you can
-change that using **--from** or **from=** and **--to** or **to=**.
+cdx_toolkit will use the 12 months of Common Crawl**; you can
+change that using **--from** or **from_ts=** and **--to** or **to=**.
 
 CDX implementations do not efficiently support reversed sort orders,
 so cdx_toolkit results will be ordered by ascending SURT and by
@@ -129,9 +131,10 @@ ascending timestamp. However, since CC has an individual index for
 each month, and because most users want more recent results,
 cdx_toolkit defaults to querying CC's CDX indices in decreasing month
 order, but each month's result will be in ascending SURT and ascending
-timestamp. If you'd like pure ascending, set **--cc-sort** or
-**cc_sort=** to 'ascending'. You may want to also specify **--from**
-or **from_ts=** to set a starting timestamp.
+timestamp. This default sort order is named 'mixed'. If you'd like
+pure ascending, set **--cc-sort** or **cc_sort=** to 'ascending'. You
+may want to also specify **--from** or **from_ts=** to set a starting
+timestamp.
 
 The main problem with this ascending sort order is that it's a pain to
 get the most recent N captures: --limit and limit= will return the
