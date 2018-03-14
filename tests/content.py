@@ -19,6 +19,8 @@ else:
     content_bytes = cdx_toolkit.fetch_wb_content(obj)
 
 if len(content_bytes) > 100 and b'html' in content_bytes.lower():
+    print('OK')
     exit(0)
 else:
+    print('FAIL')
     exit(1)

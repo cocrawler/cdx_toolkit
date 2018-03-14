@@ -39,6 +39,7 @@ $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --source https://web.archive.o
 echo bad alternate source
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --source https://web.arch457374576ive.org/cdx/search/cdx --limit 10 || true
 
-echo content
+echo content cc
 $COVERAGE ./content.py cc 'commoncrawl.org/'
+echo content ia
 $COVERAGE ./content.py ia 'commoncrawl.org/'
