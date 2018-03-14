@@ -37,7 +37,7 @@ $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --get --closest=2017 --li
 echo alternate source
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --source https://web.archive.org/cdx/search/cdx --limit 10
 echo bad alternate source
-$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --source https://web.arch457374576ive.org/cdx/search/cdx --limit 10 || true
+CDX_TOOLKIT_TEST_REQUESTS=1 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --source https://web.arch457374576ive.org/cdx/search/cdx --limit 10 || true
 
 echo content cc
 $COVERAGE ./content.py cc 'commoncrawl.org/'

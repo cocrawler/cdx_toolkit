@@ -9,6 +9,7 @@ import gzip
 #import hashlib
 from urllib.parse import quote
 from pkg_resources import get_distribution, DistributionNotFound
+import os
 
 __version__ = 'installed-from-git'
 
@@ -57,7 +58,11 @@ def myrequests_get(url, params=None, headers=None):
         except requests.exceptions.ConnectionError:
             connect_errors += 1
             if connect_errors > 10:
-                raise
+                if os.getenv('CDX_TOOLKIT_TEST_REQUESTS'):
+                    print('DYING IN MYREQUEST_GET')
+                    exit(0)
+                else:
+                    raise
             LOGGER.warning('retrying after 1s for ConnectionError')
             time.sleep(1)
         except requests.exceptions.RequestException as e:
