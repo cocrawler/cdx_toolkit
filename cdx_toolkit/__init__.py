@@ -5,6 +5,9 @@ import time
 import datetime
 import bisect
 import json
+import gzip
+#import hashlib
+from urllib.parse import quote
 from pkg_resources import get_distribution, DistributionNotFound
 
 __version__ = 'installed-from-git'
@@ -18,7 +21,7 @@ except DistributionNotFound:  # pragma: no cover
     pass
 
 
-def myrequests_get(url, params=None):
+def myrequests_get(url, params=None, headers=None):
     if params and 'from_ts' in params:
         params['from'] = params['from_ts']
         del params['from_ts']
@@ -27,7 +30,10 @@ def myrequests_get(url, params=None):
             # this needs to be an int because we subtract from it elsewhere
             params['limit'] = int(params['limit'])
 
-    headers = {'user-agent': 'pypi_cdx_toolkit/'+__version__}
+    if headers is None:
+        headers = {}
+    if 'user-agent' not in headers:
+        headers['user-agent'] = 'pypi_cdx_toolkit/'+__version__
 
     retry = True
     connect_errors = 0
@@ -180,6 +186,48 @@ def apply_cc_defaults(params):
         else:
             params['from_ts'] = time_to_timestamp(time.time() - year)
             LOGGER.debug('no from, setting from=%s', params['from_ts'])
+
+
+def fetch_warc_content(capture):
+    filename = capture['filename']
+    offset = int(capture['offset'])
+    length = int(capture['length'])
+
+    cc_external_prefix = 'https://commoncrawl.s3.amazonaws.com'
+    url = cc_external_prefix + '/' + filename
+    headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
+
+    resp = myrequests_get(url, headers=headers)
+    content_bytes = resp.content
+
+    # WARC digests can be represented in multiple ways (rfc 3548)
+    # I have code in a pullreq for warcio that does this comparison
+    #if 'digest' in capture and capture['digest'] != hashlib.sha1(content_bytes).hexdigest():
+    #    LOGGER.error('downloaded content failed digest check')
+
+    if content_bytes[:2] == b'\x1f\x8b':
+        content_bytes = gzip.decompress(content_bytes)
+
+    # hack the WARC response down to just the content_bytes
+    warcheader, httpheader, content_bytes = content_bytes.strip().split(b'\r\n\r\n', 2)
+
+    # XXX help out with the page encoding? complicated issue.
+    return content_bytes
+
+
+def fetch_wb_content(capture):
+    if 'url' not in capture or 'timestamp' not in capture:
+        raise ValueError('capture must contain an url and timestamp')
+
+    fetch_url = capture['url']
+    timestamp = capture['timestamp']
+
+    prefix = 'https://web.archive.org/web'
+    url = '{}/{}{}/{}'.format(prefix, timestamp, 'js_', quote(fetch_url))
+
+    resp = myrequests_get(url)
+    content_bytes = resp.content
+    return content_bytes
 
 
 class CDXFetcherIter:
