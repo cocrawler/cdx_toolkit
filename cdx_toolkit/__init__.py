@@ -131,10 +131,15 @@ def cdx_to_json(resp):
         raise ValueError('cannot decode response, first bytes are'+text[:50])
 
     ret = []
+    fields_to_cc = {'statuscode': 'status', 'original': 'url'}
     for l in lines:
         obj = {}
         for f in fields:
-            obj[f] = l.pop(0)
+            value = l.pop(0)
+            if f in fields_to_cc:
+                obj[fields_to_cc[f]] = value
+            else:
+                obj[f] = value
         ret.append(obj)
     return ret
 

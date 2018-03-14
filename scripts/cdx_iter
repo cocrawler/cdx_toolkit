@@ -48,8 +48,6 @@ else:
 
 fields = set(args.fields.split(','))
 
-fields_to_cc = {'statuscode': 'status', 'original': 'url'}
-
 if args.csv:
     writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
     writer.writeheader()
@@ -69,13 +67,8 @@ if args.filter:
     kwargs['filter'] = args.filter
 
 
-def rename_fields(obj):
+def winnow_fields(obj):
     try:
-        if args.ia or args.source:
-            for k, v in fields_to_cc.items():
-                if k in obj:
-                    obj[v] = obj[k]
-                    del obj[k]
         if args.all_fields:
             printme = obj
         else:
@@ -98,9 +91,9 @@ def print_line(printme):
 if args.get:
     objs = cdx.get(args.url, **kwargs)
     for obj in objs:
-        printme = rename_fields(obj)
+        printme = winnow_fields(obj)
         print_line(printme)
 
 for obj in cdx.items(args.url, **kwargs):
-    printme = rename_fields(obj)
+    printme = winnow_fields(obj)
     print_line(printme)
