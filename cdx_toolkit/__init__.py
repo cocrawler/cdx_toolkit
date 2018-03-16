@@ -23,13 +23,14 @@ except DistributionNotFound:  # pragma: no cover
 
 
 def myrequests_get(url, params=None, headers=None):
-    if params and 'from_ts' in params:
-        params['from'] = params['from_ts']
-        del params['from_ts']
-    if params and 'limit' in params:
-        if not isinstance(params['limit'], int):
-            # this needs to be an int because we subtract from it elsewhere
-            params['limit'] = int(params['limit'])
+    if params:
+        if 'from_ts' in params:
+            params['from'] = params['from_ts']
+            del params['from_ts']
+        if 'limit' in params:
+            if not isinstance(params['limit'], int):
+                # this needs to be an int because we subtract from it elsewhere
+                params['limit'] = int(params['limit'])
 
     if headers is None:
         headers = {}
@@ -69,6 +70,23 @@ def myrequests_get(url, params=None, headers=None):
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
             raise
     return resp
+
+
+fields_to_cc = {'statuscode': 'status', 'original': 'url', 'mimetype': 'mime'}
+fields_to_ia = dict([(v, k) for k, v in fields_to_cc.items()])
+
+
+def munge_filter(filter, source):
+    if source == 'ia':
+        for bad in ('=', '!=',  '~',  '!~'):
+            if filter.startswith(bad):
+                raise ValueError('ia does not support the filter '+bad)
+        for k, v in fields_to_ia.items():
+            filter = re.sub(r'\b'+k+':', v+':', filter, 1)
+    if source == 'cc':
+        for k, v in fields_to_cc.items():
+            filter = re.sub(r'\b'+k+':', v+':', filter, 1)
+    return filter
 
 
 def get_cc_endpoints():
@@ -127,16 +145,17 @@ def cdx_to_json(resp):
 
     # ia output='json' is a json list of lists
     if not text.startswith('['):
-        raise ValueError('cannot decode response, first bytes are'+text[:50])  # pragma: no cover
+        raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))  # pragma: no cover
+    if text.startswith('[]'):
+        return []
 
     try:
         lines = json.loads(text)
         fields = lines.pop(0)  # first line is the list of field names
-    except (json.decoder.JSONDecodeError, KeyError):  # pragma: no cover
-        raise ValueError('cannot decode response, first bytes are'+text[:50])
+    except (json.decoder.JSONDecodeError, KeyError, IndexError):  # pragma: no cover
+        raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))
 
     ret = []
-    fields_to_cc = {'statuscode': 'status', 'original': 'url'}
     for l in lines:
         obj = {}
         for f in fields:
@@ -219,7 +238,10 @@ def fetch_warc_content(capture):
         content_bytes = gzip.decompress(content_bytes)
 
     # hack the WARC response down to just the content_bytes
-    warcheader, httpheader, content_bytes = content_bytes.strip().split(b'\r\n\r\n', 2)
+    try:
+        warcheader, httpheader, content_bytes = content_bytes.strip().split(b'\r\n\r\n', 2)
+    except ValueError:  # not enough values to unpack
+        return b''
 
     # XXX help out with the page encoding? complicated issue.
     return content_bytes
@@ -381,6 +403,8 @@ class CDXFetcher:
         params = kwargs
         params['url'] = url
         params['output'] = 'json'
+        if 'filter' in params:
+            params['filter'] = munge_filter(params['filter'], self.source)
 
         if 'limit' not in params:
             params['limit'] = 1000
@@ -404,6 +428,8 @@ class CDXFetcher:
         params = kwargs
         params['url'] = url
         params['output'] = 'json'
+        if 'filter' in params:
+            params['filter'] = munge_filter(params['filter'], self.source)
 
         if 'limit' not in params:
             params['limit'] = 1000
@@ -425,7 +451,9 @@ class CDXFetcher:
         endpoint = index_list[endpoint]
         params['page'] = page
         resp = myrequests_get(endpoint, params=params)
-        if resp.status_code == 400:
+        if resp.status_code == 400:  # pywb
+            return 'last page', []
+        if resp.text == '':  # ia
             return 'last page', []
 
         ret = cdx_to_json(resp)  # turns 404 into []

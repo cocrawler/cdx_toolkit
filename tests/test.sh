@@ -13,14 +13,20 @@ if [ -z "$COVERAGE" ]; then COVERAGE=python; fi
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/*' --cc
 echo limit 10
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10
+echo filter status 200
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --filter='status:200'
+echo filter not status 200
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --filter='!status:200'
 echo limit 20
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 20
 echo to 2017
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --to=2017
 echo from 2017 to 2017
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017
-echo filter
-$COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017 --filter=!=status:200
+echo filter status 200
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017 --filter=status:200
+echo filter not status 200
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017 --filter=!status:200
 echo closest cc
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --get --closest=2017 --limit 3
 echo csv

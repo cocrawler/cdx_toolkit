@@ -49,6 +49,7 @@ commoncrawl.org/* size estimate 36000
 ```
 $ cdx_size 'commoncrawl.org/*' --cc
 $ cdx_iter 'commoncrawl.org/*' --cc --limit 10
+$ cdx_iter 'commoncrawl.org/*' --cc --limit 10 --filter '=status:200'
 ```
 
 ```
@@ -106,7 +107,7 @@ The **limit** argument limits how many captures will be returned.
 
 A **filter** allows a user to select a subset of CDX records, reducing
 network traffic between the CDX API server and the user. For
-example, filter='!=status:200' will only show captures whose http
+example, filter='!status:200' will only show captures whose http
 status is not 200. Filters and **limit** work together, with the limit
 applying to the count of captures after the filter is applied.
 

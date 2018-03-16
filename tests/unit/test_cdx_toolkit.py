@@ -1,3 +1,5 @@
+import pytest
+
 import cdx_toolkit
 
 
@@ -15,3 +17,17 @@ def test_showNumPages():
 
     j_ia = MockResp(3)
     assert cdx_toolkit.showNumPages(j_ia) == 3
+
+
+def test_munge_filter():
+    tests = (('foo', 'foo', 'foo'),
+             ('!status:200', '!statuscode:200', '!status:200'),
+             ('statuscode:200', 'statuscode:200', 'status:200'),
+             ('url:foo', 'original:foo', 'url:foo'))
+
+    for t, ia, cc in tests:
+        assert cdx_toolkit.munge_filter(t, 'ia') == ia
+        assert cdx_toolkit.munge_filter(t, 'cc') == cc
+
+    with pytest.raises(ValueError):
+        assert cdx_toolkit.munge_filter('!=status:200', 'ia')
