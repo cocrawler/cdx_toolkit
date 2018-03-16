@@ -66,7 +66,7 @@ def myrequests_get(url, params=None, headers=None):
                     raise
             LOGGER.warning('retrying after 1s for ConnectionError')
             time.sleep(1)
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.RequestException as e:  # pragma: no cover
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
             raise
     return resp
