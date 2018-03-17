@@ -23,16 +23,14 @@ echo to 2017
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --to=2017
 echo from 2017 to 2017
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017
-echo filter status 200
-$COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017 --filter=status:200
-echo filter not status 200
-$COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --from=2017 --to=2017 --filter=!status:200
 echo closest cc
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --get --closest=2017 --limit 3
 echo csv
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --csv
 echo jsonl
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --jsonl
+echo LOGLEVEL=DEBUG
+LOGLEVEL=DEBUG $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10
 
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/*' --ia
 echo limit 10
