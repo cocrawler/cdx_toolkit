@@ -395,6 +395,8 @@ class CDXFetcher:
         else:
             raise ValueError('unknown cc_sort arg of '+self.cc_sort)
 
+        LOGGER.debug('using cc index range from %s to %s', index_list[0], index_list[-1])
+
         return index_list
 
     def get(self, url, **kwargs):
