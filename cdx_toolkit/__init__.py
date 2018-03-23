@@ -10,6 +10,7 @@ import gzip
 from urllib.parse import quote
 from pkg_resources import get_distribution, DistributionNotFound
 import os
+import http
 
 __version__ = 'installed-from-git'
 
@@ -50,13 +51,14 @@ def myrequests_get(url, params=None, headers=None):
                 # 404: {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
                 retry = False
                 break
-            if resp.status_code in (503, 502, 504):  # 503=slow down, 50[24] are temporary outages  # pragma: no cover
+            if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
+                # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
                 LOGGER.debug('retrying after 1s for %d', resp.status_code)
                 time.sleep(1)
                 continue
             resp.raise_for_status()
             retry = False
-        except requests.exceptions.ConnectionError:
+        except (requests.exceptions.ConnectionError, http.client.IncompleteRead) as e:
             connect_errors += 1
             if connect_errors > 10:
                 if os.getenv('CDX_TOOLKIT_TEST_REQUESTS'):
@@ -64,7 +66,7 @@ def myrequests_get(url, params=None, headers=None):
                     exit(0)
                 else:
                     raise
-            LOGGER.warning('retrying after 1s for ConnectionError')
+            LOGGER.warning('retrying after 1s for '+str(e))
             time.sleep(1)
         except requests.exceptions.RequestException as e:  # pragma: no cover
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
