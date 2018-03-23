@@ -10,7 +10,6 @@ import gzip
 from urllib.parse import quote
 from pkg_resources import get_distribution, DistributionNotFound
 import os
-import http
 
 __version__ = 'installed-from-git'
 
@@ -58,13 +57,14 @@ def myrequests_get(url, params=None, headers=None):
                 continue
             resp.raise_for_status()
             retry = False
-        except (requests.exceptions.ConnectionError, http.client.IncompleteRead) as e:
+        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError) as e:
             connect_errors += 1
             if connect_errors > 10:
                 if os.getenv('CDX_TOOLKIT_TEST_REQUESTS'):
                     print('DYING IN MYREQUEST_GET')
                     exit(0)
                 else:
+                    print('Final failure for url='+url)
                     raise
             LOGGER.warning('retrying after 1s for '+str(e))
             time.sleep(1)
