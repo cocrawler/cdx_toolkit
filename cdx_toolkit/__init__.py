@@ -318,7 +318,7 @@ class CDXFetcher:
         if source == 'cc':
             self.raw_index_list = get_cc_endpoints()
         elif source == 'ia':
-            self.index_list = ('https://web.archive.org/cdx/search/cdx',)
+            self.index_list = ('https://web.archive.org/web/timemap/json',)
         elif source.startswith('https://') or source.startswith('http://'):
             self.index_list = (source,)
         else:
