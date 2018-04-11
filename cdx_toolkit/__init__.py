@@ -258,7 +258,7 @@ def fetch_wb_content(capture):
     timestamp = capture['timestamp']
 
     prefix = 'https://web.archive.org/web'
-    url = '{}/{}{}/{}'.format(prefix, timestamp, 'js_', quote(fetch_url))
+    url = '{}/{}{}/{}'.format(prefix, timestamp, 'id_', quote(fetch_url))
 
     resp = myrequests_get(url)
     content_bytes = resp.content
