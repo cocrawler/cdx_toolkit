@@ -411,8 +411,8 @@ class CDXFetcher:
         if 'filter' in params:
             params['filter'] = munge_filter(params['filter'], self.source)
 
-        if 'limit' not in params:
-            params['limit'] = 1000
+#        if 'limit' not in params:
+#            params['limit'] = 1000
         if self.source == 'cc':
             apply_cc_defaults(params)
 
