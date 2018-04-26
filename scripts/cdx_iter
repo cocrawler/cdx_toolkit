@@ -21,6 +21,7 @@ ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternativel
 ARGS.add_argument('--from', action='store')
 ARGS.add_argument('--to', action='store')
 ARGS.add_argument('--filter', action='store', help='see CDX API documentation for usage')
+ARGS.add_argument('--collapse', action='store')
 ARGS.add_argument('--all-fields', action='store_true')
 ARGS.add_argument('--fields', action='store', default='url,status,timestamp', help='try --all-fields if you need the list')
 ARGS.add_argument('--jsonl', action='store_true')

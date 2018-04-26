@@ -318,7 +318,7 @@ class CDXFetcher:
         if source == 'cc':
             self.raw_index_list = get_cc_endpoints()
         elif source == 'ia':
-            self.index_list = ('https://web.archive.org/cdx/search/cdx',)
+            self.index_list = ('https://web.archive.org/web/timemap/json',)
         elif source.startswith('https://') or source.startswith('http://'):
             self.index_list = (source,)
         else:
@@ -411,8 +411,8 @@ class CDXFetcher:
         if 'filter' in params:
             params['filter'] = munge_filter(params['filter'], self.source)
 
-        if 'limit' not in params:
-            params['limit'] = 1000
+#        if 'limit' not in params:
+#            params['limit'] = 1000
         if self.source == 'cc':
             apply_cc_defaults(params)
 
