@@ -67,7 +67,7 @@ cdx_iter can generate jsonl and csv outputs.  See
 $ cdx_iter --help
 ```
 
-for details. Set the environment variable LOGLEVEL=DEBUG if you'd like
+for details. Set the environment variable LOGLEVEL=INFO if you'd like
 more details about what's going on inside cdx_iter.
 
 ## CDX Jargon, Field Names, and such

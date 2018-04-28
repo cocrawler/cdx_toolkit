@@ -6,7 +6,7 @@ import argparse
 
 import cdx_toolkit
 
-loglevel = os.getenv('LOGLEVEL') or 'INFO'
+loglevel = os.getenv('LOGLEVEL') or 'WARNING'
 logging.basicConfig(level=loglevel)
 
 ARGS = argparse.ArgumentParser(description='cdx_toolkit size command line tool')

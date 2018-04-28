@@ -45,14 +45,14 @@ def myrequests_get(url, params=None, headers=None):
             if resp.status_code == 400 and 'page' not in params:
                 raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
             if resp.status_code in (400, 404):
-                LOGGER.debug('giving up with status %d', resp.status_code)
+                LOGGER.info('giving up with status %d', resp.status_code)
                 # 400: html error page -- probably page= is too big
                 # 404: {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
                 retry = False
                 break
             if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
                 # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
-                LOGGER.debug('retrying after 1s for %d', resp.status_code)
+                LOGGER.info('retrying after 1s for %d', resp.status_code)
                 time.sleep(1)
                 continue
             resp.raise_for_status()
@@ -214,10 +214,10 @@ def apply_cc_defaults(params):
         if 'to' in params and params['to'] is not None:
             to = pad_timestamp_up(params['to'])
             params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
-            LOGGER.debug('no from but to, setting from=%s', params['from_ts'])
+            LOGGER.info('no from but to, setting from=%s', params['from_ts'])
         else:
             params['from_ts'] = time_to_timestamp(time.time() - year)
-            LOGGER.debug('no from, setting from=%s', params['from_ts'])
+            LOGGER.info('no from, setting from=%s', params['from_ts'])
 
 
 def fetch_warc_content(capture):
@@ -285,14 +285,14 @@ class CDXFetcherIter:
             status, objs = self.cdxfetcher.get_for_iter(self.endpoint, self.page,
                                                         params=self.params, index_list=self.index_list)
             if status == 'last endpoint':
-                LOGGER.debug('get_more: I have reached the end')
+                LOGGER.info('get_more: I have reached the end')
                 return  # caller will raise StopIteration
             if status == 'last page':
-                LOGGER.debug('get_more: moving to next endpoint')
+                LOGGER.info('get_more: moving to next endpoint')
                 self.endpoint += 1
                 self.page = -1
                 continue
-            LOGGER.debug('get_more, got %d more objs', len(objs))
+            LOGGER.info('get_more, got %d more objs', len(objs))
             self.cdx_objs.extend(objs)
 
     def __iter__(self):
@@ -303,7 +303,7 @@ class CDXFetcherIter:
             try:
                 return self.cdx_objs.pop(0)
             except IndexError:
-                LOGGER.debug('getting more in __next__')
+                LOGGER.info('getting more in __next__')
                 self.get_more()
                 if len(self.cdx_objs) <= 0:
                     raise StopIteration
@@ -326,7 +326,7 @@ class CDXFetcher:
 
     def customize_index_list(self, params):
         if self.source == 'cc' and ('from' in params or 'from_ts' in params or 'to' in params):
-            LOGGER.debug('making a custom cc index list')
+            LOGGER.info('making a custom cc index list')
             return self.filter_cc_endpoints(params=params)
         else:
             return self.index_list
@@ -398,7 +398,7 @@ class CDXFetcher:
         else:
             raise ValueError('unknown cc_sort arg of '+self.cc_sort)
 
-        LOGGER.debug('using cc index range from %s to %s', index_list[0], index_list[-1])
+        LOGGER.info('using cc index range from %s to %s', index_list[0], index_list[-1])
 
         return index_list
 

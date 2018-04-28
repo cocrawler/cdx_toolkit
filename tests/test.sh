@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Clue: LOGLEVEL=DEBUG environment variable
+# Clue: env LOGLEVEL=INFO or DEBUG
 
 # make sure we exit immediately when there's an error, for CI:
 set -e

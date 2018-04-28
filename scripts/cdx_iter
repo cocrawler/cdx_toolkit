@@ -9,7 +9,7 @@ import sys
 
 import cdx_toolkit
 
-loglevel = os.getenv('LOGLEVEL') or 'INFO'
+loglevel = os.getenv('LOGLEVEL') or 'WARNING'
 logging.basicConfig(level=loglevel)
 
 ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
