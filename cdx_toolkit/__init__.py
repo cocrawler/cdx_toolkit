@@ -62,6 +62,7 @@ def myrequests_get(url, params=None, headers=None):
             connect_errors += 1
             if connect_errors > 10:
                 if os.getenv('CDX_TOOLKIT_TEST_REQUESTS'):
+                    # used in tests/test.sh
                     print('DYING IN MYREQUEST_GET')
                     exit(0)
                 else:
@@ -101,7 +102,7 @@ def get_cc_endpoints():
     j = r.json()
     endpoints = [x['cdx-api'] for x in j]
     if len(endpoints) < 30:  # last seen to be 39
-        raise ValueError('Surprisingly few endoints for common crawl index')  # pragma: no cover
+        raise ValueError('Surprisingly few endpoints for common crawl index')  # pragma: no cover
 
     # endpoints arrive sorted oldest to newest, but let's force that anyawy
     endpoints = sorted(endpoints)
