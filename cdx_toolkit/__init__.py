@@ -41,7 +41,7 @@ def myrequests_get(url, params=None, headers=None):
     connect_errors = 0
     while retry:
         try:
-            resp = requests.get(url, params=params, headers=headers, timeout=(30., 600.))
+            resp = requests.get(url, params=params, headers=headers, timeout=(30., 30.))
             if resp.status_code == 400 and 'page' not in params:
                 raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
             if resp.status_code in (400, 404):
