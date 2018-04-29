@@ -263,6 +263,9 @@ def fetch_wb_content(capture, modifier='id_'):
     url = '{}/{}{}/{}'.format(prefix, timestamp, modifier, quote(fetch_url))
 
     resp = myrequests_get(url)
+    # This is bytes, but IA did set the Content-Type: for us... resp.text
+    # requests will apply content-type with errors='replace' before calling
+    # chardet, which is both kinda wrong and very slow.
     content_bytes = resp.content
     return content_bytes
 
