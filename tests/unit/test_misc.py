@@ -18,6 +18,10 @@ def test_showNumPages():
     j_ia = MockResp(3)
     assert cdx_toolkit.showNumPages(j_ia) == 3
 
+    with pytest.raises(ValueError):
+        j_bad = MockResp('3')
+        assert cdx_toolkit.showNumPages(j_bad) == 3
+
 
 def test_munge_filter():
     tests = (('foo', 'foo', 'foo'),
