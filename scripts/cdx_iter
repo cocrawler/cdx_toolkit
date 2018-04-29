@@ -68,14 +68,10 @@ if args.filter:
 
 
 def winnow_fields(obj):
-    try:
-        if args.all_fields:
-            printme = obj
-        else:
-            printme = dict([(k, obj[k]) for k in fields if k in obj])
-    except KeyError:
-        print('Missing field, fields are {!r} and object is {!r}'.format(fields, obj))
-        raise
+    if args.all_fields:
+        printme = obj
+    else:
+        printme = dict([(k, obj[k]) for k in fields if k in obj])
     return printme
 
 
