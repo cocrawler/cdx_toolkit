@@ -20,7 +20,7 @@ cdx toolkit requires Python 3.
 $ pip install cdx_toolkit
 ```
 
-or clone this repo and use `python setup.py install`.
+or clone this repo and use `python ./setup.py install`.
 
 ## Example
 

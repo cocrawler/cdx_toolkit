@@ -29,7 +29,7 @@ packages = [
     'cdx_toolkit',
 ]
 
-requires = []
+requires = ['requests']
 
 test_requirements = ['pytest>=3.0.0']  # 'coverage', 'pytest-cov']
 

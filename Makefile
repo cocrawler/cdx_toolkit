@@ -1,4 +1,7 @@
-.PHONY: pytest test distclean dist install
+.PHONY: init pytest test distclean dist install
+
+init:
+	pip install -r requirements.txt
 
 pytest:
 	PYTHONPATH=. py.test
