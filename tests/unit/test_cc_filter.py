@@ -37,7 +37,6 @@ my_cc_endpoints = [
 
 
 def test_customize_index_list():
-
     tests = [
         # gets the whole list because 201704 is before the first 2017 index
         [{'to': '201804'}, list(reversed(my_cc_endpoints))],
@@ -50,7 +49,9 @@ def test_customize_index_list():
 
     with mock.patch('cdx_toolkit.get_cc_endpoints', return_value=my_cc_endpoints):
         cdx = cdx_toolkit.CDXFetcher(source='cc')
+        cdxa = cdx_toolkit.CDXFetcher(source='cc', cc_sort='ascending')
 
         for params, custom_list in tests:
             cdx_toolkit.apply_cc_defaults(params)
             assert cdx.customize_index_list(params) == custom_list
+            assert cdxa.customize_index_list(params) == list(reversed(custom_list))
