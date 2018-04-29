@@ -55,3 +55,21 @@ def test_customize_index_list():
             cdx_toolkit.apply_cc_defaults(params)
             assert cdx.customize_index_list(params) == custom_list
             assert cdxa.customize_index_list(params) == list(reversed(custom_list))
+
+
+def test_customize_index_list_closest():
+    # when I implement the funky sort order, this will become different
+    my_cc_endpoints_rev = list(reversed(my_cc_endpoints))
+    tests = [
+        [{'closest': '201801', 'from_ts': '20171230', 'to': None}, my_cc_endpoints_rev[0:4]],
+        [{'closest': '201803', 'from_ts': '20180214', 'to': None}, my_cc_endpoints_rev[0:3]],
+        [{'closest': '201801', 'from_ts': '20171230', 'to': '201802'}, my_cc_endpoints_rev[2:4]],
+    ]
+
+    with mock.patch('cdx_toolkit.get_cc_endpoints', return_value=my_cc_endpoints):
+        cdx = cdx_toolkit.CDXFetcher(source='cc')
+
+        for params, custom_list in tests:
+            cdx_toolkit.apply_cc_defaults(params)
+            print(params)
+            assert cdx.customize_index_list(params) == custom_list
