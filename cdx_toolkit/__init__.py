@@ -252,7 +252,7 @@ def fetch_warc_content(capture):
     return content_bytes
 
 
-def fetch_wb_content(capture):
+def fetch_wb_content(capture, modifier='id_'):
     if 'url' not in capture or 'timestamp' not in capture:
         raise ValueError('capture must contain an url and timestamp')
 
@@ -260,7 +260,7 @@ def fetch_wb_content(capture):
     timestamp = capture['timestamp']
 
     prefix = 'https://web.archive.org/web'
-    url = '{}/{}{}/{}'.format(prefix, timestamp, 'id_', quote(fetch_url))
+    url = '{}/{}{}/{}'.format(prefix, timestamp, modifier, quote(fetch_url))
 
     resp = myrequests_get(url)
     content_bytes = resp.content
