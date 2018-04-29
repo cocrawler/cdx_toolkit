@@ -238,7 +238,6 @@ def fetch_warc_content(capture):
     #if 'digest' in capture and capture['digest'] != hashlib.sha1(content_bytes).hexdigest():
     #    LOGGER.error('downloaded content failed digest check')
 
-    # XXX I should only decompress if I'm supposed to... not if it's a .gz file
     if content_bytes[:2] == b'\x1f\x8b':
         content_bytes = gzip.decompress(content_bytes)
 
