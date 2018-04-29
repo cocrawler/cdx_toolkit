@@ -65,7 +65,7 @@ def myrequests_get(url, params=None, headers=None):
                     # used in tests/test.sh
                     print('DYING IN MYREQUEST_GET')
                     exit(0)
-                else:
+                else:  # pragma: no cover
                     print('Final failure for url='+url)
                     raise
             LOGGER.warning('retrying after 1s for '+str(e))
@@ -120,7 +120,7 @@ def showNumPages(r):
     elif isinstance(j, int):  # ia always returns text, parsed as a json int
         pages = j
     else:
-        raise ValueError('surprised by showNumPages value of '+str(j))  # pragma: no cover
+        raise ValueError('surprised by showNumPages value of '+str(j))
     return pages
 
 
@@ -238,13 +238,15 @@ def fetch_warc_content(capture):
     #if 'digest' in capture and capture['digest'] != hashlib.sha1(content_bytes).hexdigest():
     #    LOGGER.error('downloaded content failed digest check')
 
+    # XXX I should only decompress if I'm supposed to... not if it's a .gz file
     if content_bytes[:2] == b'\x1f\x8b':
         content_bytes = gzip.decompress(content_bytes)
 
     # hack the WARC response down to just the content_bytes
     try:
         warcheader, httpheader, content_bytes = content_bytes.strip().split(b'\r\n\r\n', 2)
-    except ValueError:  # not enough values to unpack
+    except ValueError:  # pragma: no cover
+        # not enough values to unpack
         return b''
 
     # XXX help out with the page encoding? complicated issue.
@@ -311,7 +313,7 @@ class CDXFetcherIter:
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', cc_sort='mixed'):
+    def __init__(self, source='cc', cc_sort='mixed', loglevel=None):
         self.source = source
         self.cc_sort = cc_sort
         self.source = source
@@ -324,6 +326,9 @@ class CDXFetcher:
             self.index_list = (source,)
         else:
             raise ValueError('could not understand source')
+
+        if loglevel:
+            LOGGER.setLevel(level=loglevel)
 
     def customize_index_list(self, params):
         if self.source == 'cc' and ('from' in params or 'from_ts' in params or 'to' in params):
@@ -359,6 +364,7 @@ class CDXFetcher:
                 to_t = closest_t + 3 * 30 * 86400
             else:
                 to_t = timestamp_to_time(params['to'])
+            print('GREG', closest_t, from_ts_t, to_t)
         else:
             if 'to' in params:
                 to = pad_timestamp_up(params['to'])
