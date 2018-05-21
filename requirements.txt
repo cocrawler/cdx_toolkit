@@ -10,8 +10,8 @@ pytest-sugar==0.9.1
 coveralls==1.3.0
 
 # packaging
-wheel==0.31.0
+wheel==0.31.1
 twine==1.11.0
 pypandoc==1.4
-setuptools==39.1.0
-setuptools-scm==2.0.0
+setuptools==39.2.0
+setuptools-scm==2.1.0
