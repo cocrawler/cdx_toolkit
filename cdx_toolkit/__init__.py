@@ -246,19 +246,19 @@ def fetch_warc_content(capture):
     headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
 
     resp = myrequests_get(url, headers=headers)
-    content_bytes = resp.content
+    record_bytes = resp.content
 
     # WARC digests can be represented in multiple ways (rfc 3548)
     # I have code in a pullreq for warcio that does this comparison
     #if 'digest' in capture and capture['digest'] != hashlib.sha1(content_bytes).hexdigest():
     #    LOGGER.error('downloaded content failed digest check')
 
-    if content_bytes[:2] == b'\x1f\x8b':
-        content_bytes = gzip.decompress(content_bytes)
+    if record_bytes[:2] == b'\x1f\x8b':
+        record_bytes = gzip.decompress(record_bytes)
 
     # hack the WARC response down to just the content_bytes
     try:
-        warcheader, httpheader, content_bytes = content_bytes.strip().split(b'\r\n\r\n', 2)
+        warcheader, httpheader, content_bytes = record_bytes.strip().split(b'\r\n\r\n', 2)
     except ValueError:  # pragma: no cover
         # not enough values to unpack
         return b''
