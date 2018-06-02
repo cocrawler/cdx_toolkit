@@ -145,7 +145,17 @@ will get close to returning the most recent N captures.
 
 ## TODO
 
-Add a call to download a capture from ia or cc, given an URL and a timestamp.
+There is an experimental interface to download the actual captured
+webpage from either Common Crawl or IA's Wayback Machine, named
+fetch_warc_content() and fetch_wb_content(). These routines need some
+charset love, and then they should be changed to be a call against a
+Capture object, to hide the differences between WARC and Wayback.
+The Capture object should behave enough like a dict that existing
+client code will not need changes.
+
+Right now the CC code selects which monthly CC indices to use based
+solely on date ranges. It would be nice to have an alternative so that
+a client could iterate against the most recent N CC indices.
 
 ## Status
 
