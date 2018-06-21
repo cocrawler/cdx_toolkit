@@ -35,7 +35,7 @@ def myrequests_get(url, params=None, headers=None):
     if headers is None:
         headers = {}
     if 'user-agent' not in headers:
-        headers['user-agent'] = 'pypi_cdx_toolkit/'+__version__
+        headers['User-Agent'] = 'pypi_cdx_toolkit/'+__version__
 
     retry = True
     connect_errors = 0
