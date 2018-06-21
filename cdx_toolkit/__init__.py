@@ -136,7 +136,12 @@ def pages_to_samples(pages):
 
 def cdx_to_json(resp):
     if resp.status_code == 404:
-        return []
+        # this is an empty result for pywb iff {"error": "No Captures found for: ..."}
+        if resp.text.startswith('{'):
+            j = json.loads(resp.text)
+            if 'error' in j:
+                return []
+        raise ValueError('404 seen for API call, did you configure the endpoint correctly?')
 
     text = resp.text
 
