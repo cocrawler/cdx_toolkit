@@ -8,6 +8,7 @@ import gzip
 #import hashlib
 from urllib.parse import quote
 from pkg_resources import get_distribution, DistributionNotFound
+import warnings
 
 __version__ = 'installed-from-git'
 
@@ -85,6 +86,8 @@ def cdx_to_json(resp):
 def fetch_wb_content(capture, modifier='id_', prefix='https://web.archive.org/web'):
     if 'url' not in capture or 'timestamp' not in capture:
         raise ValueError('capture must contain an url and timestamp')
+
+    warnings.warn("this API is not finalized", DeprecationWarning)
 
     fetch_url = capture['url']
     timestamp = capture['timestamp']

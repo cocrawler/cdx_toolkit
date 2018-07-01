@@ -4,6 +4,7 @@ Code specific to accessing the Common Crawl index
 import time
 import gzip
 import logging
+import warnings
 
 from .myrequests import myrequests_get
 from .timestamp import time_to_timestamp, timestamp_to_time, pad_timestamp_up
@@ -56,6 +57,8 @@ def apply_cc_defaults(params):
 
 
 def fetch_warc_content(capture):
+    warnings.warn("this API is not finalized", DeprecationWarning)
+
     filename = capture['filename']
     offset = int(capture['offset'])
     length = int(capture['length'])
