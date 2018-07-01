@@ -1,12 +1,12 @@
 import pytest
 
-import cdx_toolkit
+import cdx_toolkit.timestamp as timestamp
 
 
 def test_padding():
-    assert cdx_toolkit.pad_timestamp('1998') == '19980101000000'
-    assert cdx_toolkit.pad_timestamp_up('199802') == '19980228235959'
-    assert cdx_toolkit.pad_timestamp_up('199812') == '19981231235959'
+    assert timestamp.pad_timestamp('1998') == '19980101000000'
+    assert timestamp.pad_timestamp_up('199802') == '19980228235959'
+    assert timestamp.pad_timestamp_up('199812') == '19981231235959'
 
 
 def test_time_timestamp():
@@ -16,8 +16,8 @@ def test_time_timestamp():
         ('19981231235959', 915148799.0),  # previous line minus 1s
     )
     for ts, t in tests:
-        assert cdx_toolkit.timestamp_to_time(ts) == t
-        assert cdx_toolkit.time_to_timestamp(t) == cdx_toolkit.pad_timestamp(ts)
+        assert timestamp.timestamp_to_time(ts) == t
+        assert timestamp.time_to_timestamp(t) == timestamp.pad_timestamp(ts)
 
     with pytest.raises(ValueError):
-        cdx_toolkit.timestamp_to_time('19990231')  # invalid day of month
+        timestamp.timestamp_to_time('19990231')  # invalid day of month

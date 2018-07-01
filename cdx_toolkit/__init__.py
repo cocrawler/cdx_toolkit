@@ -1,4 +1,3 @@
-import requests
 import logging
 import re
 import time
@@ -9,105 +8,21 @@ import gzip
 #import hashlib
 from urllib.parse import quote
 from pkg_resources import get_distribution, DistributionNotFound
-import os
 
 __version__ = 'installed-from-git'
+
+from .myrequests import myrequests_get
+from .timestamp import time_to_timestamp, timestamp_to_time, pad_timestamp_up
+from .compat import munge_fields, munge_filter
+from .commoncrawl import get_cc_endpoints, apply_cc_defaults, fetch_warc_content
 
 LOGGER = logging.getLogger(__name__)
 
 try:
     # this works for the pip-installed package
-    version = get_distribution(__name__).version
+    __version__ = get_distribution(__name__).version
 except DistributionNotFound:  # pragma: no cover
     pass
-
-
-def myrequests_get(url, params=None, headers=None):
-    if params:
-        if 'from_ts' in params:
-            params['from'] = params['from_ts']
-            del params['from_ts']
-        if 'limit' in params:
-            if not isinstance(params['limit'], int):
-                # this needs to be an int because we subtract from it elsewhere
-                params['limit'] = int(params['limit'])
-
-    if headers is None:
-        headers = {}
-    if 'user-agent' not in headers:
-        headers['User-Agent'] = 'pypi_cdx_toolkit/'+__version__
-
-    retry = True
-    connect_errors = 0
-    while retry:
-        try:
-            resp = requests.get(url, params=params, headers=headers, timeout=(30., 30.))
-            if resp.status_code == 400 and 'page' not in params:
-                raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
-            if resp.status_code in (400, 404):
-                LOGGER.info('giving up with status %d', resp.status_code)
-                # 400: html error page -- probably page= is too big
-                # 404: {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
-                retry = False
-                break
-            if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
-                # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
-                LOGGER.info('retrying after 1s for %d', resp.status_code)
-                time.sleep(1)
-                continue
-            resp.raise_for_status()
-            retry = False
-        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,
-                requests.exceptions.Timeout) as e:
-            connect_errors += 1
-            if connect_errors > 10:
-                if os.getenv('CDX_TOOLKIT_TEST_REQUESTS'):
-                    # used in tests/test.sh
-                    print('DYING IN MYREQUEST_GET')
-                    exit(0)
-                else:  # pragma: no cover
-                    print('Final failure for url='+url)
-                    raise
-            LOGGER.warning('retrying after 1s for '+str(e))
-            time.sleep(1)
-        except requests.exceptions.RequestException as e:  # pragma: no cover
-            LOGGER.warning('something unexpected happened, giving up after %s', str(e))
-            raise
-    return resp
-
-
-fields_to_cc = {'statuscode': 'status', 'original': 'url', 'mimetype': 'mime'}
-fields_to_ia = dict([(v, k) for k, v in fields_to_cc.items()])
-
-
-def munge_filter(filter, source):
-    if source == 'ia':
-        for bad in ('=', '!=',  '~',  '!~'):
-            if filter.startswith(bad):
-                raise ValueError('ia does not support the filter '+bad)
-        for k, v in fields_to_ia.items():
-            filter = re.sub(r'\b'+k+':', v+':', filter, 1)
-    if source == 'cc':
-        for k, v in fields_to_cc.items():
-            filter = re.sub(r'\b'+k+':', v+':', filter, 1)
-    return filter
-
-
-def get_cc_endpoints():
-    # TODO: cache me
-    r = myrequests_get('http://index.commoncrawl.org/collinfo.json')
-    if r.status_code != 200:
-        raise RuntimeError('error getting list of common crawl indices: '+str(r.status_code))  # pragma: no cover
-
-    j = r.json()
-    endpoints = [x['cdx-api'] for x in j]
-    if len(endpoints) < 30:  # last seen to be 39
-        raise ValueError('Surprisingly few endpoints for common crawl index')  # pragma: no cover
-
-    # endpoints arrive sorted oldest to newest, but let's force that anyawy
-    endpoints = sorted(endpoints)
-
-    return endpoints
 
 
 lines_per_page = 3000  # no way to get this from the API without fetching a page
@@ -164,112 +79,7 @@ def cdx_to_json(resp):
     except (json.decoder.JSONDecodeError, KeyError, IndexError):  # pragma: no cover
         raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))
 
-    ret = []
-    for l in lines:
-        obj = {}
-        for f in fields:
-            value = l.pop(0)
-            if f in fields_to_cc:
-                obj[fields_to_cc[f]] = value
-            else:
-                obj[f] = value
-        ret.append(obj)
-    return ret
-
-
-# confusingly, python's documentation refers to their float version
-# of the unix time as a 'timestamp'. This code uses 'timestamp' to
-# mean the CDX concept of timestamp.
-
-TIMESTAMP = '%Y%m%d%H%M%S'
-TIMESTAMP_LOW = '19780101000000'
-TIMESTAMP_HIGH = '29991231235959'
-
-
-def pad_timestamp(timestamp):
-    return timestamp + TIMESTAMP_LOW[len(timestamp):]
-
-
-days_in_month = (0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
-
-
-def pad_timestamp_up(timestamp):
-    timestamp = timestamp + TIMESTAMP_HIGH[len(timestamp):]
-    month = timestamp[4:6]
-    timestamp = timestamp[:6] + str(days_in_month[int(month)]) + timestamp[8:]
-    return timestamp
-
-
-def timestamp_to_time(timestamp):
-    utc = datetime.timezone.utc
-    timestamp = pad_timestamp(timestamp)
-    try:
-        return datetime.datetime.strptime(timestamp, TIMESTAMP).replace(tzinfo=utc).timestamp()
-    except ValueError:
-        LOGGER.error('cannot parse timestamp, is it a legal date?: '+timestamp)
-        raise
-
-
-def time_to_timestamp(t):
-    return datetime.datetime.fromtimestamp(t, tz=datetime.timezone.utc).strftime(TIMESTAMP)
-
-
-def apply_cc_defaults(params):
-    if 'from_ts' not in params or params['from_ts'] is None:
-        year = 365*86400
-        if 'closest' in params and params['closest'] is not None:
-            closest_t = timestamp_to_time(params['closest'])
-            # 3 months before
-            params['from_ts'] = time_to_timestamp(closest_t - 3 * 30 * 86400)
-            LOGGER.info('no from but closest, setting from=%s', params['from_ts'])
-            if 'to' in params and params['to'] is not None:
-                # 3 months later
-                params['to'] = time_to_timestamp(closest_t + 3 * 30 * 86400)
-                LOGGER.info('no to but closest, setting from=%s', params['to'])
-        elif 'to' in params and params['to'] is not None:
-            to = pad_timestamp_up(params['to'])
-            params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
-            LOGGER.info('no from but to, setting from=%s', params['from_ts'])
-        else:
-            params['from_ts'] = time_to_timestamp(time.time() - year)
-            LOGGER.info('no from, setting from=%s', params['from_ts'])
-    if 'to' not in params or params['to'] is None:
-        if 'closest' in params and params['closest'] is not None:
-            closest_t = timestamp_to_time(params['closest'])
-            # 3 months later
-            params['to'] = time_to_timestamp(closest_t + 3 * 30 * 86400)
-            LOGGER.info('no to but closest, setting from=%s', params['to'])
-
-
-def fetch_warc_content(capture):
-    filename = capture['filename']
-    offset = int(capture['offset'])
-    length = int(capture['length'])
-
-    cc_external_prefix = 'https://commoncrawl.s3.amazonaws.com'
-    url = cc_external_prefix + '/' + filename
-    headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
-
-    resp = myrequests_get(url, headers=headers)
-    record_bytes = resp.content
-
-    # WARC digests can be represented in multiple ways (rfc 3548)
-    # I have code in a pullreq for warcio that does this comparison
-    #if 'digest' in capture and capture['digest'] != hashlib.sha1(content_bytes).hexdigest():
-    #    LOGGER.error('downloaded content failed digest check')
-
-    if record_bytes[:2] == b'\x1f\x8b':
-        record_bytes = gzip.decompress(record_bytes)
-
-    # hack the WARC response down to just the content_bytes
-    try:
-        warcheader, httpheader, content_bytes = record_bytes.strip().split(b'\r\n\r\n', 2)
-    except ValueError:  # pragma: no cover
-        # not enough values to unpack
-        return b''
-
-    # XXX help out with the page encoding? complicated issue.
-    return content_bytes
+    return munge_fields(fields, lines)
 
 
 def fetch_wb_content(capture, modifier='id_', prefix='https://web.archive.org/web'):
