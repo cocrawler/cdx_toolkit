@@ -40,7 +40,7 @@ def apply_cc_defaults(params, now=None):
             if params.get('to') is None:
                 params['to'] = time_to_timestamp(closest_t + three_months)
                 LOGGER.info('no to but closest, setting to=%s', params['to'])
-        elif params.get(f'to') is not None:
+        elif params.get('to') is not None:
             to = pad_timestamp_up(params['to'])
             params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
             LOGGER.info('no from but to, setting from=%s', params['from_ts'])
