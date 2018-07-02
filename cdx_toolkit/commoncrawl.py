@@ -29,31 +29,37 @@ def get_cc_endpoints():
     return endpoints
 
 
-def apply_cc_defaults(params):
+def apply_cc_defaults(params, now=None):
+    three_months = 3 * 30 * 86400
+    year = 365*86400
     if 'from_ts' not in params or params['from_ts'] is None:
-        year = 365*86400
         if 'closest' in params and params['closest'] is not None:
             closest_t = timestamp_to_time(params['closest'])
             # 3 months before
-            params['from_ts'] = time_to_timestamp(closest_t - 3 * 30 * 86400)
+            params['from_ts'] = time_to_timestamp(closest_t - three_months)
             LOGGER.info('no from but closest, setting from=%s', params['from_ts'])
             if 'to' not in params or params['to'] is None:
                 # 3 months later
-                params['to'] = time_to_timestamp(closest_t + 3 * 30 * 86400)
+                params['to'] = time_to_timestamp(closest_t + three_months)
                 LOGGER.info('no to but closest, setting to=%s', params['to'])
         elif 'to' in params and params['to'] is not None:
             to = pad_timestamp_up(params['to'])
             params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
             LOGGER.info('no from but to, setting from=%s', params['from_ts'])
         else:
-            params['from_ts'] = time_to_timestamp(time.time() - year)
+            if not now:
+                now = time.time()
+            params['from_ts'] = time_to_timestamp(now - year)
             LOGGER.info('no from, setting from=%s', params['from_ts'])
     if 'to' not in params or params['to'] is None:
         if 'closest' in params and params['closest'] is not None:
             closest_t = timestamp_to_time(params['closest'])
             # 3 months later
-            params['to'] = time_to_timestamp(closest_t + 3 * 30 * 86400)
+            params['to'] = time_to_timestamp(closest_t + three_months)
             LOGGER.info('no to but closest, setting from=%s', params['to'])
+        else:
+            # no to or closest; from was set above, we will not set to
+            pass
 
 
 def fetch_warc_content(capture):
