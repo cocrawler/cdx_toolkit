@@ -14,7 +14,7 @@ LOGGER = logging.getLogger(__name__)
 
 def get_cc_endpoints():
     # TODO: cache me
-    r = myrequests_get('http://index.commoncrawl.org/collinfo.json')
+    r = myrequests_get('https://index.commoncrawl.org/collinfo.json')
     if r.status_code != 200:
         raise RuntimeError('error getting list of common crawl indices: '+str(r.status_code))  # pragma: no cover
 
