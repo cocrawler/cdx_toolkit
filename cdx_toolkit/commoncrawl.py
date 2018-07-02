@@ -37,10 +37,10 @@ def apply_cc_defaults(params):
             # 3 months before
             params['from_ts'] = time_to_timestamp(closest_t - 3 * 30 * 86400)
             LOGGER.info('no from but closest, setting from=%s', params['from_ts'])
-            if 'to' in params and params['to'] is not None:
+            if 'to' not in params or params['to'] is None:
                 # 3 months later
                 params['to'] = time_to_timestamp(closest_t + 3 * 30 * 86400)
-                LOGGER.info('no to but closest, setting from=%s', params['to'])
+                LOGGER.info('no to but closest, setting to=%s', params['to'])
         elif 'to' in params and params['to'] is not None:
             to = pad_timestamp_up(params['to'])
             params['from_ts'] = time_to_timestamp(timestamp_to_time(to) - year)
