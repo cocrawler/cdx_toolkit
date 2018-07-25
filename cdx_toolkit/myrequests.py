@@ -27,6 +27,7 @@ def myrequests_get(url, params=None, headers=None):
     connect_errors = 0
     while retry:
         try:
+            LOGGER.debug('getting %s %r', url, params)
             resp = requests.get(url, params=params, headers=headers, timeout=(30., 30.))
             if resp.status_code == 400 and 'page' not in params:
                 raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
@@ -52,7 +53,7 @@ def myrequests_get(url, params=None, headers=None):
                     print('DYING IN MYREQUEST_GET')
                     exit(0)
                 else:  # pragma: no cover
-                    print('Final failure for url='+url)
+                    LOGGER.error('Final failure for url %s %r', url, params)
                     raise
             LOGGER.warning('retrying after 1s for '+str(e))
             time.sleep(1)
