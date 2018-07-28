@@ -6,7 +6,7 @@ cdx_toolkit is a set of tools for working with CDX indices of web
 crawls and archives, including those at CommonCrawl and the Internet
 Archive's Wayback Machine.
 
-CommonCrawl uses Ilya Kramer's pywb to serve the CDX API, which is
+CommonCrawl uses Ilya Kreymer's pywb to serve the CDX API, which is
 somewhat different from the Internet Archive's CDX API. cdx_toolkit
 hides these differences as best it can. cdx_toolkit also knits
 together the monthly Common Crawl CDX indices into a single, virtual
