@@ -32,9 +32,12 @@ def myrequests_get(url, params=None, headers=None):
             if resp.status_code == 400 and 'page' not in params:
                 raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
             if resp.status_code in (400, 404):
-                LOGGER.info('giving up with status %d', resp.status_code)
-                # 400: html error page -- probably page= is too big
+                # 400: html error page -- probably page= is too big -- not an error
                 # 404: {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
+                if 'page' not in params:
+                    LOGGER.info('giving up with status %d', resp.status_code)
+                else:
+                    LOGGER.debug('giving up with status %d, no captures found', resp.status_code)
                 retry = False
                 break
             if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
