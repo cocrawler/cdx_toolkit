@@ -8,7 +8,7 @@ from . import __version__
 LOGGER = logging.getLogger(__name__)
 
 
-def myrequests_get(url, params=None, headers=None):
+def myrequests_get(url, params=None, headers=None, cdx=False):
     if params:
         if 'from_ts' in params:
             params['from'] = params['from_ts']
@@ -29,15 +29,10 @@ def myrequests_get(url, params=None, headers=None):
         try:
             LOGGER.debug('getting %s %r', url, params)
             resp = requests.get(url, params=params, headers=headers, timeout=(30., 30.))
-            if resp.status_code == 400 and 'page' not in params:
-                raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
-            if resp.status_code in (400, 404):
-                # 400: html error page -- probably page= is too big -- not an error
-                # 404: {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
-                if 'page' not in params:
-                    LOGGER.info('giving up with status %d', resp.status_code)
-                else:
-                    LOGGER.debug('giving up with status %d, no captures found', resp.status_code)
+            if cdx and resp.status_code in (400, 404):
+                # 400: ia html error page -- probably page= is too big -- not an error
+                # 404: pywb {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
+                LOGGER.debug('giving up with status %d, no captures found', resp.status_code)
                 retry = False
                 break
             if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
@@ -45,6 +40,10 @@ def myrequests_get(url, params=None, headers=None):
                 LOGGER.info('retrying after 1s for %d', resp.status_code)
                 time.sleep(1)
                 continue
+            if resp.status_code in (400, 404):
+                LOGGER.info('funky response %d for url %s %r', resp.status_code, url, params)
+                LOGGER.info('response body is %s', resp.text)
+                raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
             resp.raise_for_status()
             retry = False
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,

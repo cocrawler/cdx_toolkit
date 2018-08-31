@@ -260,7 +260,7 @@ class CDXFetcher:
 
         ret = []
         for endpoint in index_list:
-            resp = myrequests_get(endpoint, params=params)
+            resp = myrequests_get(endpoint, params=params, cdx=True)
             objs = cdx_to_json(resp)  # turns 400 and 404 into []
             ret.extend(objs)
             if 'limit' in params:
@@ -295,7 +295,7 @@ class CDXFetcher:
 
         endpoint = index_list[endpoint]
         params['page'] = page
-        resp = myrequests_get(endpoint, params=params)
+        resp = myrequests_get(endpoint, params=params, cdx=True)
         if resp.status_code == 400:  # pywb
             return 'last page', []
         if resp.text == '':  # ia
@@ -323,7 +323,7 @@ class CDXFetcher:
 
         pages = 0
         for endpoint in index_list:
-            resp = myrequests_get(endpoint, params=params)
+            resp = myrequests_get(endpoint, params=params, cdx=True)
             if resp.status_code == 200:
                 pages += showNumPages(resp)
             else:
