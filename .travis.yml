@@ -1,6 +1,7 @@
-dist: xenial # 16.04 LTS
-
 language: python
+sudo: true
+dist: xenial
+
 python:
   #- 3.2  # py.test fails at runtime
   #- 3.3  # pkg_resources on travisci no longer supports 3.3
@@ -8,12 +9,13 @@ python:
   - 3.5
   - 3.6
   - 3.7
+  - 3.8-dev
   - nightly
 
 matrix:
   fast_finish: true
   allow_failures:
-  - python: 3.7
+  - python: 3.8-dev
   - python: nightly
   include:
   - python: 3.5.0
