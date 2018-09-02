@@ -5,7 +5,7 @@ dist: xenial
 python:
   #- 3.2  # py.test fails at runtime
   #- 3.3  # pkg_resources on travisci no longer supports 3.3
-  - 3.4
+  #- 3.4  # not available for xenial
   - 3.5
   - 3.6
   - 3.7
@@ -18,8 +18,10 @@ matrix:
   - python: 3.8-dev
   - python: nightly
   include:
-  - python: 3.5.0
+  - python: 3.5
     env: LOGLEVEL=DEBUG
+  - python: 3.4
+    dist: trusty
 
 git:
   depth: 99999
