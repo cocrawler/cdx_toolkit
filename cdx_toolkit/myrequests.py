@@ -8,7 +8,7 @@ from . import __version__
 LOGGER = logging.getLogger(__name__)
 
 
-def myrequests_get(url, params=None, headers=None, cdx=False):
+def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
     if params:
         if 'from_ts' in params:
             params['from'] = params['from_ts']
@@ -33,6 +33,9 @@ def myrequests_get(url, params=None, headers=None, cdx=False):
                 # 400: ia html error page -- probably page= is too big -- not an error
                 # 404: pywb {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
                 LOGGER.debug('giving up with status %d, no captures found', resp.status_code)
+                retry = False
+                break
+            if allow404 and resp.status_code == 404:
                 retry = False
                 break
             if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
