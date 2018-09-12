@@ -108,8 +108,8 @@ def fetch_warc_record(capture, warc_prefix):
     warcheader, httpheader, content_bytes = record_bytes.split(b'\r\n\r\n', 2)
     if content_bytes.endswith(b'\r\n'):
         content_bytes = content_bytes[:-2]
-    # add in a header indicating exactly which CC index this capture is from?
-    #   what I have available now is just warc_url
+
+    warcheader += b'\r\nWARC-Source-URI: ' + warc_url.encode()
 
     return construct_warcio_record(url, warcheader, httpheader, content_bytes)
 
