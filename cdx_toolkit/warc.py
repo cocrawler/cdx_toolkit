@@ -2,6 +2,7 @@ from urllib.parse import quote
 import gzip
 from io import BytesIO
 import os.path
+import datetime
 
 # XXX make this optional?
 from warcio import WARCWriter
@@ -30,16 +31,20 @@ def fake_wb_warc(wb_url, resp, capture):
             if not kl.startswith('x-archive-'):
                 k = 'X-Archive-' + k
             httpheaders.append((k, v))
-    httpheaders.append(('X-Archive-CDX-Toolkit-WB-URL', wb_url))
 
     httpheaders = '\r\n'.join([h+': '+v for h, v in httpheaders])
     httpheaders = 'HTTP/1.1 {} OK\r\n'.format(capture['status']) + httpheaders + '\r\n'
     httpheaders = httpheaders.encode()
 
     warcheaders = b''
+    warcheaders = [
+        b'WARC/1.0',
+        b'WARC-Source-URI: ' + wb_url.encode(),
+        b'WARC-Creation-Date: ' + datetime_to_iso_date(datetime.datetime.now()).encode()
+    ]
     if httpdate:
-        isodate = datetime_to_iso_date(http_date_to_datetime(httpdate))
-        warcheaders = b'WARC/1.0\r\nWARC-Date: '+isodate.encode()
+        warcheaders.append(b'WARC-Date: ' + datetime_to_iso_date(http_date_to_datetime(httpdate)).encode())
+    warcheaders = b'\r\n'.join(warcheaders)
 
     content_bytes = resp.content
 
