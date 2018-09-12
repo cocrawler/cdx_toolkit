@@ -1,56 +1,59 @@
 #!/usr/bin/env python
 
-import os
 import logging
 import argparse
 import json
 import csv
 import sys
+import os.path
 
 import cdx_toolkit
+import cdx_toolkit.warc
 
 loglevel = os.getenv('LOGLEVEL') or 'WARNING'
 logging.basicConfig(level=loglevel)
+LOGGER = logging.getLogger(__name__)
 
 ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
-ARGS.add_argument('--cc', action='store_true', help='direct the query to the Common Crawl CDX server')
-ARGS.add_argument('--ia', action='store_true', help='direct the query to the Internet Archive CDX server')
-ARGS.add_argument('--source', action='store', help='direct the query to this URL')
+ARGS.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/wayback')
+ARGS.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
+ARGS.add_argument('--source', action='store', help='direct the query to this CDX server')
+ARGS.add_argument('--wb', action='store', help='direct source downloads to this wayback')
 ARGS.add_argument('--limit', type=int, action='store')
 ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
 ARGS.add_argument('--from', action='store')
 ARGS.add_argument('--to', action='store')
+ARGS.add_argument('--closest', action='store')  # this is a get() thing, not an iter thing
 ARGS.add_argument('--filter', action='store', help='see CDX API documentation for usage')
 ARGS.add_argument('--all-fields', action='store_true')
 ARGS.add_argument('--fields', action='store', default='url,status,timestamp', help='try --all-fields if you need the list')
 ARGS.add_argument('--jsonl', action='store_true')
 ARGS.add_argument('--csv', action='store_true')
+ARGS.add_argument('--warc', action='store_true', help='create a warc of the output contents')
+ARGS.add_argument('--warc-prefix', default='TEST', help='prefix for the warc filename')
+ARGS.add_argument('--warc-subprefix', type=str, default=None, help='subprefix for the warc filename, default None')
+ARGS.add_argument('--warc-size', type=int, default=1000000000, help='target for the warc filesize in bytes')
+ARGS.add_argument('--warc-creator', action='store', help='creator of the warc: person, organization, service')
+ARGS.add_argument('--warc-operator', action='store', help='a person, if the creator is an organization')
 ARGS.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration')
-ARGS.add_argument('--closest', action='store')  # this is a get() thing, not an iter thing
 ARGS.add_argument('url')
 
+cmdline = ' '.join(sys.argv[1:])
 args = ARGS.parse_args()
 
 if not args.url:
     raise ValueError('must specify an url to iterate, example: commoncrawl.org/*')
 
-if args.cc:
-    kwargs = {}
-    if args.cc_sort:
-        kwargs['cc_sort'] = args.cc_sort
-    cdx = cdx_toolkit.CDXFetcher(source='cc', **kwargs)
-elif args.ia:
-    cdx = cdx_toolkit.CDXFetcher(source='ia')
-elif args.source:
-    cdx = cdx_toolkit.CDXFetcher(source=args.source)
-else:
+kwargs = {}
+kwargs['source'] = args.cc or args.ia or args.source or None
+if kwargs['source'] is None:
     raise ValueError('must specify --cc, --ia, or a --source')
+if args.wb:
+    kwargs['wb'] = args.wb
+
+cdx = cdx_toolkit.CDXFetcher(**kwargs)
 
 fields = set(args.fields.split(','))
-
-if args.csv:
-    writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
-    writer.writeheader()
 
 kwargs = {}
 if args.limit:
@@ -61,10 +64,14 @@ if args.to:
     kwargs['to'] = args.to
 if args.closest:
     if not args.get:
-        print('note: --closest works best with --get', file=sys.stderr)
+        LOGGER.info('note: --closest works best with --get')
     kwargs['closest'] = args.closest
 if args.filter:
     kwargs['filter'] = args.filter
+
+if args.csv:
+    writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
+    writer.writeheader()
 
 
 def winnow_fields(obj):
@@ -89,7 +96,32 @@ if args.get:
     for obj in objs:
         printme = winnow_fields(obj)
         print_line(printme)
+elif args.warc:
+    info = {
+        'software': 'pypi_cdx_toolkit/'+cdx_toolkit.__version__,
+        'isPartOf': args.warc_prefix,
+        'description': 'warc extraction generated with: cdx_toolkit '+cmdline,
+        'format': 'WARC file version 1.0',  # todo: if we directly read a warc, have this match the warc
+    }
+    if args.warc_creator:
+        info['creator'] = args.warc_creator
+    if args.warc_operator:
+        info['operator'] = args.warc_operator
 
-for obj in cdx.items(args.url, **kwargs):
-    printme = winnow_fields(obj)
-    print_line(printme)
+    writer = cdx_toolkit.warc.get_writer(args.warc_prefix, args.warc_subprefix, info)
+
+    for obj in cdx.items(args.url, **kwargs):
+        url = obj['url']
+        timestamp = obj['timestamp']
+        try:
+            record = obj.fetch_warc_record()
+        except RuntimeError:
+            LOGGER.warning('skipping capture for RuntimeError 404: %s %s', url, timestamp)
+            continue
+        if obj.is_revisit():
+            LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
+        writer.write_record(record)
+else:
+    for obj in cdx.items(args.url, **kwargs):
+        printme = winnow_fields(obj)
+        print_line(printme)

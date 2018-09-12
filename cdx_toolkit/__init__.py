@@ -1,21 +1,14 @@
 import logging
-import re
-import time
-import datetime
-import bisect
 import json
-import gzip
-#import hashlib
-from urllib.parse import quote
 from pkg_resources import get_distribution, DistributionNotFound
-import warnings
+from collections.abc import MutableMapping
 
 __version__ = 'installed-from-git'
 
 from .myrequests import myrequests_get
-from .timestamp import time_to_timestamp, timestamp_to_time, pad_timestamp_up
 from .compat import munge_fields, munge_filter
-from .commoncrawl import get_cc_endpoints, apply_cc_defaults, fetch_warc_content
+from .commoncrawl import get_cc_endpoints, apply_cc_defaults, filter_cc_endpoints
+from .warc import fetch_wb_warc, fetch_warc_record
 
 LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +43,7 @@ def pages_to_samples(pages):
     return int(pages)
 
 
-def cdx_to_json(resp):
+def cdx_to_captures(resp, wb=None, warc_prefix=None):
     if resp.status_code == 404:
         # this is an empty result for pywb iff {"error": "No Captures found for: ..."}
         if resp.text.startswith('{'):
@@ -61,45 +54,93 @@ def cdx_to_json(resp):
 
     text = resp.text
 
-    if text.startswith('{'):  # pywb output='json' is jsonl
+    # pywb output='json' is jsonl
+    if text.startswith('{'):
         lines = resp.text.splitlines()
         ret = []
         for l in lines:
-            ret.append(json.loads(l))
+            ret.append(CaptureObject(json.loads(l), wb=wb, warc_prefix=warc_prefix))
         return ret
 
     # ia output='json' is a json list of lists
-    if not text.startswith('['):
-        raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))  # pragma: no cover
-    if text.startswith('[]'):
-        return []
+    if text.startswith('['):
+        if text.startswith('[]'):
+            return []
 
-    try:
-        lines = json.loads(text)
-        fields = lines.pop(0)  # first line is the list of field names
-    except (json.decoder.JSONDecodeError, KeyError, IndexError):  # pragma: no cover
-        raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))
+        try:
+            lines = json.loads(text)
+            fields = lines.pop(0)
+        except (json.decoder.JSONDecodeError, KeyError, IndexError):  # pragma: no cover
+            raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))
 
-    return munge_fields(fields, lines)
+        ret = munge_fields(fields, lines)
+        return [CaptureObject(r, wb=wb, warc_prefix=warc_prefix) for r in ret]
+
+    raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))  # pragma: no cover
 
 
-def fetch_wb_content(capture, modifier='id_', prefix='https://web.archive.org/web'):
-    if 'url' not in capture or 'timestamp' not in capture:
-        raise ValueError('capture must contain an url and timestamp')
+class CaptureObject(MutableMapping):
+    '''
+    Represents a single capture of a webpage, plus less-visible info about how to fetch the content.
+    '''
+    def __init__(self, data, wb=None, warc_prefix=None):
+        self.data = data
+        self.wb = wb
+        self.warc_prefix = warc_prefix
+        self.warc_record = None
 
-    warnings.warn("this API is not finalized", DeprecationWarning)
+    def is_revisit(self):
+        if self.wb and 'mime' in self.data and self.data['mime'] == 'warc/revisit':
+            # also: status == '-'
+            return True
+        return False
 
-    fetch_url = capture['url']
-    timestamp = capture['timestamp']
+    def is_playback(self):
+        if self.wb:
+            return True
+        return False
 
-    url = '{}/{}{}/{}'.format(prefix, timestamp, modifier, quote(fetch_url))
+    def fetch_warc_record(self):
+        if self.warc_record is not None:
+            return self.warc_record
+        if self.wb:
+            self.warc_record = fetch_wb_warc(self.data, wb=self.wb)
+        elif self.warc_prefix:
+            self.warc_record = fetch_warc_record(self.data, self.warc_prefix)
+        else:
+            raise ValueError('no content source configured')
+        return self.warc_record
 
-    resp = myrequests_get(url)
-    # This is bytes, but IA did set the Content-Type: for us... resp.text
-    # requests will apply content-type with errors='replace' before calling
-    # chardet, which is both kinda wrong and very slow.
-    content_bytes = resp.content
-    return content_bytes
+    @property
+    def content(self):
+        return self.fetch_warc_record().content_stream().read()
+
+    @property
+    def text(self):
+        '''
+        Eventually this function will do something with the character set, but not yet.
+        '''
+        return self.content.decode('utf-8', errors='replace')
+
+    # the remaining code treats self.data like a dict
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+    def __delitem__(self, key):
+        del self.data[key]
+
+    def __contains__(self, key):
+        return key in self.data
+
+    def __iter__(self):
+        return iter(self.data)
+
+    def __len__(self):
+        return len(self.data)
 
 
 class CDXFetcherIter:
@@ -111,7 +152,7 @@ class CDXFetcherIter:
         self.endpoint = 0
         self.page = -1
         self.params['page'] = self.page
-        self.cdx_objs = []
+        self.captures = []
         self.index_list = index_list
 
         self.get_more()
@@ -130,7 +171,7 @@ class CDXFetcherIter:
                 self.page = -1
                 continue
             LOGGER.info('get_more, got %d more objs', len(objs))
-            self.cdx_objs.extend(objs)
+            self.captures.extend(objs)
 
     def __iter__(self):
         return self
@@ -138,26 +179,32 @@ class CDXFetcherIter:
     def __next__(self):
         while True:
             try:
-                return self.cdx_objs.pop(0)
+                return self.captures.pop(0)
             except IndexError:
                 LOGGER.info('getting more in __next__')
                 self.get_more()
-                if len(self.cdx_objs) <= 0:
+                if len(self.captures) <= 0:
                     raise StopIteration
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', cc_sort='mixed', loglevel=None):
+    def __init__(self, source='cc', wb=None, warc_prefix=None, cc_sort='mixed', loglevel=None):
         self.source = source
         self.cc_sort = cc_sort
         self.source = source
+        self.wb = wb
+        self.warc_prefix = warc_prefix
 
         if source == 'cc':
             self.raw_index_list = get_cc_endpoints()
+            self.wb = None
+            self.warc_prefix = warc_prefix or 'https://commoncrawl.s3.amazonaws.com'
         elif source == 'ia':
             self.index_list = ('https://web.archive.org/cdx/search/cdx',)
+            self.wb = 'https://web.archive.org/web'
         elif source.startswith('https://') or source.startswith('http://'):
             self.index_list = (source,)
+            self.wb = wb
         else:
             raise ValueError('could not understand source')
 
@@ -167,80 +214,9 @@ class CDXFetcher:
     def customize_index_list(self, params):
         if self.source == 'cc' and ('from' in params or 'from_ts' in params or 'to' in params):
             LOGGER.info('making a custom cc index list')
-            return self.filter_cc_endpoints(params=params)
+            return filter_cc_endpoints(self.raw_index_list, self.cc_sort, params=params)
         else:
             return self.index_list
-
-    def filter_cc_endpoints(self, params={}):
-        endpoints = self.raw_index_list.copy()
-
-        # chainsaw all of the cc index names to a time, which we'll use as the end-time of its data
-        cc_times = []
-        cc_map = {}
-        timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
-        CC_TIMESTAMP = '%Y-%W-%w'  # I think these are ISO weeks
-        for timestamp in timestamps:
-            utc = datetime.timezone.utc
-            t = datetime.datetime.strptime(timestamp+'-0', CC_TIMESTAMP).replace(tzinfo=utc).timestamp()
-            cc_times.append(t)
-            cc_map[t] = endpoints.pop(0)
-        # now I'm set up to bisect in cc_times and then index into cc_map to find the actual endpoint
-
-        if 'closest' in params:
-            if 'from_ts' not in params or params['from_ts'] is None:
-                raise ValueError('Cannot happen')
-            else:
-                from_ts_t = timestamp_to_time(params['from_ts'])
-            if 'to' not in params or params['to'] is None:
-                raise ValueError('Cannot happen')
-            else:
-                to_t = timestamp_to_time(params['to'])
-        else:
-            if 'to' in params:
-                to = pad_timestamp_up(params['to'])
-                to_t = timestamp_to_time(to)
-                if 'from_ts' not in params or params['from_ts'] is None:
-                    raise ValueError('Cannot happen')
-                else:
-                    from_ts_t = timestamp_to_time(params['from_ts'])
-            else:
-                to_t = None
-                if 'from_ts' not in params or params['from_ts'] is None:
-                    raise ValueError('Cannot happen')
-                else:
-                    from_ts_t = timestamp_to_time(params['from_ts'])
-
-        # bisect to find the start and end of our cc indexes
-        start = bisect.bisect_left(cc_times, from_ts_t) - 1
-        start = max(0, start)
-        if to_t is not None:
-            end = bisect.bisect_right(cc_times, to_t) + 1
-            end = min(end, len(self.raw_index_list))
-        else:
-            end = len(self.raw_index_list)
-
-        index_list = self.raw_index_list[start:end]
-        params['from_ts'] = time_to_timestamp(from_ts_t)
-        if to_t is not None:
-            params['to'] = time_to_timestamp(to_t)
-
-        if 'closest' in params:
-            pass
-            # XXX funky ordering
-
-        if self.cc_sort == 'ascending':
-            pass  # already in ascending order
-        elif self.cc_sort == 'mixed':
-            index_list.reverse()
-        else:
-            raise ValueError('unknown cc_sort arg of '+self.cc_sort)
-
-        if index_list:
-            LOGGER.info('using cc index range from %s to %s', index_list[0], index_list[-1])
-        else:
-            LOGGER.warning('empty cc index range found')
-
-        return index_list
 
     def get(self, url, **kwargs):
         # from_ts=None, to=None, matchType=None, limit=None, sort=None, closest=None,
@@ -261,7 +237,7 @@ class CDXFetcher:
         ret = []
         for endpoint in index_list:
             resp = myrequests_get(endpoint, params=params, cdx=True)
-            objs = cdx_to_json(resp)  # turns 400 and 404 into []
+            objs = cdx_to_captures(resp, wb=self.wb, warc_prefix=self.warc_prefix)  # turns 400 and 404 into []
             ret.extend(objs)
             if 'limit' in params:
                 params['limit'] -= len(objs)
@@ -301,7 +277,7 @@ class CDXFetcher:
         if resp.text == '':  # ia
             return 'last page', []
 
-        ret = cdx_to_json(resp)  # turns 404 into []
+        ret = cdx_to_captures(resp, wb=self.wb, warc_prefix=self.warc_prefix)  # turns 404 into []
         if 'limit' in params:
             params['limit'] -= len(ret)
         return 'ok', ret

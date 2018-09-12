@@ -2,18 +2,18 @@
 Code specific to accessing the Common Crawl index
 '''
 import time
-import gzip
+import re
+import bisect
+
 import logging
-import warnings
 
 from .myrequests import myrequests_get
-from .timestamp import time_to_timestamp, timestamp_to_time, pad_timestamp_up
+from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, cc_index_to_time
 
 LOGGER = logging.getLogger(__name__)
 
 
 def get_cc_endpoints():
-    # TODO: cache me
     r = myrequests_get('https://index.commoncrawl.org/collinfo.json')
     if r.status_code != 200:
         raise RuntimeError('error getting list of common crawl indices: '+str(r.status_code))  # pragma: no cover
@@ -60,35 +60,73 @@ def apply_cc_defaults(params, now=None):
             pass
 
 
-def fetch_warc_content(capture):
-    warnings.warn("this API is not finalized", DeprecationWarning)
+def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
+    endpoints = raw_index_list.copy()
 
-    filename = capture['filename']
-    offset = int(capture['offset'])
-    length = int(capture['length'])
+    # chainsaw all of the cc index names to a time, which we'll use as the end-time of its data
 
-    cc_external_prefix = 'https://commoncrawl.s3.amazonaws.com'
-    url = cc_external_prefix + '/' + filename
-    headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
+    cc_times = []
+    cc_map = {}
+    timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
+    for timestamp in timestamps:
+        t = cc_index_to_time(timestamp)
+        cc_times.append(t)
+        cc_map[t] = endpoints.pop(0)
 
-    resp = myrequests_get(url, headers=headers)
-    record_bytes = resp.content
+    # bisect in cc_times and then index into cc_map to find the actual endpoint
 
-    # WARC digests can be represented in multiple ways (rfc 3548)
-    # I have code in a pullreq for warcio that does this comparison
-    #if 'digest' in capture and capture['digest'] != hashlib.sha1(content_bytes).hexdigest():
-    #    LOGGER.error('downloaded content failed digest check')
+    if 'closest' in params:
+        if 'from_ts' not in params or params['from_ts'] is None:
+            raise ValueError('Cannot happen')
+        else:
+            from_ts_t = timestamp_to_time(params['from_ts'])
+        if 'to' not in params or params['to'] is None:
+            raise ValueError('Cannot happen')
+        else:
+            to_t = timestamp_to_time(params['to'])
+    else:
+        if 'to' in params:
+            to = pad_timestamp_up(params['to'])
+            to_t = timestamp_to_time(to)
+            if 'from_ts' not in params or params['from_ts'] is None:
+                raise ValueError('Cannot happen')
+            else:
+                from_ts_t = timestamp_to_time(params['from_ts'])
+        else:
+            to_t = None
+            if 'from_ts' not in params or params['from_ts'] is None:
+                raise ValueError('Cannot happen')
+            else:
+                from_ts_t = timestamp_to_time(params['from_ts'])
 
-    if record_bytes[:2] == b'\x1f\x8b':
-        # XXX We should respect Content-Encoding here, and not just blindly ungzip
-        record_bytes = gzip.decompress(record_bytes)
+    # bisect to find the start and end of our cc indexes
+    start = bisect.bisect_left(cc_times, from_ts_t) - 1
+    start = max(0, start)
+    if to_t is not None:
+        end = bisect.bisect_right(cc_times, to_t) + 1
+        end = min(end, len(raw_index_list))
+    else:
+        end = len(raw_index_list)
 
-    # hack the WARC response down to just the content_bytes
-    try:
-        warcheader, httpheader, content_bytes = record_bytes.strip().split(b'\r\n\r\n', 2)
-    except ValueError:  # pragma: no cover
-        # not enough values to unpack
-        return b''
+    index_list = raw_index_list[start:end]
+    params['from_ts'] = time_to_timestamp(from_ts_t)
+    if to_t is not None:
+        params['to'] = time_to_timestamp(to_t)
 
-    # XXX help out with the page encoding? complicated issue.
-    return content_bytes
+    if 'closest' in params:
+        pass
+        # XXX funky ordering
+
+    if cc_sort == 'ascending':
+        pass  # already in ascending order
+    elif cc_sort == 'mixed':
+        index_list.reverse()
+    else:
+        raise ValueError('unknown cc_sort arg of '+cc_sort)
+
+    if index_list:
+        LOGGER.info('using cc index range from %s to %s', index_list[0], index_list[-1])
+    else:
+        LOGGER.warning('empty cc index range found')
+
+    return index_list

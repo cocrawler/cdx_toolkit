@@ -24,4 +24,3 @@ def test_munge_fields():
 
     for fields, lines, ret in tests:
         assert cdx_toolkit.munge_fields(fields, lines) == ret
-
