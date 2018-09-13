@@ -110,6 +110,7 @@ def fetch_warc_record(capture, warc_prefix):
         content_bytes = content_bytes[:-2]
 
     warcheader += b'\r\nWARC-Source-URI: ' + warc_url.encode()
+    warcheader += b'\r\nWARC-Source-Range: ' + 'bytes={}-{}'.format(offset, offset+length-1).encode()
 
     return construct_warcio_record(url, warcheader, httpheader, content_bytes)
 
