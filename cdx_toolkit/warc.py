@@ -105,9 +105,9 @@ def fetch_warc_record(capture, warc_prefix):
     if count < 3:
         raise ValueError('Invalid warc response record seen')
 
-    warcheader, httpheader, content_bytes = record_bytes.split(b'\r\n\r\n', 2)
-    if content_bytes.endswith(b'\r\n'):
-        content_bytes = content_bytes[:-2]
+    warcheader, httpheader, content_bytes, nothing = record_bytes.split(b'\r\n\r\n', 3)
+    if len(nothing) > 0:
+        raise ValueError('Invalid warc response record seen (extra bytes)')
 
     warcheader += b'\r\nWARC-Source-URI: ' + warc_url.encode()
     warcheader += b'\r\nWARC-Source-Range: ' + 'bytes={}-{}'.format(offset, offset+length-1).encode()
@@ -117,7 +117,7 @@ def fetch_warc_record(capture, warc_prefix):
 
 def construct_warcio_record(url, warcheader, httpheader, content_bytes):
     # payload will be parsed for http headers
-    payload = httpheader + b'\r\n' + content_bytes
+    payload = httpheader.rstrip(b'\r\n') + b'\r\n\r\n' + content_bytes
 
     warc_headers_dict = {}
     if warcheader:
