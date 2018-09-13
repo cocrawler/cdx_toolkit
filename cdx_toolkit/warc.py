@@ -158,7 +158,7 @@ class CDXToolkitWARCWriter:
             name = self.prefix + '-'
             if self.subprefix is not None:
                 name += self.subprefix + '-'
-            name += '{:06d}'.format(self.segment) + '.fakewarc'
+            name += '{:06d}'.format(self.segment) + '.extracted.warc'
             if self.gzip:
                 name += '.gz'
             if os.path.exists(name):
