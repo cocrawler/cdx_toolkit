@@ -55,7 +55,7 @@ echo warc ia
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --limit 10 --warc
 echo warc source and wb
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --source https://web.archive.org/cdx/search/cdx --wb https://web.archive.org/web --limit 10 --warc
-rm -f  TEST-0*.fakewarc.gz
+rm -f  TEST-0*.extracted.warc.gz
 
 echo content cc
 $COVERAGE ./content.py cc 'commoncrawl.org/'
