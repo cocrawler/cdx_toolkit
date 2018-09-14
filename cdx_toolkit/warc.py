@@ -105,9 +105,15 @@ def fetch_warc_record(capture, warc_prefix):
     if count < 3:
         raise ValueError('Invalid warc response record seen')
 
-    warcheader, httpheader, content_bytes, nothing = record_bytes.split(b'\r\n\r\n', 3)
-    if len(nothing) > 0:
-        raise ValueError('Invalid warc response record seen (extra bytes)')
+    warcheader, block = record_bytes.split(b'\r\n\r\n', 1)
+    if not block.endswith(b'\r\n\r\n'):
+        raise ValueError('Invalid end of warc block')
+    block = block[:-4]
+
+    if block.count(b'\r\n\r\n') < 1:
+        raise ValueError('Invalid warc block')
+
+    httpheader, content_bytes = block.split(b'\r\n\r\n', 1)
 
     warcheader += b'\r\nWARC-Source-URI: ' + warc_url.encode()
     warcheader += b'\r\nWARC-Source-Range: ' + 'bytes={}-{}'.format(offset, offset+length-1).encode()
