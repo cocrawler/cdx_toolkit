@@ -15,10 +15,10 @@ logging.basicConfig(level=loglevel)
 LOGGER = logging.getLogger(__name__)
 
 ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
-ARGS.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/wayback')
+ARGS.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/WARCs')
 ARGS.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
 ARGS.add_argument('--source', action='store', help='direct the query to this CDX server')
-ARGS.add_argument('--wb', action='store', help='direct source downloads to this wayback')
+ARGS.add_argument('--wb', action='store', help='direct replays for content to this wayback')
 ARGS.add_argument('--limit', type=int, action='store')
 ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
 ARGS.add_argument('--from', action='store')
@@ -35,6 +35,8 @@ ARGS.add_argument('--warc-subprefix', type=str, default=None, help='subprefix fo
 ARGS.add_argument('--warc-size', type=int, default=1000000000, help='target for the warc filesize in bytes')
 ARGS.add_argument('--warc-creator', action='store', help='creator of the warc: person, organization, service')
 ARGS.add_argument('--warc-operator', action='store', help='a person, if the creator is an organization')
+ARGS.add_argument('--warc-url-fgrep', action='store', help='this pattern must be present to warc an url')
+ARGS.add_argument('--warc-url-fgrepv', action='store', help='this pattern must not be present to warc an url, e.g. /robots.txt')
 ARGS.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration')
 ARGS.add_argument('url')
 
@@ -112,6 +114,10 @@ elif args.warc:
 
     for obj in cdx.items(args.url, **kwargs):
         url = obj['url']
+        if args.warc_url_fgrep and args.warc_url_fgrep not in url:
+            continue
+        if args.warc_url_fgrepv and args.warc_url_fgrepv in url:
+            continue
         timestamp = obj['timestamp']
         try:
             record = obj.fetch_warc_record()
