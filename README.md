@@ -7,7 +7,7 @@ crawls and archives, including those at CommonCrawl and the Internet
 Archive's Wayback Machine.
 
 CommonCrawl uses Ilya Kreymer's pywb to serve the CDX API, which is
-somewhat different from the Internet Archive's CDX API. cdx_toolkit
+somewhat different from the Internet Archive's CDX API server. cdx_toolkit
 hides these differences as best it can. cdx_toolkit also knits
 together the monthly Common Crawl CDX indices into a single, virtual
 index.
@@ -59,8 +59,10 @@ $ cdx_iter 'commoncrawl.org/*' --ia --limit 10
 
 cdx_iter takes a large number of command line switches, controlling
 the time period and all other CDX query options.
+
 **Note that by default, cdx_iter will iterate over the previous
 year of captures.**
+
 cdx_iter can generate jsonl and csv outputs.  See
 
 ```
