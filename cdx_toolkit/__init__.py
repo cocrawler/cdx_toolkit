@@ -160,17 +160,21 @@ class CDXFetcherIter:
     def get_more(self):
         while True:
             self.page += 1
+
+            if self.page == 0 and len(self.index_list) > 0:
+                LOGGER.info('get_more: fetching cdx from %s', self.index_list[self.endpoint])
+
             status, objs = self.cdxfetcher.get_for_iter(self.endpoint, self.page,
                                                         params=self.params, index_list=self.index_list)
             if status == 'last endpoint':
-                LOGGER.info('get_more: I have reached the end')
+                LOGGER.debug('get_more: I have reached the end')
                 return  # caller will raise StopIteration
             if status == 'last page':
-                LOGGER.info('get_more: moving to next endpoint')
+                LOGGER.debug('get_more: moving to next endpoint')
                 self.endpoint += 1
                 self.page = -1
                 continue
-            LOGGER.info('get_more, got %d more objs', len(objs))
+            LOGGER.debug('get_more, got %d more objs', len(objs))
             self.captures.extend(objs)
 
     def __iter__(self):
@@ -181,7 +185,7 @@ class CDXFetcherIter:
             try:
                 return self.captures.pop(0)
             except IndexError:
-                LOGGER.info('getting more in __next__')
+                LOGGER.debug('getting more in __next__')
                 self.get_more()
                 if len(self.captures) <= 0:
                     raise StopIteration
