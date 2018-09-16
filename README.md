@@ -32,7 +32,7 @@ url = 'commoncrawl.org/*'
 
 print(url, 'size estimate', cdx.get_size_estimate(url))
 
-for obj in cdx.items(url, limit=10):
+for obj in cdx.items(url, limit=1):
     print(obj)
 ```
 
@@ -41,7 +41,12 @@ at the moment will print:
 ```
 commoncrawl.org/* size estimate 36000
 {'urlkey': 'org,commoncrawl)/', 'timestamp': '20180219112308', 'mime-detected': 'text/html', 'url': 'http://commoncrawl.org/', 'status': '200', 'filename': 'crawl-data/CC-MAIN-2018-09/segments/1518891812584.40/warc/CC-MAIN-20180219111908-20180219131908-00494.warc.gz', 'mime': 'text/html', 'length': '5365', 'digest': 'FM7M2JDBADOQIHKCSFKVTAML4FL2HPHT', 'offset': '81614902'}
-...
+```
+
+You can also fetch the content as bytes:
+
+```
+    print(obj.content)
 ```
 
 ## Command-line tools
@@ -58,19 +63,19 @@ $ cdx_iter 'commoncrawl.org/*' --ia --limit 10
 ```
 
 cdx_iter takes a large number of command line switches, controlling
-the time period and all other CDX query options.
+the time period and all other CDX query options. cdx_iter can generate
+WARC, jsonl, and csv outputs.
 
 **Note that by default, cdx_iter will iterate over the previous
 year of captures.**
 
-cdx_iter can generate jsonl and csv outputs.  See
+See
 
 ```
 $ cdx_iter --help
 ```
 
-for details. Set the environment variable LOGLEVEL=INFO if you'd like
-more details about what's going on inside cdx_iter.
+for full details. Add -v (or -vv) to see what's going on under the hood.
 
 ## CDX Jargon, Field Names, and such
 
@@ -111,7 +116,8 @@ A **filter** allows a user to select a subset of CDX records, reducing
 network traffic between the CDX API server and the user. For
 example, filter='!status:200' will only show captures whose http
 status is not 200. Filters and **limit** work together, with the limit
-applying to the count of captures after the filter is applied.
+applying to the count of captures after the filter is applied. Note
+that revisit records have a status of '-', not 200.
 
 CDX API servers support a **paged interface** for efficient access to
 large sets of URLs. cdx_toolkit iterators always use the paged interface.
@@ -147,17 +153,16 @@ will get close to returning the most recent N captures.
 
 ## TODO
 
-There is an experimental interface to download the actual captured
-webpage from either Common Crawl or IA's Wayback Machine, named
-fetch_warc_content() and fetch_wb_content(). These routines need some
-charset love, and then they should be changed to be a call against a
-Capture object, to hide the differences between WARC and Wayback.
-The Capture object should behave enough like a dict that existing
-client code will not need changes.
+Content downloading needs help with charset issues, preferably
+figuring out the charset using an algorithm similar to browsers.
+
+WARC generation should do smart(er) things with revisit records.
 
 Right now the CC code selects which monthly CC indices to use based
 solely on date ranges. It would be nice to have an alternative so that
-a client could iterate against the most recent N CC indices.
+a client could iterate against the most recent N CC indices, and
+also have the default one-year lookback use an entire monthly index
+instead of a partial one.
 
 ## Status
 
