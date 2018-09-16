@@ -3,9 +3,12 @@ import gzip
 from io import BytesIO
 import os.path
 import datetime
+import logging
 
 # XXX make this optional?
 from warcio import WARCWriter
+
+LOGGER = logging.getLogger(__name__)
 
 from .myrequests import myrequests_get
 from .timeutils import http_date_to_datetime, datetime_to_iso_date
@@ -176,6 +179,7 @@ class CDXToolkitWARCWriter:
     def _start_new_warc(self):
         self.filename = self._unique_warc_filename()
         self.fd = open(self.filename, 'wb')
+        LOGGER.info('opening new warc file %s', self.filename)
         self.writer = WARCWriter(self.fd, gzip=self.gzip)
         warcinfo = self.writer.create_warcinfo_record(self.filename, self.info)
         self.writer.write_record(warcinfo)
