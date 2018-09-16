@@ -10,10 +10,6 @@ import os.path
 import cdx_toolkit
 import cdx_toolkit.warc
 
-loglevel = os.getenv('LOGLEVEL') or 'WARNING'
-logging.basicConfig(level=loglevel)
-LOGGER = logging.getLogger(__name__)
-
 ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
 ARGS.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/WARCs')
 ARGS.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
@@ -38,10 +34,20 @@ ARGS.add_argument('--warc-operator', action='store', help='a person, if the crea
 ARGS.add_argument('--warc-url-fgrep', action='store', help='this pattern must be present to warc an url')
 ARGS.add_argument('--warc-url-fgrepv', action='store', help='this pattern must not be present to warc an url, e.g. /robots.txt')
 ARGS.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration')
+ARGS.add_argument('--verbose', '-v', action='count', help='set logging level to INFO (-v) or DEBUG (-vv)')
 ARGS.add_argument('url')
 
 cmdline = ' '.join(sys.argv[1:])
 args = ARGS.parse_args()
+
+loglevel = os.getenv('LOGLEVEL') or 'WARNING'
+if args.verbose:
+    if args.verbose > 0:
+        loglevel = 'INFO'
+    if args.verbose > 1:
+        loglevel = 'DEBUG'
+logging.basicConfig(level=loglevel)
+LOGGER = logging.getLogger(__name__)
 
 if not args.url:
     raise ValueError('must specify an url to iterate, example: commoncrawl.org/*')
