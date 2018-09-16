@@ -121,8 +121,10 @@ elif args.warc:
     for obj in cdx.items(args.url, **kwargs):
         url = obj['url']
         if args.warc_url_fgrep and args.warc_url_fgrep not in url:
+            LOGGER.debug('not warcing due to fgrep: %s', url)
             continue
         if args.warc_url_fgrepv and args.warc_url_fgrepv in url:
+            LOGGER.debug('not warcing due to fgrepv: %s', url)
             continue
         timestamp = obj['timestamp']
         try:
