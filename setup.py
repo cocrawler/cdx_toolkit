@@ -32,7 +32,7 @@ packages = [
     'cdx_toolkit',
 ]
 
-requires = ['requests']
+requires = ['requests', 'warcio']
 
 test_requirements = ['pytest>=3.0.0']  # 'coverage', 'pytest-cov']
 
