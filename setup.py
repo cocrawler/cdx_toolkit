@@ -40,7 +40,7 @@ scripts = ['scripts/cdx_size', 'scripts/cdx_iter']
 
 try:
     import pypandoc
-    description = pypandoc.convert('README.md', 'rst')
+    description = pypandoc.convert_file('README.md', 'rst')
 except (IOError, ImportError):
     description = open('README.md').read()
 
@@ -57,7 +57,7 @@ setup(
     install_requires=requires,
     scripts=scripts,
     license='Apache 2.0',
-    classifiers=(
+    classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
         'Intended Audience :: Information Technology',
@@ -70,7 +70,7 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3 :: Only',
-    ),
+    ],
     cmdclass={'test': PyTest},
     tests_require=test_requirements,
 )
