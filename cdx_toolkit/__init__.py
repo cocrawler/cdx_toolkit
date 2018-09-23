@@ -161,7 +161,7 @@ class CDXFetcherIter:
         while True:
             self.page += 1
 
-            if self.page == 0 and len(self.index_list) > 0:
+            if self.page == 0 and len(self.index_list) > 0 and self.endpoint < len(self.index_list):
                 LOGGER.info('get_more: fetching cdx from %s', self.index_list[self.endpoint])
 
             status, objs = self.cdxfetcher.get_for_iter(self.endpoint, self.page,
