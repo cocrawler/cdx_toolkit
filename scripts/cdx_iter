@@ -129,7 +129,7 @@ elif args.warc:
         timestamp = obj['timestamp']
         try:
             record = obj.fetch_warc_record()
-        except RuntimeError:
+        except RuntimeError:  # pragma: no cover
             LOGGER.warning('skipping capture for RuntimeError 404: %s %s', url, timestamp)
             continue
         if obj.is_revisit():

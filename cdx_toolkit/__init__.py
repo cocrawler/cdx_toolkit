@@ -95,11 +95,6 @@ class CaptureObject(MutableMapping):
             return True
         return False
 
-    def is_playback(self):
-        if self.wb:
-            return True
-        return False
-
     def fetch_warc_record(self):
         if self.warc_record is not None:
             return self.warc_record

@@ -44,10 +44,10 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 LOGGER.info('retrying after 1s for %d', resp.status_code)
                 time.sleep(1)
                 continue
-            if resp.status_code in (400, 404):
+            if resp.status_code in (400, 404):  # pragma: no cover
                 LOGGER.info('funky response %d for url %s %r', resp.status_code, url, params)
                 LOGGER.info('response body is %s', resp.text)
-                raise RuntimeError('invalid url of some sort: '+url)  # pragma: no cover
+                raise RuntimeError('invalid url of some sort: '+url)
             resp.raise_for_status()
             retry = False
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,

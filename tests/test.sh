@@ -9,9 +9,12 @@ set -e
 if [ -z "$COVERAGE" ]; then COVERAGE=python; fi
 
 # these are all "does it crash" tests, mostly
+# need to do more testing of the output
 
 echo cc
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/*' --cc
+echo cc not found
+$COVERAGE ../scripts/cdx_size 'commoncrawl.org/thisurlneverdidexist' --cc
 echo limit 10
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10
 echo all-fields
@@ -51,6 +54,12 @@ LOGLEVEL=DEBUG CDX_TOOLKIT_TEST_REQUESTS=1 $COVERAGE ../scripts/cdx_iter 'common
 
 echo warc cc
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --warc
+echo warc cc 404
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --filter status:404 --from 20180101 --to 20180801 --warc
+echo warc cc fgrep
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --warc --warc-url-fgrep html
+echo warc cc fgrepv
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --warc --warc-url-fgrepv html
 echo warc ia
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --limit 10 --warc
 echo warc source and wb
