@@ -18,6 +18,22 @@ def fake_wb_warc(wb_url, resp, capture):
     '''
     Given a playback from a wayback, fake up a warc response record
     '''
+    if str(resp.status_code) != capture['status']:
+        url = capture['url']
+        timestamp = capture['timestamp']
+        if resp.status_code == 200 and capture['status'] == '-':
+            LOGGER.warning('revisit record vivified by wayback for %s %s',
+                           url, timestamp)
+        elif resp.status_code == 200 and capture['status'].startswith('3'):
+            LOGGER.warning('redirect capture came back 200, same-surt same-timestamp capture? %s %s',
+                           url, timestamp)
+        elif resp.status_code == 302 and capture['status'].startswith('3'):
+            # this is OK, wayback always sends a temporary redir
+            resp.status_code = int(capture['status'])
+        else:
+            LOGGER.warning('surprised that status code is now=%d orig=%s %s %s',
+                           resp.status_code, capture['status'], url, timestamp)
+
     httpheaders = []
     httpdate = None
     for k, v in resp.headers.items():
@@ -30,13 +46,17 @@ def fake_wb_warc(wb_url, resp, capture):
             httpheaders.append((k, v))
         elif kl == 'content-type':
             httpheaders.append(('Content-Type', v))
+        elif kl == 'location':
+            # the wayback always changes this header
+            v = 'http' + v.split('_/http', 1)[1]
+            httpheaders.append((k, v))
         else:
             if not kl.startswith('x-archive-'):
                 k = 'X-Archive-' + k
             httpheaders.append((k, v))
 
     httpheaders = '\r\n'.join([h+': '+v for h, v in httpheaders])
-    httpheaders = 'HTTP/1.1 {} OK\r\n'.format(capture['status']) + httpheaders + '\r\n'
+    httpheaders = 'HTTP/1.1 {} OK\r\n'.format(resp.status_code) + httpheaders + '\r\n'
     httpheaders = httpheaders.encode()
 
     warcheaders = b''

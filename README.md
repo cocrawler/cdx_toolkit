@@ -12,6 +12,10 @@ hides these differences as best it can. cdx_toolkit also knits
 together the monthly Common Crawl CDX indices into a single, virtual
 index.
 
+Finally, cdx_toolkit allows extracting archived pages from CC
+and IA into WARC files. This feature is a work-in-progress and
+still has several warts.
+
 ## Installing
 
 cdx toolkit requires Python 3.
