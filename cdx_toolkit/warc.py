@@ -14,6 +14,10 @@ from .myrequests import myrequests_get
 from .timeutils import http_date_to_datetime, datetime_to_iso_date
 
 
+def wb_redir_to_original(location):
+    return 'http' + location.split('_/http', 1)[1]
+
+
 def fake_wb_warc(wb_url, resp, capture):
     '''
     Given a playback from a wayback, fake up a warc response record
@@ -47,8 +51,7 @@ def fake_wb_warc(wb_url, resp, capture):
         elif kl == 'content-type':
             httpheaders.append(('Content-Type', v))
         elif kl == 'location':
-            # the wayback always changes this header
-            v = 'http' + v.split('_/http', 1)[1]
+            v = wb_redir_to_original(v)
             httpheaders.append((k, v))
         else:
             if not kl.startswith('x-archive-'):
