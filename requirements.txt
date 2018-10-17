@@ -5,7 +5,7 @@ warcio==1.6.1
 
 # used by Makefile
 coverage==4.5.1
-pytest==3.8.2
+pytest==3.9.1
 pytest-cov==2.6.0
 pytest-sugar==0.9.1
 coveralls==1.5.1
