@@ -26,11 +26,11 @@ endif
 	coverage report
 
 distclean:
-	rm dist/*
+	rm -rf dist/
 
 dist: distclean
 	python ./setup.py --long-description | rst2html --exit-status=2 2>&1 > /dev/null
-	python ./setup.py bdist_wheel
+	python ./setup.py sdist
 	twine upload dist/* -r pypi
 
 install:
