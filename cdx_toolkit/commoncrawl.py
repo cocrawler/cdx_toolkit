@@ -22,6 +22,7 @@ def get_cc_endpoints():
     endpoints = [x['cdx-api'] for x in j]
     if len(endpoints) < 30:  # last seen to be 39
         raise ValueError('Surprisingly few endpoints for common crawl index')  # pragma: no cover
+    LOGGER.info('Found %d endpoints in the Common Crawl index', len(endpoints))
 
     # endpoints arrive sorted oldest to newest, but let's force that anyawy
     endpoints = sorted(endpoints)
