@@ -21,3 +21,12 @@ def test_showNumPages():
     with pytest.raises(ValueError):
         j_bad = MockResp('3')
         assert cdx_toolkit.showNumPages(j_bad) == 3
+
+
+def test_args():
+    with pytest.raises(ValueError):
+        cdx = cdx_toolkit.CDXFetcher(wb='foo', warc_prefix='foo')
+    with pytest.raises(ValueError):
+        cdx = cdx_toolkit.CDXFetcher(source='asdf')
+    with pytest.raises(ValueError):
+        cdx = cdx_toolkit.CDXFetcher(source='cc', wb='foo')

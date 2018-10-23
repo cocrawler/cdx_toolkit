@@ -191,19 +191,21 @@ class CDXFetcher:
         self.source = source
         self.cc_sort = cc_sort
         self.source = source
+        if wb is not None and warc_prefix is not None:
+            raise ValueError('cannot specify both wb and warc_prefix')
         self.wb = wb
         self.warc_prefix = warc_prefix
 
         if source == 'cc':
             self.raw_index_list = get_cc_endpoints()
-            self.wb = None
+            if wb is not None:
+                raise ValueError('cannot specify wb= for source=cc')
             self.warc_prefix = warc_prefix or 'https://commoncrawl.s3.amazonaws.com'
         elif source == 'ia':
             self.index_list = ('https://web.archive.org/cdx/search/cdx',)
-            self.wb = 'https://web.archive.org/web'
+            self.wb = wb or 'https://web.archive.org/web'
         elif source.startswith('https://') or source.startswith('http://'):
             self.index_list = (source,)
-            self.wb = wb
         else:
             raise ValueError('could not understand source')
 
