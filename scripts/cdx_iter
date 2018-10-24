@@ -16,6 +16,7 @@ ARGS.add_argument('--ia', action='store_const', const='ia', help='direct the que
 ARGS.add_argument('--source', action='store', help='direct the query to this CDX server')
 ARGS.add_argument('--wb', action='store', help='direct replays for content to this wayback')
 ARGS.add_argument('--limit', type=int, action='store')
+ARGS.add_argument('--cc-mirror', action='store', help='use this Common Crawl index mirror')
 ARGS.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
 ARGS.add_argument('--from', action='store')
 ARGS.add_argument('--to', action='store')
@@ -58,6 +59,8 @@ if kwargs['source'] is None:
     raise ValueError('must specify --cc, --ia, or a --source')
 if args.wb:
     kwargs['wb'] = args.wb
+if args.cc_mirror:
+    kwargs['cc_mirror'] = args.cc_mirror
 
 cdx = cdx_toolkit.CDXFetcher(**kwargs)
 

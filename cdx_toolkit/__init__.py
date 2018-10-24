@@ -187,7 +187,7 @@ class CDXFetcherIter:
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', wb=None, warc_prefix=None, cc_sort='mixed', loglevel=None):
+    def __init__(self, source='cc', wb=None, warc_prefix=None, cc_mirror=None, cc_sort='mixed', loglevel=None):
         self.source = source
         self.cc_sort = cc_sort
         self.source = source
@@ -197,13 +197,15 @@ class CDXFetcher:
         self.warc_prefix = warc_prefix
 
         if source == 'cc':
-            self.raw_index_list = get_cc_endpoints()
+            self.cc_mirror = cc_mirror or 'https://index.commoncrawl.org/'
+            self.raw_index_list = get_cc_endpoints(self.cc_mirror)
             if wb is not None:
                 raise ValueError('cannot specify wb= for source=cc')
             self.warc_prefix = warc_prefix or 'https://commoncrawl.s3.amazonaws.com'
         elif source == 'ia':
             self.index_list = ('https://web.archive.org/cdx/search/cdx',)
-            self.wb = wb or 'https://web.archive.org/web'
+            if self.warc_prefix is None and self.wb is None:
+                self.wb = 'https://web.archive.org/web'
         elif source.startswith('https://') or source.startswith('http://'):
             self.index_list = (source,)
         else:

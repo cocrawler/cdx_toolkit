@@ -13,10 +13,11 @@ from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, c
 LOGGER = logging.getLogger(__name__)
 
 
-def get_cc_endpoints():
-    r = myrequests_get('https://index.commoncrawl.org/collinfo.json')
+def get_cc_endpoints(cc_mirror):
+    collinfo = cc_mirror.rstrip('/') + '/collinfo.json'
+    r = myrequests_get(collinfo)
     if r.status_code != 200:
-        raise RuntimeError('error getting list of common crawl indices: '+str(r.status_code))  # pragma: no cover
+        raise RuntimeError('error {} getting list of cc indices from {}'.format(r.status_code, collinfo))  # pragma: no cover
 
     j = r.json()
     endpoints = [x['cdx-api'] for x in j]

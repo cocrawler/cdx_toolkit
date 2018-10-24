@@ -11,12 +11,14 @@ if [ -z "$COVERAGE" ]; then COVERAGE=python; fi
 # these are all "does it crash" tests, mostly
 # need to do more testing of the output
 
-echo cc
+echo size cc
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/*' --cc
-echo cc not found
+echo size cc not found
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/thisurlneverdidexist' --cc
-echo limit 10
+echo limit 10 cc
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10
+echo limit 10 cc-mirror
+$COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --cc-mirror https://index.commoncrawl.org/
 echo all-fields
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10 --all-fields
 echo filter status 200
@@ -38,7 +40,7 @@ $COVERAGE ../scripts/cdx_iter 'commoncrawl.org' --cc --limit 10 --jsonl
 echo LOGLEVEL=DEBUG
 LOGLEVEL=DEBUG $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --cc --limit 10
 
-echo ia
+echo size ia
 $COVERAGE ../scripts/cdx_size 'commoncrawl.org/*' --ia
 echo limit 10 ia
 $COVERAGE ../scripts/cdx_iter 'commoncrawl.org/*' --ia --limit 10
