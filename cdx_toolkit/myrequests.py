@@ -24,6 +24,7 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
         headers['User-Agent'] = 'pypi_cdx_toolkit/'+__version__
 
     retry = True
+    retries = 0
     connect_errors = 0
     while retry:
         try:
@@ -41,13 +42,16 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 break
             if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
                 # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
-                LOGGER.info('retrying after 1s for %d', resp.status_code)
+                retries += 1
+                if retries > 5:
+                    LOGGER.warning('retrying after 1s for %d', resp.status_code)
+                else:
+                    LOGGER.info('retrying after 1s for %d', resp.status_code)
                 time.sleep(1)
                 continue
             if resp.status_code in (400, 404):  # pragma: no cover
-                LOGGER.info('funky response %d for url %s %r', resp.status_code, url, params)
                 LOGGER.info('response body is %s', resp.text)
-                raise RuntimeError('invalid url of some sort: '+url)
+                raise RuntimeError('invalid url of some sort, status={} {}'.format(resp.status_code, url))
             resp.raise_for_status()
             retry = False
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,
