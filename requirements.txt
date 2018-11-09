@@ -1,13 +1,13 @@
 # Install with "python -m pip install -r requirements.txt".
 
-requests==2.20.0
-warcio==1.6.1
+requests==2.20.1
+warcio==1.6.2
 
 # used by Makefile
 coverage==4.5.1
-pytest==3.9.3
+pytest==3.10.0
 pytest-cov==2.6.0
-pytest-sugar==0.9.1
+pytest-sugar==0.9.2
 coveralls==1.5.1
 
 # packaging
