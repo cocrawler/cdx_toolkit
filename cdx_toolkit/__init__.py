@@ -305,6 +305,10 @@ class CDXFetcher:
             resp = myrequests_get(endpoint, params=params, cdx=True)
             if resp.status_code == 200:
                 pages += showNumPages(resp)
+                if 'limit' in kwargs:
+                    samples = pages_to_samples(pages)
+                    if samples > kwargs['limit']:
+                        break
             else:
                 pass  # silently ignore empty answers  # pragma: no cover
 
