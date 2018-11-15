@@ -3,8 +3,11 @@
 import os
 import logging
 import argparse
+import sys
 
 import cdx_toolkit
+
+print('This command is deprecated in favor of cdxt', file=sys.stderr)
 
 loglevel = os.getenv('LOGLEVEL') or 'WARNING'
 logging.basicConfig(level=loglevel)

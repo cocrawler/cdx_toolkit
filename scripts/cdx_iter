@@ -10,6 +10,8 @@ import os.path
 import cdx_toolkit
 import cdx_toolkit.warc
 
+print('This command is deprecated in favor of cdxt', file=sys.stderr)
+
 ARGS = argparse.ArgumentParser(description='cdx_toolkit iterator command line tool')
 ARGS.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/WARCs')
 ARGS.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
