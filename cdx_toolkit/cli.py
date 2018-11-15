@@ -157,9 +157,13 @@ def iterator(cmd, cmdline):
 def warcer(cmd, cmdline):
     cdx, kwargs = setup(cmd)
 
+    ispartof = cmd.prefix
+    if cmd.subprefix:
+        ispartof += '-' + cmd.subprefix
+
     info = {
         'software': 'pypi_cdx_toolkit/'+get_version(),
-        'isPartOf': cmd.prefix,
+        'isPartOf': ispartof,
         'description': 'warc extraction generated with: cdx_toolkit '+cmdline,
         'format': 'WARC file version 1.0',  # todo: if we directly read a warc, have this match the warc
     }
