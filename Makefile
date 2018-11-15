@@ -11,18 +11,9 @@ test: pytest
 
 clean_coverage:
 	rm -f .coverage
-	rm -f tests/.coverage
 
 test_coverage: clean_coverage
 	PYTHONPATH=. py.test --cov-report= --cov-append --cov cdx_toolkit tests
-ifdef MISSING
-	coverage report -m > MISSING.pytest
-endif
-	(cd tests; PYTHONPATH=.. COVERAGE='coverage run -a --source=../cdx_toolkit,../scripts' ./test.sh)
-	coverage combine .coverage tests/.coverage
-ifdef MISSING
-	coverage report -m | tee MISSING.all
-endif
 	coverage report
 
 distclean:
