@@ -81,8 +81,7 @@ def set_loglevel(cmd):
 
 
 def get_version():
-    import pkg_resources
-    return '%(prog)s ' + pkg_resources.get_distribution('cdx_toolkit').version
+    return cdx_toolkit.__version__
 
 
 def setup(cmd):
@@ -159,7 +158,7 @@ def warcer(cmd, cmdline):
     cdx, kwargs = setup(cmd)
 
     info = {
-        'software': 'pypi_cdx_toolkit/'+cdx_toolkit.__version__,
+        'software': 'pypi_cdx_toolkit/'+get_version(),
         'isPartOf': cmd.prefix,
         'description': 'warc extraction generated with: cdx_toolkit '+cmdline,
         'format': 'WARC file version 1.0',  # todo: if we directly read a warc, have this match the warc
