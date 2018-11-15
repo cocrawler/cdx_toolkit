@@ -3,6 +3,9 @@ from cdx_toolkit.cli import main
 import json
 import sys
 
+import pytest
+import requests
+
 
 def test_basics(capsys):
     args = '--cc --limit 10 iter commoncrawl.org/*'.split()
@@ -44,7 +47,7 @@ def test_multi(capsys, caplog):
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --jsonl'},
          {'count': 10, 'jsonl': True}],
         [{'service': '--cc', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'debug': True}],
+         {'count': 10, 'debug': 5}],
 
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
@@ -55,10 +58,12 @@ def test_multi(capsys, caplog):
         [{'service': '--ia', 'mods': '--get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'linefgrep': 'timestamp '}],  # returns 2008 ?! bug probably on my end
         [{'service': '--ia', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'debug': True}],
+         {'count': 10, 'debug': 5}],
 
         [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
+        [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'debug': 15, 'exception': requests.exceptions.ConnectionError}],  # 9 lines for the non-fail case, many more for fail
 
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
@@ -71,7 +76,12 @@ def test_multi(capsys, caplog):
         outputs = t[1]
         cmdline = '{} {} {} {}'.format(inputs['service'], inputs['mods'], inputs['cmd'], inputs['rest'])
         args = cmdline.split()
-        main(args=args)
+
+        if 'exception' in outputs:
+            with pytest.raises(outputs['exception']):
+                main(args=args)
+        else:
+            main(args=args)
 
         out, err = capsys.readouterr()
 
@@ -93,7 +103,7 @@ def test_multi(capsys, caplog):
                 assert line.isdigit(), cmdline
 
         if 'debug' in outputs:
-            assert len(caplog.records) > 5, cmdline
+            assert len(caplog.records) > outputs['debug'], cmdline
 
 
 def test_warc(tmpdir, caplog):
