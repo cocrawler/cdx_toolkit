@@ -164,11 +164,11 @@ def construct_warcio_record(url, warcheader, httpheader, content_bytes):
 
 
 class CDXToolkitWARCWriter:
-    def __init__(self, prefix, subprefix, info, warc_size=1000000000, gzip=True):
+    def __init__(self, prefix, subprefix, info, size=1000000000, gzip=True):
         self.prefix = prefix
         self.subprefix = subprefix
         self.info = info
-        self.warc_size = warc_size
+        self.size = size
         self.gzip = gzip
         self.segment = 0
         self.writer = None
@@ -180,7 +180,7 @@ class CDXToolkitWARCWriter:
         self.writer.write_record(*args, **kwargs)
 
         fsize = os.fstat(self.fd.fileno()).st_size
-        if fsize > self.warc_size:
+        if fsize > self.size:
             self.fd.close()
             self.writer = None
             self.segment += 1

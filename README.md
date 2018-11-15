@@ -56,30 +56,31 @@ You can also fetch the content as bytes:
 ## Command-line tools
 
 ```
-$ cdx_size 'commoncrawl.org/*' --cc
-$ cdx_iter 'commoncrawl.org/*' --cc --limit 10
-$ cdx_iter 'commoncrawl.org/*' --cc --limit 10 --filter '=status:200'
+$ cdxt --cc size 'commoncrawl.org/*'
+$ cdxt --cc --limit 10 iter 'commoncrawl.org/*'
+$ cdxt --cc --limit 10 --filter '=status:200' iter 'commoncrawl.org/*'
+$ cdxt --ia --limit 10 iter 'commoncrawl.org/*'
 ```
 
-```
-$ cdx_size 'commoncrawl.org/*' --ia
-$ cdx_iter 'commoncrawl.org/*' --ia --limit 10
-```
-
-cdx_iter takes a large number of command line switches, controlling
-the time period and all other CDX query options. cdx_iter can generate
+cdxt takes a large number of command line switches, controlling
+the time period and all other CDX query options. cdxt can generate
 WARC, jsonl, and csv outputs.
 
-**Note that by default, cdx_iter will iterate over the previous
-year of captures.**
+** Note that by default, cdxt will iterate over the previous
+year of captures, and will have a limit of 1,000 captures. **
 
 See
 
 ```
-$ cdx_iter --help
+$ cdxt --help
+$ cdxt iter --help
+$ cdxt warc --help
 ```
 
-for full details. Add -v (or -vv) to see what's going on under the hood.
+for full details. Note that argument order really matters; each switch
+is valid only either before or after the {iter,warc,size} command.
+
+Add -v (or -vv) to see what's going on under the hood.
 
 ## CDX Jargon, Field Names, and such
 

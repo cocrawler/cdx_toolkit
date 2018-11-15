@@ -119,7 +119,10 @@ elif args.warc:
     if args.warc_operator:
         info['operator'] = args.warc_operator
 
-    writer = cdx_toolkit.warc.get_writer(args.warc_prefix, args.warc_subprefix, info)
+    writer_kwargs = {}
+    writer_kwargs['size'] = args.warc_size
+
+    writer = cdx_toolkit.warc.get_writer(args.warc_prefix, args.warc_subprefix, info, **writer_kwargs)
 
     for obj in cdx.items(args.url, **kwargs):
         url = obj['url']

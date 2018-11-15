@@ -7,7 +7,7 @@ from setuptools.command.test import test as TestCommand
 
 
 class PyTest(TestCommand):
-    args = ['--doctest-module', './cdx_toolkit', './tests/unit']
+    args = ['--doctest-module', 'cdx_toolkit/', 'tests/unit/', './tests/test_cli.py']
     user_options = [('pytest-args=', 'a', "Arguments to pass into py.test")]
     # python ./setup.py --pytest-args='-v -v'
 
@@ -55,6 +55,10 @@ setup(
     packages=packages,
     setup_requires=['setuptools_scm'],
     install_requires=requires,
+    entry_points='''
+        [console_scripts]
+        cdxt = cdx_toolkit.cli:main
+    ''',
     scripts=scripts,
     license='Apache 2.0',
     classifiers=[
