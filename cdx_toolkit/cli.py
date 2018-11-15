@@ -58,7 +58,12 @@ def main(args=None):
     if args is not None:
         cmdline = ' '.join(args)
     else:
-        cmdline = 'None'
+        # there's something magic about args and console_scripts
+        # this fallback is needed when installed by setuptools
+        if len(sys.argv) > 1:
+            cmdline = 'cdxt ' + ' '.join(sys.argv[1:])
+        else:
+            cmdline = 'cdxt'
     cmd = parser.parse_args(args=args)
     set_loglevel(cmd)
     cmd.func(cmd, cmdline)
@@ -164,7 +169,7 @@ def warcer(cmd, cmdline):
     info = {
         'software': 'pypi_cdx_toolkit/'+get_version(),
         'isPartOf': ispartof,
-        'description': 'warc extraction generated with: cdx_toolkit '+cmdline,
+        'description': 'warc extraction generated with: '+cmdline,
         'format': 'WARC file version 1.0',  # todo: if we directly read a warc, have this match the warc
     }
     if cmd.creator:
