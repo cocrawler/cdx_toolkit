@@ -52,6 +52,7 @@ def main(args=None):
     warc.set_defaults(func=warcer)
 
     size = subparsers.add_parser('size', help='imprecise count of how many results are available')
+    size.add_argument('--details', action='store_true', help='show details of each subindex')
     size.add_argument('url')
     size.set_defaults(func=sizer)
 
@@ -117,6 +118,9 @@ def setup(cmd):
 
     if cmd.cmd == 'warc' and cmd.size:
         kwargs['size'] = cmd.size
+
+    if cmd.cmd == 'size' and cmd.details:
+        kwargs['details'] = cmd.details
 
     return cdx, kwargs
 
@@ -206,6 +210,5 @@ def warcer(cmd, cmdline):
 def sizer(cmd, cmdline):
     cdx, kwargs = setup(cmd)
 
-    kwargs['showNumPages'] = True
     size = cdx.get_size_estimate(cmd.url, **kwargs)
     print(size)

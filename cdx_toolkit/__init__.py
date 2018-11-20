@@ -292,6 +292,11 @@ class CDXFetcher:
         useful additional args: matchType='host' pageSize=1
         or, url can end with * or start with *. to set the matchType
         '''
+        if 'details' in kwargs:
+            details = True
+            del kwargs['details']
+        else:
+            details = False
 
         params = {'url': url, 'showNumPages': 'true'}
         params.update(**kwargs)
@@ -300,18 +305,23 @@ class CDXFetcher:
 
         index_list = self.customize_index_list(params)
 
-        pages = 0
+        total_pages = 0
+        total_samples = 0
         for endpoint in index_list:
             resp = myrequests_get(endpoint, params=params, cdx=True)
             if resp.status_code == 200:
-                pages += showNumPages(resp)
-                if 'limit' in kwargs:
-                    samples = pages_to_samples(pages)
-                    if samples > kwargs['limit']:
-                        break
+                pages = showNumPages(resp)
+                total_pages += pages
+                samples = pages_to_samples(pages)
+                total_samples += samples
+                if details:
+                    print(endpoint, samples)
+                if 'limit' in kwargs and samples > kwargs['limit']:
+                    break
             else:
                 pass  # silently ignore empty answers  # pragma: no cover
 
-        if not as_pages:
-            pages = pages_to_samples(pages)
-        return pages
+        if as_pages:
+            return total_pages
+        else:
+            return total_samples
