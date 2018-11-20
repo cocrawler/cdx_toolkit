@@ -215,7 +215,7 @@ class CDXFetcher:
             LOGGER.setLevel(level=loglevel)
 
     def customize_index_list(self, params):
-        if self.source == 'cc' and ('from' in params or 'from_ts' in params or 'to' in params):
+        if self.source == 'cc' and ('from' in params or 'from_ts' in params or 'to' in params or 'closest' in params):
             LOGGER.info('making a custom cc index list')
             return filter_cc_endpoints(self.raw_index_list, self.cc_sort, params=params)
         else:
