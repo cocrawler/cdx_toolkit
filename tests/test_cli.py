@@ -41,7 +41,7 @@ def test_multi(capsys, caplog):
         [{'service': '--cc', 'mods': '--limit 10 --from=2017 --to=2017', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
         [{'service': '--cc', 'mods': '--limit 3 --get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 1, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
+         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --csv'},
          {'count': 11, 'csv': True}],
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --jsonl'},
@@ -55,8 +55,8 @@ def test_multi(capsys, caplog):
          {'count': 0}],
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --all-fields'},
          {'count': 10, 'linefgrep': 'mime ', 'linefgrepv': 'original '}],  # both of these are renamed fields
-        [{'service': '--ia', 'mods': '--get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 1, 'linefgrep': 'timestamp '}],  # returns 2008 ?! bug probably on my end
+        [{'service': '--ia', 'mods': '--get --limit 4 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'count': 4, 'linefgrep': 'timestamp '}],  # returns 2008 ?! bug probably on my end
         [{'service': '--ia', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'debug': 5}],
 

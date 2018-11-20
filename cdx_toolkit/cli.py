@@ -156,7 +156,7 @@ def iterator(cmd, cmdline):
         for obj in objs:
             printme = winnow_fields(cmd, fields, obj)
             print_line(cmd, writer, printme)
-            return
+        return
 
     for obj in cdx.items(cmd.url, **kwargs):
         printme = winnow_fields(cmd, fields, obj)
