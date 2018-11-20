@@ -231,6 +231,7 @@ class CDXFetcher:
             params['filter'] = munge_filter(params['filter'], self.source)
 
         if 'limit' not in params:
+            LOGGER.info('adding default limit=1000 to get')
             params['limit'] = 1000
         if self.source == 'cc':
             apply_cc_defaults(params)
@@ -255,8 +256,6 @@ class CDXFetcher:
         if 'filter' in params:
             params['filter'] = munge_filter(params['filter'], self.source)
 
-        if 'limit' not in params:
-            params['limit'] = 1000
         if self.source == 'cc':
             apply_cc_defaults(params)
 

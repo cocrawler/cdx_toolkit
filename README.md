@@ -66,8 +66,8 @@ cdxt takes a large number of command line switches, controlling
 the time period and all other CDX query options. cdxt can generate
 WARC, jsonl, and csv outputs.
 
-** Note that by default, cdxt will iterate over the previous
-year of captures, and will have a limit of 1,000 captures. **
+** Note that by default, cdxt --cc will iterate over the previous
+year of captures. **
 
 See
 
@@ -114,8 +114,9 @@ these 2 hosts actually have identical web content. The original url
 should be present in all records, if you want to know exactly what it
 is.
 
-The **limit** argument limits how many captures will be returned.
-**There is a default limit of 1,000 captures.**
+The **limit** argument limits how many captures will be returned.  To
+help users not shoot themselves in the foot, a limit of 1,000 is
+applied to --get and .get() calls.
 
 A **filter** allows a user to select a subset of CDX records, reducing
 network traffic between the CDX API server and the user. For
