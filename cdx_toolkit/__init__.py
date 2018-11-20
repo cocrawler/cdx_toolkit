@@ -9,6 +9,7 @@ from .myrequests import myrequests_get
 from .compat import munge_fields, munge_filter
 from .commoncrawl import get_cc_endpoints, apply_cc_defaults, filter_cc_endpoints
 from .warc import fetch_wb_warc, fetch_warc_record
+from .timeutils import validate_timestamps
 
 LOGGER = logging.getLogger(__name__)
 
@@ -225,6 +226,7 @@ class CDXFetcher:
         # from_ts=None, to=None, matchType=None, limit=None, sort=None, closest=None,
         # filter=None, fl=None, page=None, pageSize=None, showNumPages=None):
         params = kwargs
+        validate_timestamps(params)
         params['url'] = url
         params['output'] = 'json'
         if 'filter' in params:
@@ -251,6 +253,7 @@ class CDXFetcher:
 
     def items(self, url, **kwargs):
         params = kwargs
+        validate_timestamps(params)
         params['url'] = url
         params['output'] = 'json'
         if 'filter' in params:
@@ -299,6 +302,7 @@ class CDXFetcher:
 
         params = {'url': url, 'showNumPages': 'true'}
         params.update(**kwargs)
+        validate_timestamps(params)
         if self.source == 'cc':
             apply_cc_defaults(params)
 

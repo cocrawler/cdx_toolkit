@@ -71,8 +71,23 @@ def cc_index_to_time(cc):
     return datetime.datetime.strptime(cc+'-0', CC_TIMESTAMP).replace(tzinfo=utc).timestamp()
 
 
+def validate_timestamps(params):
+    # will have to change once we start supporting sub-second timestamps
+    for key in ('from_ts', 'to', 'closest'):
+        if key in params:
+            value = params[key]
+            if isinstance(value, str):
+                if not value.isdigit():
+                    raise ValueError('invalid parameter {} {!r}'.format(key, value))
+            elif isinstance(value, int):
+                pass
+            else:
+                raise ValueError('invalid parameter {} {!r}'.format(key, value))
+
+
 '''
-Code cribbed from warcio/timeutls.py
+Code cribbed from warcio/timeutls.py. Not calling it directly because we hope
+to make warcio optional someday.
 '''
 
 ISO_DT = '%Y-%m-%dT%H:%M:%SZ'
