@@ -15,7 +15,8 @@ def test_basics(capsys):
     split = out.splitlines()
     assert len(split) == 10
     for line in out.splitlines():
-        assert 'commoncrawl.org/' in line
+        # this might be commoncrawl.org./ or commoncrawl.org/
+        assert 'commoncrawl.org' in line
 
 
 def test_multi(capsys, caplog):
