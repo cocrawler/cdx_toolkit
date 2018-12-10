@@ -172,6 +172,8 @@ class CDXFetcherIter:
                 continue
             LOGGER.debug('get_more, got %d more objs', len(objs))
             self.captures.extend(objs)
+            if len(self.captures) > 0:
+                break
 
     def __iter__(self):
         return self
