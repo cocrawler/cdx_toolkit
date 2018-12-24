@@ -8,35 +8,51 @@ import logging
 # XXX make this optional?
 from warcio import WARCWriter
 
-LOGGER = logging.getLogger(__name__)
-
 from .myrequests import myrequests_get
 from .timeutils import http_date_to_datetime, datetime_to_iso_date
+
+LOGGER = logging.getLogger(__name__)
 
 
 def wb_redir_to_original(location):
     return 'http' + location.split('_/http', 1)[1]
 
 
+http_status_text = {
+    300: 'Multiple Choices',
+    301: 'Moved Permanently',
+    302: 'Found',
+    303: 'See Other',
+    304: 'Not Modified',
+    307: 'Temporary Redirect',
+    308: 'Permanent Redirect',
+}
+
+
 def fake_wb_warc(wb_url, resp, capture):
     '''
     Given a playback from a wayback, fake up a warc response record
     '''
-    if str(resp.status_code) != capture['status']:
+    status_code = resp.status_code
+    status_reason = resp.reason
+
+    if str(status_code) != capture['status']:
         url = capture['url']
         timestamp = capture['timestamp']
-        if resp.status_code == 200 and capture['status'] == '-':
+        if status_code == 200 and capture['status'] == '-':
             LOGGER.warning('revisit record vivified by wayback for %s %s',
                            url, timestamp)
-        elif resp.status_code == 200 and capture['status'].startswith('3'):
+        elif status_code == 200 and capture['status'].startswith('3'):
             LOGGER.warning('redirect capture came back 200, same-surt same-timestamp capture? %s %s',
                            url, timestamp)
-        elif resp.status_code == 302 and capture['status'].startswith('3'):
+        elif status_code == 302 and capture['status'].startswith('3'):
             # this is OK, wayback always sends a temporary redir
-            resp.status_code = int(capture['status'])
+            status_code = int(capture['status'])
+            if status_code != resp.status_code and status_code in http_status_text:
+                status_reason = http_status_text[status_code]
         else:
             LOGGER.warning('surprised that status code is now=%d orig=%s %s %s',
-                           resp.status_code, capture['status'], url, timestamp)
+                           status_code, capture['status'], url, timestamp)
 
     httpheaders = []
     httpdate = None
@@ -59,7 +75,7 @@ def fake_wb_warc(wb_url, resp, capture):
             httpheaders.append((k, v))
 
     httpheaders = '\r\n'.join([h+': '+v for h, v in httpheaders])
-    httpheaders = 'HTTP/1.1 {} OK\r\n'.format(resp.status_code) + httpheaders + '\r\n'
+    httpheaders = 'HTTP/1.1 {} {}\r\n'.format(status_code, status_reason) + httpheaders + '\r\n'
     httpheaders = httpheaders.encode()
 
     warcheaders = b''
