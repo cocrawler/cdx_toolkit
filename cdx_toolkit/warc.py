@@ -1,12 +1,14 @@
 from urllib.parse import quote
-import gzip
 from io import BytesIO
 import os.path
 import datetime
 import logging
+import sys
 
-# XXX make this optional?
 from warcio import WARCWriter
+from warcio.recordloader import ArcWarcRecordLoader
+from warcio.bufferedreaders import DecompressingBufferedReader
+from warcio.statusandheaders import StatusAndHeaders
 
 from .myrequests import myrequests_get
 from .timeutils import http_date_to_datetime, datetime_to_iso_date
@@ -29,7 +31,7 @@ http_status_text = {
 }
 
 
-def fake_wb_warc(wb_url, resp, capture):
+def fake_wb_warc(url, wb_url, resp, capture):
     '''
     Given a playback from a wayback, fake up a warc response record
     '''
@@ -54,43 +56,43 @@ def fake_wb_warc(wb_url, resp, capture):
             LOGGER.warning('surprised that status code is now=%d orig=%s %s %s',
                            status_code, capture['status'], url, timestamp)
 
-    httpheaders = []
-    httpdate = None
+    http_headers = []
+    http_date = None
     for k, v in resp.headers.items():
         kl = k.lower()
         if kl.startswith('x-archive-orig-date'):
-            httpdate = v
+            http_date = v
 
         if kl.startswith('x-archive-orig-'):
             k = k[len('x-archive-orig-'):]
-            httpheaders.append((k, v))
+            http_headers.append((k, v))
         elif kl == 'content-type':
-            httpheaders.append(('Content-Type', v))
+            http_headers.append(('Content-Type', v))
         elif kl == 'location':
             v = wb_redir_to_original(v)
-            httpheaders.append((k, v))
+            http_headers.append((k, v))
         else:
             if not kl.startswith('x-archive-'):
                 k = 'X-Archive-' + k
-            httpheaders.append((k, v))
+            http_headers.append((k, v))
 
-    httpheaders = '\r\n'.join([h+': '+v for h, v in httpheaders])
-    httpheaders = 'HTTP/1.1 {} {}\r\n'.format(status_code, status_reason) + httpheaders + '\r\n'
-    httpheaders = httpheaders.encode()
+    statusline = '{} {}'.format(status_code, status_reason)
+    http_headers = StatusAndHeaders(statusline, headers=http_headers, protocol='HTTP/1.1')
 
-    warcheaders = b''
-    warcheaders = [
-        b'WARC/1.0',
-        b'WARC-Source-URI: ' + wb_url.encode(),
-        b'WARC-Creation-Date: ' + datetime_to_iso_date(datetime.datetime.now()).encode()
-    ]
-    if httpdate:
-        warcheaders.append(b'WARC-Date: ' + datetime_to_iso_date(http_date_to_datetime(httpdate)).encode())
-    warcheaders = b'\r\n'.join(warcheaders)
+    warc_headers_dict = {
+        'WARC-Source-URI': wb_url,
+        'WARC-Creation-Date': datetime_to_iso_date(datetime.datetime.now()),
+    }
+    if http_date:
+        warc_headers_dict['WARC-Date'] = datetime_to_iso_date(http_date_to_datetime(http_date))
 
     content_bytes = resp.content
 
-    return warcheaders, httpheaders, content_bytes
+    writer = WARCWriter(None)
+    return writer.create_warc_record(url, 'response',
+                                     payload=BytesIO(content_bytes),
+                                     http_headers=http_headers,
+                                     warc_headers_dict=warc_headers_dict)
 
 
 def fetch_wb_warc(capture, wb, modifier='id_'):
@@ -115,7 +117,7 @@ def fetch_wb_warc(capture, wb, modifier='id_'):
 
     resp = myrequests_get(wb_url, **kwargs)
 
-    return construct_warcio_record(url, *fake_wb_warc(wb_url, resp, capture))
+    return fake_wb_warc(url, wb_url, resp, capture)
 
 
 def fetch_warc_record(capture, warc_prefix):
@@ -133,49 +135,27 @@ def fetch_warc_record(capture, warc_prefix):
 
     resp = myrequests_get(warc_url, headers=headers)
     record_bytes = resp.content
+    stream = DecompressingBufferedReader(BytesIO(record_bytes))
+    record = ArcWarcRecordLoader().parse_record_stream(stream)
 
-    # WARC digests can be represented in multiple ways (rfc 3548)
-    # I have code in a pullreq for warcio that does this comparison
-    #if 'digest' in capture and capture['digest'] != hashlib.sha1(content_bytes).hexdigest():
-    #    LOGGER.error('downloaded content failed digest check')
+    for header in ('WARC-Source-URI', 'WARC-Source-Range'):
+        if record.rec_headers.get_header(header):
+            print('Surprised that {} was already set in this WARC record'.format(header), file=sys.stderr)
 
-    if record_bytes[:2] == b'\x1f\x8b':
-        # warc records are either not compressed or gzip, as of 1.0
-        record_bytes = gzip.decompress(record_bytes)
+    warc_target_uri = record.rec_headers.get_header('WARC-Target-URI')
+    if url != warc_target_uri:
+        print('Surprised that WARC-Target-URI {} is not the capture url {}'.format(warc_target_uri, url), file=sys.stderr)
 
-    count = record_bytes.count(b'\r\n\r\n')
-    if count < 3:
-        raise ValueError('Invalid warc response record seen')
-
-    warcheader, block = record_bytes.split(b'\r\n\r\n', 1)
-    if not block.endswith(b'\r\n\r\n'):
-        raise ValueError('Invalid end of warc block')
-    block = block[:-4]
-
-    if block.count(b'\r\n\r\n') < 1:
-        raise ValueError('Invalid warc block')
-
-    httpheader, content_bytes = block.split(b'\r\n\r\n', 1)
-
-    warcheader += b'\r\nWARC-Source-URI: ' + warc_url.encode()
-    warcheader += b'\r\nWARC-Source-Range: ' + 'bytes={}-{}'.format(offset, offset+length-1).encode()
-
-    return construct_warcio_record(url, warcheader, httpheader, content_bytes)
+    record.rec_headers.replace_header('WARC-Source-URI', warc_url)
+    record.rec_headers.replace_header('WARC-Source-Range', 'bytes={}-{}'.format(offset, offset+length-1))
+    return record
 
 
-def construct_warcio_record(url, warcheader, httpheader, content_bytes):
-    # payload will be parsed for http headers
-    payload = httpheader.rstrip(b'\r\n') + b'\r\n\r\n' + content_bytes
-
-    warc_headers_dict = {}
-    if warcheader:
-        for header in warcheader.split(b'\r\n')[1:]:  # skip the initial WARC/1 line
-            k, v = header.split(b':', 1)
-            warc_headers_dict[k] = v.strip()
-
+def construct_warcio_record(url, warc_headers_dict, http_headers, content_bytes):
     writer = WARCWriter(None)
     return writer.create_warc_record(url, 'response',
-                                     payload=BytesIO(payload),
+                                     payload=BytesIO(content_bytes),
+                                     http_headers=http_headers,
                                      warc_headers_dict=warc_headers_dict)
 
 
