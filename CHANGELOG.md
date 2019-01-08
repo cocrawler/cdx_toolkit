@@ -1,3 +1,6 @@
+- 0.9.24 (not yet tagged)
+	+ use warcio for all warc reading/writing
+
 - 0.9.23
 	+ add 'cdxt' command-line tool
 	+ deprecate cdx_iter and cdx_size command-line scripts
