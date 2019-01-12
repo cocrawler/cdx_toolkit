@@ -129,3 +129,27 @@ def test_warc(tmpdir, caplog):
         args = cmdline.split()
         main(args=args)
         assert True
+
+
+def one_ia_corner(tmpdir, cmdline):
+    with tmpdir.as_cwd():
+        main(args=cmdline.split())
+
+
+def test_warc_ia_corners(tmpdir, caplog):
+    '''
+    To test these more properly, need to add a --exact-warcname and then postprocess.
+    For now, these tests show up in the coverage report
+    '''
+
+    # revisit vivification
+    cmdline = '--ia --from 2017010118350 --to 2017010118350 warc pbm.com/robots.txt'
+    one_ia_corner(tmpdir, cmdline)
+
+    # same-surt same-timestamp redir+200
+    cmdline = '--ia --from 20090220001146 --to 20090220001146 warc pbm.com'
+    one_ia_corner(tmpdir, cmdline)
+
+    # any redir -> 302, this is a 301
+    cmdline = '--ia --from 2011020713024 --to 2011020713024 warc pbm.com'
+    one_ia_corner(tmpdir, cmdline)
