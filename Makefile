@@ -6,14 +6,14 @@ init:
 pytest:
 	python ./setup.py test
 
-test: pytest
-	(cd tests; PYTHONPATH=.. ./test.sh)
+test:
+	python ./setup.py test
 
 clean_coverage:
 	rm -f .coverage
 
 test_coverage: clean_coverage
-	PYTHONPATH=. py.test --cov-report= --cov-append --cov cdx_toolkit tests
+	PYTHONPATH=. py.test --doctest-module --cov-report= --cov-append --cov cdx_toolkit tests
 	coverage report
 
 distclean:

@@ -21,3 +21,13 @@ def test_time_timestamp():
 
     with pytest.raises(ValueError):
         timeutils.timestamp_to_time('19990231')  # invalid day of month
+
+
+def test_validate_timestamps():
+    with pytest.raises(ValueError):
+        timeutils.validate_timestamps({'to': 'asdf'})
+    with pytest.raises(ValueError):
+        timeutils.validate_timestamps({'to': {}})
+    timeutils.validate_timestamps({'to': '12345'})
+    timeutils.validate_timestamps({'to': 12345})
+    assert True
