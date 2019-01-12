@@ -58,13 +58,9 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 requests.exceptions.Timeout) as e:
             connect_errors += 1
             if connect_errors > 10:
-                if os.getenv('CDX_TOOLKIT_TEST_REQUESTS'):
-                    # used in tests/test.sh
-                    print('DYING IN MYREQUEST_GET')
-                    exit(0)
-                else:  # pragma: no cover
-                    LOGGER.error('Final failure for url %s %r', url, params)
-                    raise
+                string = 'Final failure for url {} {!r}: {}'.format(url, params, str(e))
+                LOGGER.error(string)
+                raise ValueError(string)
             LOGGER.warning('retrying after 1s for '+str(e))
             time.sleep(1)
         except requests.exceptions.RequestException as e:  # pragma: no cover

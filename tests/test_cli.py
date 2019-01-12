@@ -64,7 +64,7 @@ def test_multi(capsys, caplog):
         [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'debug': 15, 'exception': requests.exceptions.ConnectionError}],  # 9 lines for the non-fail case, many more for fail
+         {'debug': 15, 'exception': ValueError}],  # 9 lines for the non-fail case, many more for fail
 
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
@@ -152,4 +152,8 @@ def test_warc_ia_corners(tmpdir, caplog):
 
     # any redir -> 302, this is a 301
     cmdline = '--ia --from 2011020713024 --to 2011020713024 warc pbm.com'
+    one_ia_corner(tmpdir, cmdline)
+
+    # warcing a 404 is a corner case in myrequests
+    cmdline = '--ia --from 20080512074145 --to 20080512074145 warc http://www.pbm.com/oly/archive/design94/0074.html'
     one_ia_corner(tmpdir, cmdline)
