@@ -2,6 +2,7 @@ import logging
 import json
 from pkg_resources import get_distribution, DistributionNotFound
 from collections.abc import MutableMapping
+import sys
 
 __version__ = 'installed-from-git'
 
@@ -89,6 +90,7 @@ class CaptureObject(MutableMapping):
         self.wb = wb
         self.warc_prefix = warc_prefix
         self.warc_record = None
+        self._content = None
 
     def is_revisit(self):
         if self.wb and 'mime' in self.data and self.data['mime'] == 'warc/revisit':
@@ -97,6 +99,7 @@ class CaptureObject(MutableMapping):
         return False
 
     def fetch_warc_record(self):
+        print(self.warc_record, file=sys.stderr)
         if self.warc_record is not None:
             return self.warc_record
         if self.wb:
@@ -108,8 +111,15 @@ class CaptureObject(MutableMapping):
         return self.warc_record
 
     @property
+    def content_stream(self):
+        return self.fetch_warc_record().content_stream()
+
+    @property
     def content(self):
-        return self.fetch_warc_record().content_stream().read()
+        if self._content:
+            return self._content
+        self._content = self.fetch_warc_record().content_stream().read()
+        return self._content
 
     @property
     def text(self):

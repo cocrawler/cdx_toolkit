@@ -100,7 +100,7 @@ def fetch_wb_warc(capture, wb, modifier='id_'):
         if field not in capture:  # pragma: no cover
             raise ValueError('capture must contain '+field)
 
-    if wb is None:
+    if wb is None:  # pragma: no cover
         raise ValueError('No wayback configured')
 
     url = capture['url']
