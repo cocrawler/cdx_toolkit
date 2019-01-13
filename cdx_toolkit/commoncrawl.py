@@ -78,11 +78,11 @@ def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
     # bisect in cc_times and then index into cc_map to find the actual endpoint
 
     if 'closest' in params:
-        if 'from_ts' not in params or params['from_ts'] is None:
+        if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
             raise ValueError('Cannot happen')
         else:
             from_ts_t = timestamp_to_time(params['from_ts'])
-        if 'to' not in params or params['to'] is None:
+        if 'to' not in params or params['to'] is None:  # pragma: no cover
             raise ValueError('Cannot happen')
         else:
             to_t = timestamp_to_time(params['to'])
@@ -90,13 +90,13 @@ def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
         if 'to' in params:
             to = pad_timestamp_up(params['to'])
             to_t = timestamp_to_time(to)
-            if 'from_ts' not in params or params['from_ts'] is None:
+            if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
                 raise ValueError('Cannot happen')
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])
         else:
             to_t = None
-            if 'from_ts' not in params or params['from_ts'] is None:
+            if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
                 raise ValueError('Cannot happen')
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])

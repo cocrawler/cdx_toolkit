@@ -58,7 +58,7 @@ def main(args=None):
 
     if args is not None:
         cmdline = ' '.join(args)
-    else:
+    else:  # pragma: no cover
         # there's something magic about args and console_scripts
         # this fallback is needed when installed by setuptools
         if len(sys.argv) > 1:
@@ -110,7 +110,7 @@ def setup(cmd):
     if cmd.to:
         kwargs['to'] = cmd.to
     if cmd.closest:
-        if not cmd.get:
+        if not cmd.get:  # pragma: no cover
             LOGGER.info('note: --closest works best with --get')
         kwargs['closest'] = cmd.closest
     if cmd.filter:

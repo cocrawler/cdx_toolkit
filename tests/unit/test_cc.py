@@ -1,4 +1,5 @@
 import unittest.mock as mock
+import pytest
 
 import cdx_toolkit.commoncrawl
 import cdx_toolkit.timeutils
@@ -53,18 +54,23 @@ def test_customize_index_list():
         [{'from_ts': '201801', 'to': '201804'}, my_cc_endpoints[4:0:-1]],
         [{'from_ts': '20180214', 'to': '201804'}, my_cc_endpoints[4:1:-1]],
         [{'from_ts': '20180429', 'to': '20180430'}, my_cc_endpoints[4:5]],
-        # perhaps this next one should raise...
+        # empty time range
         [{'from_ts': '20180430', 'to': '20180429'}, my_cc_endpoints[4:5]],
+        # very empty time range
+        [{'from_ts': '20180430', 'to': '20100429'}, []],
     ]
 
     with mock.patch('cdx_toolkit.get_cc_endpoints', return_value=my_cc_endpoints):
         cdx = cdx_toolkit.CDXFetcher(source='cc')
         cdxa = cdx_toolkit.CDXFetcher(source='cc', cc_sort='ascending')
+        cdxb = cdx_toolkit.CDXFetcher(source='cc', cc_sort='invalid', loglevel='DEBUG')
 
         for params, custom_list in tests:
             cdx_toolkit.commoncrawl.apply_cc_defaults(params)
             assert cdx.customize_index_list(params) == custom_list
             assert cdxa.customize_index_list(params) == list(reversed(custom_list))
+            with pytest.raises(ValueError):
+                cdxb.customize_index_list(params)
 
 
 def test_customize_index_list_closest():

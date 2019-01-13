@@ -52,7 +52,7 @@ def fake_wb_warc(url, wb_url, resp, capture):
             status_code = int(capture['status'])
             if status_code != resp.status_code and status_code in http_status_text:
                 status_reason = http_status_text[status_code]
-        else:
+        else:  # pragma: no cover
             LOGGER.warning('surprised that status code is now=%d orig=%s %s %s',
                            status_code, capture['status'], url, timestamp)
 
@@ -97,7 +97,7 @@ def fake_wb_warc(url, wb_url, resp, capture):
 
 def fetch_wb_warc(capture, wb, modifier='id_'):
     for field in ('url', 'timestamp', 'status'):
-        if field not in capture:
+        if field not in capture:  # pragma: no cover
             raise ValueError('capture must contain '+field)
 
     if wb is None:
@@ -122,7 +122,7 @@ def fetch_wb_warc(capture, wb, modifier='id_'):
 
 def fetch_warc_record(capture, warc_prefix):
     for field in ('url', 'filename', 'offset', 'length'):
-        if field not in capture:
+        if field not in capture:  # pragma: no cover
             raise ValueError('capture must contain '+field)
 
     url = capture['url']
@@ -139,24 +139,16 @@ def fetch_warc_record(capture, warc_prefix):
     record = ArcWarcRecordLoader().parse_record_stream(stream)
 
     for header in ('WARC-Source-URI', 'WARC-Source-Range'):
-        if record.rec_headers.get_header(header):
+        if record.rec_headers.get_header(header):  # pragma: no cover
             print('Surprised that {} was already set in this WARC record'.format(header), file=sys.stderr)
 
     warc_target_uri = record.rec_headers.get_header('WARC-Target-URI')
-    if url != warc_target_uri:
+    if url != warc_target_uri:  # pragma: no cover
         print('Surprised that WARC-Target-URI {} is not the capture url {}'.format(warc_target_uri, url), file=sys.stderr)
 
     record.rec_headers.replace_header('WARC-Source-URI', warc_url)
     record.rec_headers.replace_header('WARC-Source-Range', 'bytes={}-{}'.format(offset, offset+length-1))
     return record
-
-
-def construct_warcio_record(url, warc_headers_dict, http_headers, content_bytes):
-    writer = WARCWriter(None)
-    return writer.create_warc_record(url, 'response',
-                                     payload=BytesIO(content_bytes),
-                                     http_headers=http_headers,
-                                     warc_headers_dict=warc_headers_dict)
 
 
 class CDXToolkitWARCWriter:

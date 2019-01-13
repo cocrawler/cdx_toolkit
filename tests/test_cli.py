@@ -41,8 +41,14 @@ def test_multi(capsys, caplog):
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
         [{'service': '--cc', 'mods': '--limit 10 --from=2017 --to=2017', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
+
         [{'service': '--cc', 'mods': '--limit 3 --get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
+        [{'service': '--cc', 'mods': '--limit 3 --get --filter status:200 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
+        [{'service': '--cc', 'mods': '--get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/never-existed'},
+         {'count': 0}],
+
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --csv'},
          {'count': 11, 'csv': True}],
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --jsonl'},
@@ -65,11 +71,22 @@ def test_multi(capsys, caplog):
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'debug': 15, 'exception': ValueError}],  # 9 lines for the non-fail case, many more for fail
+        [{'service': '-v -v --source https://example.com/404', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'debug': 15, 'exception': ValueError}],  # 9 lines for the non-fail case, many more for fail
 
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
+        [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
+         {'count': 2}],
+        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
+         {'count': 2}],
+        [{'service': '--ia', 'mods': '--from 20180101 --to 20180110 --limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org'},
+         {'count': 2}],
+
+        [{'service': '', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'exception': ValueError}],
     ]
 
     for t in tests:
@@ -111,11 +128,13 @@ def test_warc(tmpdir, caplog):
     # crash testing only, so far
 
     base = ' --limit 10 warc commoncrawl.org/*'
-    full_suffix = '--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar'
 
     prefixes = ('-v -v --cc', '--ia',
                 '--cc --cc-mirror https://index.commoncrawl.org/',
                 '--source https://web.archive.org/cdx/search/cdx --wb https://web.archive.org/web')
+    suffixes = ('--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar',
+                '--prefix EMPTY --size 1 --url-fgrep bar',
+                '--prefix EMPTY --size 1 --url-fgrepv common')
 
     with tmpdir.as_cwd():
         for p in prefixes:
@@ -124,10 +143,12 @@ def test_warc(tmpdir, caplog):
             args = cmdline.split()
             main(args=args)
 
-        cmdline = prefixes[0] + base + ' ' + full_suffix
-        print(cmdline, file=sys.stderr)
-        args = cmdline.split()
-        main(args=args)
+        for s in suffixes:
+            cmdline = prefixes[0] + base + ' ' + s
+            print(cmdline, file=sys.stderr)
+            args = cmdline.split()
+            main(args=args)
+
         assert True
 
 
