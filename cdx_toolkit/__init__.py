@@ -143,7 +143,7 @@ class CDXFetcherIter:
     def __init__(self, cdxfetcher, params={}, index_list=None):
         self.cdxfetcher = cdxfetcher
         self.params = params
-        if 'page' in params:
+        if 'page' in params:  # pragma: no cover
             raise ValueError('must not set page= in a CDX iterator')
         self.endpoint = 0
         self.page = -1
