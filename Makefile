@@ -13,7 +13,7 @@ clean_coverage:
 	rm -f .coverage
 
 test_coverage: clean_coverage
-	PYTHONPATH=. py.test --doctest-module --cov-report= --cov-append --cov cdx_toolkit tests
+	PYTHONPATH=. py.test --doctest-module --cov-report= --cov-append --cov cdx_toolkit tests -v -v
 	coverage report
 
 distclean:
