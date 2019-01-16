@@ -1,5 +1,7 @@
-- 0.9.24 (not yet tagged)
+- 0.9.24
+	+ rename cdx.items() to cdx.iter() with a deprecation warning
 	+ use warcio for all warc reading/writing
+	+ test coverage 99%
 
 - 0.9.23
 	+ add 'cdxt' command-line tool

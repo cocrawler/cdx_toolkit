@@ -13,7 +13,7 @@ def test_capture_object():
     kwargs = {'limit': 1}
 
     got_one = False
-    for obj in cdx_only.items(url, **kwargs):
+    for obj in cdx_only.iter(url, **kwargs):
         got_one = True
         with pytest.raises(ValueError):
             _ = obj.content
@@ -21,7 +21,7 @@ def test_capture_object():
 
     for cdx in (cdx_cc, cdx_ia):
         got_one = False
-        for obj in cdx.items(url, **kwargs):
+        for obj in cdx.iter(url, **kwargs):
             got_one = True
             content = obj.content
             assert len(content) > 100

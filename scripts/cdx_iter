@@ -126,7 +126,7 @@ elif args.warc:
 
     writer = cdx_toolkit.warc.get_writer(args.warc_prefix, args.warc_subprefix, info, **writer_kwargs)
 
-    for obj in cdx.items(args.url, **kwargs):
+    for obj in cdx.iter(args.url, **kwargs):
         url = obj['url']
         if args.warc_url_fgrep and args.warc_url_fgrep not in url:
             LOGGER.debug('not warcing due to fgrep: %s', url)
@@ -144,6 +144,6 @@ elif args.warc:
             LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
         writer.write_record(record)
 else:
-    for obj in cdx.items(args.url, **kwargs):
+    for obj in cdx.iter(args.url, **kwargs):
         printme = winnow_fields(obj)
         print_line(printme)

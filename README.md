@@ -36,7 +36,7 @@ url = 'commoncrawl.org/*'
 
 print(url, 'size estimate', cdx.get_size_estimate(url))
 
-for obj in cdx.items(url, limit=1):
+for obj in cdx.iter(url, limit=1):
     print(obj)
 ```
 

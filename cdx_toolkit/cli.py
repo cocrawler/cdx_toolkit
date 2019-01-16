@@ -158,7 +158,7 @@ def iterator(cmd, cmdline):
             print_line(cmd, writer, printme)
         return
 
-    for obj in cdx.items(cmd.url, **kwargs):
+    for obj in cdx.iter(cmd.url, **kwargs):
         printme = winnow_fields(cmd, fields, obj)
         print_line(cmd, writer, printme)
 
@@ -188,7 +188,7 @@ def warcer(cmd, cmdline):
 
     writer = cdx_toolkit.warc.get_writer(cmd.prefix, cmd.subprefix, info, **kwargs_writer)
 
-    for obj in cdx.items(cmd.url, **kwargs):
+    for obj in cdx.iter(cmd.url, **kwargs):
         url = obj['url']
         if cmd.url_fgrep and cmd.url_fgrep not in url:
             LOGGER.debug('not warcing due to fgrep: %s', url)

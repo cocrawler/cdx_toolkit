@@ -3,6 +3,7 @@ import json
 from pkg_resources import get_distribution, DistributionNotFound
 from collections.abc import MutableMapping
 import sys
+import warnings
 
 __version__ = 'installed-from-git'
 
@@ -263,7 +264,7 @@ class CDXFetcher:
                     break
         return ret
 
-    def items(self, url, **kwargs):
+    def iter(self, url, **kwargs):
         params = kwargs
         validate_timestamps(params)
         params['url'] = url
@@ -276,6 +277,13 @@ class CDXFetcher:
 
         index_list = self.customize_index_list(params)
         return CDXFetcherIter(self, params=params, index_list=index_list)
+
+    def items(self, url, **kwargs):
+        warnings.warn(
+            'cdx.items() has been renamed to cdx.iter() and will be removed in cdx_toolkit 1.0',
+            FutureWarning
+        )
+        return self.iter(url, **kwargs)
 
     def get_for_iter(self, endpoint, page, params={}, index_list=None):
         '''
