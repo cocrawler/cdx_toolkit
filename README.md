@@ -108,9 +108,14 @@ captures to those which do not have status 200 and do not have status 404,
 $ cdxt --cc --filter '!=status:200' --filter '!=status:404' iter ...
 ```
 
+Note that filters that discard large numbers of captures put a high
+load on the CDX server -- for example, a filter that returns just a
+few captures from a domain that has tens of millions of captures is
+likely to run very slowly and annoy the owner of the CDX server.
+
 See https://github.com/webrecorder/pywb/wiki/CDX-Server-API#filter (pywb)
 and https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server#filtering (wayback)
-for full details.
+for full details of filter modifiers.
 
 ## CDX Jargon, Field Names, and such
 
