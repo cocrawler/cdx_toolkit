@@ -92,11 +92,11 @@ filter.  These field names are appropriately renamed if the source is
 not fully abstracted away by cdx_toolkit.
 
 The basic syntax of a filter is `[modifier]field:expression`, for
-example `status:200` or `!status:200`.
+example `=status:200` or `!=status:200`.
 
 'cc'-style filters (pywb) come in six flavors: substring match, exact
 string, full-match regex, and their inversions. These are indicated by
-a modifier of nothing, '=', '~', '!', '!=', and '!~', respectively.
+a modifier of nothing, '=', '\~', '!', '!=', and '!\~', respectively.
 
 'ia'-style filters (Wayback/OpenWayback) come in two flavors, a full-match
 regex and an inverted full-match regex: 'status:200' and '!status:200'
