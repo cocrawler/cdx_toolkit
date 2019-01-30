@@ -82,6 +82,36 @@ is valid only either before or after the {iter,warc,size} command.
 
 Add -v (or -vv) to see what's going on under the hood.
 
+## Filter syntax
+
+Filters can be used to limit captures to a subset of the results.
+
+Any field name listed in `cdxt iter --all-fields` can be used in a
+filter.  These field names are appropriately renamed if the source is
+'ia'.  The different syntax of filter modifiers for 'ia' and 'cc' is
+not fully abstracted away by cdx_toolkit.
+
+The basic syntax of a filter is `[modifier]field:expression`, for
+example `status:200` or `!status:200`.
+
+'cc'-style filters (pywb) come in six flavors: substring match, exact
+string, full-match regex, and their inversions. These are indicated by
+a modifier of nothing, '=', '~', '!', '!=', and '!~', respectively.
+
+'ia'-style filters (Wayback/OpenWayback) come in two flavors, a full-match
+regex and an inverted full-match regex: 'status:200' and '!status:200'
+
+Multiple filters will be combined with AND. For example, to limit
+captures to those which do not have status 200 and do not have status 404,
+
+```
+$ cdxt --cc --filter '!=status:200' --filter '!=status:404' iter ...
+```
+
+See https://github.com/webrecorder/pywb/wiki/CDX-Server-API#filter (pywb)
+and https://github.com/internetarchive/wayback/tree/master/wayback-cdx-server#filtering (wayback)
+for full details.
+
 ## CDX Jargon, Field Names, and such
 
 cdx_toolkit supports all (ok, most!) of the options and fields discussed
