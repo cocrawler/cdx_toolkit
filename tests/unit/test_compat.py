@@ -10,11 +10,11 @@ def test_munge_filter():
              ('url:foo', 'original:foo', 'url:foo'))
 
     for t, ia, cc in tests:
-        assert cdx_toolkit.munge_filter(t, 'ia') == ia
-        assert cdx_toolkit.munge_filter(t, 'cc') == cc
+        assert cdx_toolkit.munge_filter([t], 'ia') == [ia]
+        assert cdx_toolkit.munge_filter([t], 'cc') == [cc]
 
     with pytest.raises(ValueError):
-        assert cdx_toolkit.munge_filter('!=status:200', 'ia')
+        assert cdx_toolkit.munge_filter(['!=status:200'], 'ia')
 
 
 def test_munge_fields():

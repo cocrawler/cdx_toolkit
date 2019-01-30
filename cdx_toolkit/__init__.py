@@ -243,6 +243,8 @@ class CDXFetcher:
         params['url'] = url
         params['output'] = 'json'
         if 'filter' in params:
+            if isinstance(params['filter'], str):
+                params['filter'] = (params['filter'],)
             params['filter'] = munge_filter(params['filter'], self.source)
 
         if 'limit' not in params:
@@ -270,6 +272,8 @@ class CDXFetcher:
         params['url'] = url
         params['output'] = 'json'
         if 'filter' in params:
+            if isinstance(params['filter'], str):
+                params['filter'] = (params['filter'],)
             params['filter'] = munge_filter(params['filter'], self.source)
 
         if self.source == 'cc':
@@ -278,7 +282,7 @@ class CDXFetcher:
         index_list = self.customize_index_list(params)
         return CDXFetcherIter(self, params=params, index_list=index_list)
 
-    def items(self, url, **kwargs):
+    def items(self, url, **kwargs):  # pragma: no cover
         warnings.warn(
             'cdx.items() has been renamed to cdx.iter() and will be removed in cdx_toolkit 1.0',
             FutureWarning

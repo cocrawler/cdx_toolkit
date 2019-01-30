@@ -25,7 +25,7 @@ def main(args=None):
     parser.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
     parser.add_argument('--from', action='store')  # XXX default for cc
     parser.add_argument('--to', action='store')
-    parser.add_argument('--filter', action='store', help='see CDX API documentation for usage')
+    parser.add_argument('--filter', action='append', help='see CDX API documentation for usage')
     parser.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration. default limit=1000')
     parser.add_argument('--closest', action='store', help='get the closest capture to this timestamp. use with --get')
 

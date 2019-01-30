@@ -119,11 +119,13 @@ help users not shoot themselves in the foot, a limit of 1,000 is
 applied to --get and .get() calls.
 
 A **filter** allows a user to select a subset of CDX records, reducing
-network traffic between the CDX API server and the user. For
-example, filter='!status:200' will only show captures whose http
-status is not 200. Filters and **limit** work together, with the limit
-applying to the count of captures after the filter is applied. Note
-that revisit records have a status of '-', not 200.
+network traffic between the CDX API server and the user. For example,
+filter='!status:200' will only show captures whose http status is not
+200. Multiple filters can be specified as a list (in the api) and on
+the command line (by specifying --filter more than once). Filters and
+**limit** work together, with the limit applying to the count of
+captures after the filter is applied. Note that revisit records have a
+status of '-', not 200.
 
 CDX API servers support a **paged interface** for efficient access to
 large sets of URLs. cdx_toolkit iterators always use the paged interface.

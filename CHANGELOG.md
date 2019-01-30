@@ -1,3 +1,6 @@
+- 0.9.25 (not yet tagged)
+	+ allow multiple --filter args in the cli, and filter=list in the api
+
 - 0.9.24
 	+ rename cdx.items() to cdx.iter() with a deprecation warning
 	+ use warcio for all warc reading/writing

@@ -35,7 +35,7 @@ def test_multi(capsys, caplog):
          {'count': 11, 'csv': True}],
         [{'service': '--cc', 'mods': '--limit 10 --filter=status:200', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'status 200'}],
-        [{'service': '--cc', 'mods': '--limit 10 --filter=!status:200', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+        [{'service': '--cc', 'mods': '--limit 10 --filter=!status:200 --filter=!status:404', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrepv': 'status 200'}],
         [{'service': '--cc', 'mods': '--limit 10 --to=2017', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
