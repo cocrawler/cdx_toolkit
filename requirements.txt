@@ -5,13 +5,13 @@ warcio==1.6.3
 
 # used by Makefile
 coverage==4.5.3
-pytest==4.3.1
-pytest-cov==2.6.1
+pytest==4.5.0
+pytest-cov==2.7.1
 pytest-sugar==0.9.2
-coveralls==1.6.0
+coveralls==1.7.0
 
 # packaging
 twine==1.13.0
 pypandoc==1.4
-setuptools==40.8.0
-setuptools-scm==3.2.0
+setuptools==41.0.1
+setuptools-scm==3.3.3
