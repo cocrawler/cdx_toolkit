@@ -1,5 +1,6 @@
 - 0.9.25 (not yet tagged)
 	+ allow multiple --filter args in the cli, and filter=list in the api
+	+ drop python 3.4 support because requests 2.22 no longer supports it
 
 - 0.9.24
 	+ rename cdx.items() to cdx.iter() with a deprecation warning
