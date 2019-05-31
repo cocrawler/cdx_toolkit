@@ -1,6 +1,6 @@
 # Install with "python -m pip install -r requirements.txt".
 
-requests==2.21.0
+requests==2.22.0
 warcio==1.6.3
 
 # used by Makefile
