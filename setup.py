@@ -7,7 +7,7 @@ from setuptools.command.test import test as TestCommand
 
 
 class PyTest(TestCommand):
-    args = ['--doctest-module', 'cdx_toolkit/', 'tests']
+    args = ['--doctest-modules', 'cdx_toolkit/', 'tests']
     user_options = [('pytest-args=', 'a', "Arguments to pass into py.test")]
     # python ./setup.py --pytest-args='-v -v'
 
