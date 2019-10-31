@@ -11,7 +11,7 @@ pytest-sugar==0.9.2
 coveralls==1.8.2
 
 # packaging
-twine<2
+twine<2  # python 3.5
 pypandoc==1.4
 setuptools==41.6.0
 setuptools-scm==3.3.3
