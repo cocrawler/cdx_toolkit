@@ -21,6 +21,10 @@ matrix:
   include:
   - python: 3.5
     env: LOGLEVEL=DEBUG
+  - python: 3.8
+    arch: arm64
+  - python: 3.8
+    arch: s390x
 
 git:
   depth: 99999
