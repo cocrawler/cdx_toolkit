@@ -135,7 +135,7 @@ will return captures for blog.example.com, support.example.com, etc.
 The other, `example.com/*`, will return captures for any page on
 example.com.
 
-A **timestmap** represents year-month-day-time as a string of digits run togther.
+A **timestamp** represents year-month-day-time as a string of digits run togther.
 Example: January 5, 2016 at 12:34:56 UTC is 20160105123456. These timestamps are
 a field in the index, and are also used to pick specify the dates used
 by **--from=**, **--to**, and **--closest** on the command-line. (Programmatically,
