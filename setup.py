@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+from os import path
 
 from setuptools import setup
 from setuptools.command.test import test as TestCommand
@@ -38,11 +39,9 @@ test_requirements = ['pytest>=3.0.0']  # 'coverage', 'pytest-cov']
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']
 
-try:
-    import pypandoc
-    description = pypandoc.convert_file('README.md', 'rst')
-except (IOError, ImportError):
-    description = open('README.md').read()
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+    description = f.read()
 
 setup(
     name='cdx_toolkit',
@@ -59,6 +58,7 @@ setup(
     entry_points='''
         [console_scripts]
         cdxt = cdx_toolkit.cli:main
+        #ccathena = cdx_toolkit.cli:main_athena
     ''',
     scripts=scripts,
     license='Apache 2.0',

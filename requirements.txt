@@ -12,6 +12,5 @@ coveralls==2.0.0
 
 # packaging
 twine<2  # python 3.5
-pypandoc==1.5
 setuptools==46.4.0
 setuptools-scm==3.5.0
