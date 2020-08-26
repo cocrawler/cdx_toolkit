@@ -2,6 +2,7 @@
 
 requests==2.24.0
 warcio==1.7.4
+pyathena==1.11.1
 
 # used by Makefile
 coverage==5.2.1
