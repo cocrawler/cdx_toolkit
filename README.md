@@ -12,9 +12,10 @@ hides these differences as best it can. cdx_toolkit also knits
 together the monthly Common Crawl CDX indices into a single, virtual
 index.
 
-Finally, cdx_toolkit allows extracting archived pages from CC
-and IA into WARC files. This feature is a work-in-progress and
-still has several warts.
+Finally, cdx_toolkit allows extracting archived pages from CC and IA
+into WARC files.  If you're looking to create subsets of CC or IA data
+and then process them into WET or WAT files, this is a feature you'll
+find useful.
 
 ## Installing
 
@@ -25,33 +26,6 @@ $ pip install cdx_toolkit
 ```
 
 or clone this repo and use `python ./setup.py install`.
-
-## Example
-
-```
-import cdx_toolkit
-
-cdx = cdx_toolkit.CDXFetcher(source='cc')
-url = 'commoncrawl.org/*'
-
-print(url, 'size estimate', cdx.get_size_estimate(url))
-
-for obj in cdx.iter(url, limit=1):
-    print(obj)
-```
-
-at the moment will print:
-
-```
-commoncrawl.org/* size estimate 36000
-{'urlkey': 'org,commoncrawl)/', 'timestamp': '20180219112308', 'mime-detected': 'text/html', 'url': 'http://commoncrawl.org/', 'status': '200', 'filename': 'crawl-data/CC-MAIN-2018-09/segments/1518891812584.40/warc/CC-MAIN-20180219111908-20180219131908-00494.warc.gz', 'mime': 'text/html', 'length': '5365', 'digest': 'FM7M2JDBADOQIHKCSFKVTAML4FL2HPHT', 'offset': '81614902'}
-```
-
-You can also fetch the content as bytes:
-
-```
-    print(obj.content)
-```
 
 ## Command-line tools
 
@@ -81,6 +55,33 @@ for full details. Note that argument order really matters; each switch
 is valid only either before or after the {iter,warc,size} command.
 
 Add -v (or -vv) to see what's going on under the hood.
+
+## Programming example
+
+```
+import cdx_toolkit
+
+cdx = cdx_toolkit.CDXFetcher(source='cc')
+url = 'commoncrawl.org/*'
+
+print(url, 'size estimate', cdx.get_size_estimate(url))
+
+for obj in cdx.iter(url, limit=1):
+    print(obj)
+```
+
+at the moment will print:
+
+```
+commoncrawl.org/* size estimate 36000
+{'urlkey': 'org,commoncrawl)/', 'timestamp': '20180219112308', 'mime-detected': 'text/html', 'url': 'http://commoncrawl.org/', 'status': '200', 'filename': 'crawl-data/CC-MAIN-2018-09/segments/1518891812584.40/warc/CC-MAIN-20180219111908-20180219131908-00494.warc.gz', 'mime': 'text/html', 'length': '5365', 'digest': 'FM7M2JDBADOQIHKCSFKVTAML4FL2HPHT', 'offset': '81614902'}
+```
+
+You can also fetch the content as bytes:
+
+```
+    print(obj.content)
+```
 
 ## Filter syntax
 
@@ -213,5 +214,18 @@ cdx_toolkit has reached the beta-testing stage of development.
 
 ## License
 
-Apache 2.0
+Copyright 2018-2020 Greg Lindahl and others
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this software except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
 
