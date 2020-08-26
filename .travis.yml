@@ -18,6 +18,10 @@ matrix:
   allow_failures:
   - python: 3.9-dev
   - python: nightly
+  - python: 3.8
+    arch: arm64  # too slow and unreliable
+  - python: 3.8
+    arch: s390x  # too slow and unreliable
   include:
   - python: 3.5
     env: LOGLEVEL=DEBUG

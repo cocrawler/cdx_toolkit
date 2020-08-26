@@ -1,3 +1,10 @@
+- 0.9.27
+	+ packaging: fix for using markdown without explicit conversion in setup.py
+
+- 0.9.26
+	+ 10x effort for cdx server timeouts, but fail immediately for dns failures
+	+ give a human-useful error if the user passes in a unix timestamp instead of a cdx timestamp
+
 - 0.9.25
 	+ allow multiple --filter args in the cli, and filter=list in the api
 	+ drop python 3.4 support because requests 2.22 no longer supports it
