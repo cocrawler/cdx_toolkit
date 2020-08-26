@@ -57,11 +57,17 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
         except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,
                 requests.exceptions.Timeout) as e:
             connect_errors += 1
-            if connect_errors > 10:
-                string = 'Final failure for url {} {!r}: {}'.format(url, params, str(e))
+            string = '{} failures for url {} {!r}: {}'.format(connect_errors, url, params, str(e))
+
+            if 'Name or service not known' in string:
+                raise ValueError('invalid hostname in url '+url) from None
+
+            if connect_errors > 100:
                 LOGGER.error(string)
                 raise ValueError(string)
-            LOGGER.warning('retrying after 1s for '+str(e))
+            if connect_errors > 10:
+                LOGGER.warning(string)
+            LOGGER.info('retrying after 1s for '+str(e))
             time.sleep(1)
         except requests.exceptions.RequestException as e:  # pragma: no cover
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
