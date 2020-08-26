@@ -41,12 +41,17 @@ def timestamp_to_time(ts):
     915148800.0
     '''
     utc = datetime.timezone.utc
-    ts = pad_timestamp(ts)
+    padded = pad_timestamp(ts)
     try:
-        return datetime.datetime.strptime(ts, TIMESTAMP).replace(tzinfo=utc).timestamp()
+        return datetime.datetime.strptime(padded, TIMESTAMP).replace(tzinfo=utc).timestamp()
     except ValueError:
-        LOGGER.error('cannot parse timestamp, is it a legal date?: '+ts)
-        raise
+        # users may try to put a Unixtime in
+        # the web was born: 19890312 == 605664000
+        if ts.isdigit() and int(ts) > 605664000 and int(ts) < 1989031200:
+            LOGGER.error('hint: unixtime {} is cdx timestamp {}'.format(ts, time_to_timestamp(int(ts))))
+            raise ValueError('cannot parse timestamp, cdx timestamps are not unix timestamps: '+ts) from None
+        else:
+            raise ValueError('cannot parse timestamp, is it a valid cdx timestamp?: '+ts) from None
 
 
 def time_to_timestamp(t):

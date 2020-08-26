@@ -22,6 +22,12 @@ def test_time_timestamp():
     with pytest.raises(ValueError):
         timeutils.timestamp_to_time('19990231')  # invalid day of month
 
+    with pytest.raises(ValueError, match='are not unix timestamps'):
+        timeutils.timestamp_to_time('1598411009')
+
+    with pytest.raises(ValueError, match='is it a valid cdx timestamp'):
+        timeutils.timestamp_to_time('x')
+
 
 def test_validate_timestamps():
     with pytest.raises(ValueError):
