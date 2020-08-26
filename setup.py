@@ -48,6 +48,7 @@ setup(
     use_scm_version=True,
     description='A toolkit for working with CDX indices',
     long_description=description,
+    long_description_content_type='text/markdown',
     author='Greg Lindahl and others',
     author_email='lindahl@pbm.com',
     url='https://github.com/cocrawler/cdx_toolkit',
@@ -58,7 +59,7 @@ setup(
     entry_points='''
         [console_scripts]
         cdxt = cdx_toolkit.cli:main
-        #ccathena = cdx_toolkit.cli:main_athena
+        ccathena = cdx_toolkit.cli:main_athena
     ''',
     scripts=scripts,
     license='Apache 2.0',

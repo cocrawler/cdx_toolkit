@@ -6,26 +6,41 @@ import json
 import os
 
 import cdx_toolkit
+from . import athena
 
 LOGGER = logging.getLogger(__name__)
+
+
+def split_fields(fields):
+    ret = []
+    dedup = set()
+    for f in fields.split(','):
+        if f not in dedup:
+            dedup.add(f)
+            ret.append(f)
+    return ret
+
+
+def add_global_args(parser):
+    parser.add_argument('--version', '-V', action='version', version=get_version())
+    parser.add_argument('--verbose', '-v', action='count', help='set logging level to INFO (-v) or DEBUG (-vv)')
+    parser.add_argument('--limit', type=int, action='store')
+    parser.add_argument('--from', action='store')  # XXX default for cc
+    parser.add_argument('--to', action='store')
+    parser.add_argument('--filter', action='append', help='see CDX API documentation for usage')
 
 
 def main(args=None):
     parser = ArgumentParser(description='cdx_toolkit iterator command line tool')
 
-    parser.add_argument('--version', '-V', action='version', version=get_version())
-    parser.add_argument('--verbose', '-v', action='count', help='set logging level to INFO (-v) or DEBUG (-vv)')
+    add_global_args(parser)
 
     parser.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/WARCs')
     parser.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
     parser.add_argument('--source', action='store', help='direct the query to this CDX server')
     parser.add_argument('--wb', action='store', help='direct replays for content to this wayback')
-    parser.add_argument('--limit', type=int, action='store')
     parser.add_argument('--cc-mirror', action='store', help='use this Common Crawl index mirror')
     parser.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
-    parser.add_argument('--from', action='store')  # XXX default for cc
-    parser.add_argument('--to', action='store')
-    parser.add_argument('--filter', action='append', help='see CDX API documentation for usage')
     parser.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration. default limit=1000')
     parser.add_argument('--closest', action='store', help='get the closest capture to this timestamp. use with --get')
 
@@ -34,7 +49,7 @@ def main(args=None):
 
     iterate = subparsers.add_parser('iter', help='iterate printing captures')
     iterate.add_argument('--all-fields', action='store_true')
-    iterate.add_argument('--fields', action='store', default='url,status,timestamp', help='try --all-fields if you need the list')
+    iterate.add_argument('--fields', action='store', default='url,status,timestamp', help='try --all-fields if you need the complete list')
     iterate.add_argument('--jsonl', action='store_true')
     iterate.add_argument('--csv', action='store_true')
     iterate.add_argument('url')
@@ -53,8 +68,64 @@ def main(args=None):
 
     size = subparsers.add_parser('size', help='imprecise count of how many results are available')
     size.add_argument('--details', action='store_true', help='show details of each subindex')
-    size.add_argument('url')
+    size.add_argument('url', help='')
     size.set_defaults(func=sizer)
+
+    if args is not None:
+        cmdline = ' '.join(args)
+    else:  # pragma: no cover
+        # there's something magic about args and console_scripts
+        # this fallback is needed when installed by setuptools
+        if len(sys.argv) > 1:
+            cmdline = 'cdxt ' + ' '.join(sys.argv[1:])
+        else:
+            cmdline = 'cdxt'
+    cmd = parser.parse_args(args=args)
+    set_loglevel(cmd)
+    cmd.func(cmd, cmdline)
+
+
+def add_athena_args(parser):
+    parser.add_argument('--profile-name', action='store', help='choose which section of your boto conf files is used')
+    parser.add_argument('--role-arn', action='store', help='Amazon resource name roley')
+    parser.add_argument('--work-group', action='store', help='Amazon Athena work group name')
+    parser.add_argument('--s3-staging-dir', action='store', help='an s3 bucket to hold outputs')
+    parser.add_argument('--region-name', action='store', default='us-east-1',
+                        help='AWS region to use, you probably want the one the commoncrawl data is in (us-east-1)')
+    parser.add_argument('--dry-run', '-n', action='store_true', help='print the SQL and exit without executing it')
+
+
+def main_athena(args=None):
+    parser = ArgumentParser(description='CommonCrawl column database command line tool')
+
+    add_global_args(parser)
+    add_athena_args(parser)
+
+    subparsers = parser.add_subparsers(dest='cmd')
+    subparsers.required = True
+
+    asetup = subparsers.add_parser('setup', help='set up amazon athena ccindex database and table')
+    asetup.set_defaults(func=asetuper)
+
+    asummarize = subparsers.add_parser('summarize', help='summarize the partitions currently in the table')
+    asummarize.set_defaults(func=asummarizer)
+
+    asql = subparsers.add_parser('sql', help='run arbitrary SQL statement from a file')
+    asql.add_argument('--param', action='append', help='parameteres for templating the SQL, e.g. SUBSET=warc')
+    asql.add_argument('file', help='')
+    asql.set_defaults(func=asqler)
+
+    aiter = subparsers.add_parser('iter', help='iterate printing captures')
+    aiter.add_argument('--all-fields', action='store_true')
+    aiter.add_argument('--fields', action='store', default='url,warc_filename,warc_record_offset,warc_record_length', help='try --all-fields if you need the list')
+    aiter.add_argument('--jsonl', action='store_true')
+    aiter.add_argument('--csv', action='store_true')
+    aiter.add_argument('--subset', action='append', default='warc', help='e.g. warc, robotstxt, crawldiagnostics')
+    aiter.add_argument('--crawl', action='append', help='crawl to process, you can specify more than one')
+    aiter.add_argument('--limit', type=int, action='store', help='maximum records to return, good for debugging')
+    aiter.add_argument('--filter', action='append', help='CDX-style filter, see CDX API documentation for usage')
+    aiter.add_argument('url', help='')
+    aiter.set_defaults(func=aiterator)
 
     if args is not None:
         cmdline = ' '.join(args)
@@ -144,9 +215,13 @@ def print_line(cmd, writer, printme):
 
 def iterator(cmd, cmdline):
     cdx, kwargs = setup(cmd)
-    fields = set(cmd.fields.split(','))
+
+    fields = split_fields(cmd.fields)
+
+    if cmd.csv and cmd.all_fields:
+        raise NotImplementedError('Sorry, the comination of csv and all-fields is not yet implemented')
     if cmd.csv:
-        writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
+        writer = csv.DictWriter(sys.stdout, fieldnames=fields)
         writer.writeheader()
     else:
         writer = None
@@ -212,3 +287,56 @@ def sizer(cmd, cmdline):
 
     size = cdx.get_size_estimate(cmd.url, **kwargs)
     print(size)
+
+
+def athena_init(cmd):
+    conn_kwargs = {}
+    # these args are all permissions-related
+    for k in ('profile_name', 'role_arn', 'work_group', 's3_staging_dir', 'region_name', 'dry_run'):
+        if k in cmd:
+            value = cmd.__dict__[k]
+            if value is not None:
+                conn_kwargs[k] = value
+    kwargs = {}
+    if 'dry_run' in cmd and cmd.dry_run:
+        kwargs['dry_run'] = True
+
+    connection = athena.get_athena(**conn_kwargs)
+    return connection, kwargs
+
+
+def asetuper(cmd, cmdline):
+    connection, kwargs = athena_init(cmd)
+    athena.asetup(connection, **kwargs)
+    print('crawl partitions:', athena.get_all_crawls(connection, **kwargs))
+
+
+def asummarizer(cmd, cmdline):
+    connection, kwargs = athena_init(cmd)
+    print(athena.get_summary(connection, **kwargs))
+
+
+def asqler(cmd, cmdline):
+    connection, kwargs = athena_init(cmd)
+    print(athena.run_sql_from_file(connection, cmd, **kwargs))
+
+
+def aiterator(cmd, cmdline):
+    connection, kwargs = athena_init(cmd)
+
+    fields = split_fields(cmd.fields)
+
+    if cmd.csv and cmd.all_fields:
+        raise NotImplementedError('Sorry, the comination of csv and all-fields is not yet implemented')
+    if cmd.csv:
+        writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
+        writer.writeheader()
+    else:
+        writer = None
+
+    # csv fields for all-fields are not present until the cursor.execute has run
+    # XXX what should winnow_fields do in this loop?
+
+    for obj in athena.iter(connection, **kwargs):
+        printme = winnow_fields(cmd, fields, obj)
+        print_line(cmd, writer, printme)
