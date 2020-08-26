@@ -116,11 +116,11 @@ def analyze_dictionary_overflow(column, statspath, fname, row_group_index, path,
     if 'overflow' not in statspath:
         statspath['overflow'] = defaultdict(int)
 
-    if column.total_compressed_size < 100_000:
+    if column.total_compressed_size < 100000:
         statspath['overflow']['very small size'] += 1
         return
 
-    if column.total_compressed_size < 1_000_000:
+    if column.total_compressed_size < 1000000:
         if 'PLAIN_DICTIONARY' not in column.encodings:
             statspath['overflow']['small no dictionary'] += 1
             return

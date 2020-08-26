@@ -23,8 +23,8 @@ def all_results_properties(cursor):
 
 def estimate_athena_cost(cursor, cost_per_tib=5.0):
     data_scanned_in_bytes = cursor.data_scanned_in_bytes or 0
-    data_scanned_in_mibytes = math.ceil(data_scanned_in_bytes / 1_000_000)
-    return max(data_scanned_in_mibytes, 10) * cost_per_tib / 1_000_000
+    data_scanned_in_mibytes = math.ceil(data_scanned_in_bytes / 1000000)
+    return max(data_scanned_in_mibytes, 10) * cost_per_tib / 1000000
 
 
 def print_text_messages(connection, location):
