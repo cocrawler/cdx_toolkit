@@ -19,8 +19,11 @@ test_coverage: clean_coverage
 distclean:
 	rm -rf dist/
 
+distcheck: distclean
+	python ./setup.py sdist
+	twine check dist/*
+
 dist: distclean
-	python ./setup.py --long-description | rst2html --exit-status=2 2>&1 > /dev/null
 	python ./setup.py sdist
 	twine upload dist/* -r pypi
 
