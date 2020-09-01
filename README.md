@@ -77,7 +77,7 @@ commoncrawl.org/* size estimate 36000
 {'urlkey': 'org,commoncrawl)/', 'timestamp': '20180219112308', 'mime-detected': 'text/html', 'url': 'http://commoncrawl.org/', 'status': '200', 'filename': 'crawl-data/CC-MAIN-2018-09/segments/1518891812584.40/warc/CC-MAIN-20180219111908-20180219131908-00494.warc.gz', 'mime': 'text/html', 'length': '5365', 'digest': 'FM7M2JDBADOQIHKCSFKVTAML4FL2HPHT', 'offset': '81614902'}
 ```
 
-You can also fetch the content of the webpage as bytes:
+You can also fetch the content of the web capture as bytes:
 
 ```
     print(obj.content)
