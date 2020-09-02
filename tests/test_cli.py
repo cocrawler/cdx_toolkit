@@ -54,7 +54,7 @@ def multi_helper(t, capsys, caplog):
         assert len(caplog.records) > outputs['debug'], cmdline
 
 
-def test_multi1(capsys, caplog):
+def test_multi_cc1(capsys, caplog):
     tests = [
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
@@ -76,28 +76,35 @@ def test_multi1(capsys, caplog):
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
         [{'service': '--cc', 'mods': '--limit 10 --from=2017 --to=2017', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
-
-        [{'service': '--cc', 'mods': '--limit 3 --get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
-        [{'service': '--cc', 'mods': '--limit 3 --get --filter status:200 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
-        [{'service': '--cc', 'mods': '--get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/never-existed'},
-         {'count': 0}],
     ]
 
     for t in tests:
         multi_helper(t, capsys, caplog)
 
 
-def test_multi2(capsys, caplog):
+def test_multi_cc2(capsys, caplog):
     tests = [
+        [{'service': '--cc', 'mods': '--limit 3 --get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
+        [{'service': '--cc', 'mods': '--limit 3 --get --filter status:200 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
+        [{'service': '--cc', 'mods': '--get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/never-existed'},
+         {'count': 0}],
+
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --csv'},
          {'count': 11, 'csv': True}],
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --jsonl'},
          {'count': 10, 'jsonl': True}],
         [{'service': '--cc', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'debug': 5}],
+    ]
 
+    for t in tests:
+        multi_helper(t, capsys, caplog)
+
+
+def test_multi_ia(capsys, caplog):
+    tests = [
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/thisurlneverdidexist'},
@@ -108,13 +115,20 @@ def test_multi2(capsys, caplog):
          {'count': 4, 'linefgrep': 'timestamp '}],  # returns 2008 ?! bug probably on my end
         [{'service': '--ia', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'debug': 5}],
+    ]
 
+    for t in tests:
+        multi_helper(t, capsys, caplog)
+
+
+def test_multi_rest(capsys, caplog):
+    tests = [
         [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'debug': 15, 'exception': ValueError}],  # 9 lines for the non-fail case, many more for fail
+         {'exception': ValueError}],
         [{'service': '-v -v --source https://example.com/404', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'debug': 15, 'exception': ValueError}],  # 9 lines for the non-fail case, many more for fail
+         {'exception': ValueError}],
 
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
