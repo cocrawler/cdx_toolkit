@@ -34,6 +34,7 @@ $ cdxt --cc size 'commoncrawl.org/*'
 $ cdxt --cc --limit 10 iter 'commoncrawl.org/*'
 $ cdxt --cc --limit 10 --filter '=status:200' iter 'commoncrawl.org/*'
 $ cdxt --ia --limit 10 iter 'commoncrawl.org/*'
+$ cdxt --ia --limit 10 warc 'commoncrawl.org/*'
 ```
 
 cdxt takes a large number of command line switches, controlling
