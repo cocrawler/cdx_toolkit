@@ -84,6 +84,9 @@ You can also fetch the content of the web capture as bytes:
     print(obj.content)
 ```
 
+There's a full example of iterating and selecting a subset of captures
+to write into an extracted WARC file in [examples/iter-and-warc.py](examples/iter-and-warc.py)
+
 ## Filter syntax
 
 Filters can be used to limit captures to a subset of the results.
