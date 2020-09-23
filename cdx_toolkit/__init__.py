@@ -100,7 +100,6 @@ class CaptureObject(MutableMapping):
         return False
 
     def fetch_warc_record(self):
-        print(self.warc_record, file=sys.stderr)
         if self.warc_record is not None:
             return self.warc_record
         if self.wb:
