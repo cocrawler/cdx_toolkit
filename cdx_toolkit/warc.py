@@ -120,7 +120,7 @@ def fetch_wb_warc(capture, wb, modifier='id_'):
     return fake_wb_warc(url, wb_url, resp, capture)
 
 
-def fetch_warc_record(capture, warc_prefix):
+def fetch_warc_record(capture, warc_url_prefix):
     for field in ('url', 'filename', 'offset', 'length'):
         if field not in capture:  # pragma: no cover
             raise ValueError('capture must contain '+field)
@@ -130,7 +130,7 @@ def fetch_warc_record(capture, warc_prefix):
     offset = int(capture['offset'])
     length = int(capture['length'])
 
-    warc_url = warc_prefix + '/' + filename
+    warc_url = warc_url_prefix + '/' + filename
     headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
 
     resp = myrequests_get(warc_url, headers=headers)
