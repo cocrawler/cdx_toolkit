@@ -1,11 +1,25 @@
 import requests
 import logging
-import os
 import time
+from urllib.parse import urlparse
 
 from . import __version__
 
 LOGGER = logging.getLogger(__name__)
+
+
+previously_seen_hostnames = {
+    'commoncrawl.s3.amazonaws.com',
+    'web.archive.org',
+    'web.archive.org',
+}
+
+
+def dns_fatal(url):
+    '''We have a dns error, should we fail immediately or not?'''
+    hostname = urlparse(url).hostname
+    if hostname not in previously_seen_hostnames:
+        return True
 
 
 def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
@@ -60,7 +74,8 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
             string = '{} failures for url {} {!r}: {}'.format(connect_errors, url, params, str(e))
 
             if 'Name or service not known' in string:
-                raise ValueError('invalid hostname in url '+url) from None
+                if dns_fatal(url):
+                    raise ValueError('invalid hostname in url '+url) from None
 
             if connect_errors > 100:
                 LOGGER.error(string)
@@ -72,4 +87,9 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
         except requests.exceptions.RequestException as e:  # pragma: no cover
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
             raise
+
+    hostname = urlparse(url).hostname
+    if hostname not in previously_seen_hostnames:
+        previously_seen_hostnames.add(hostname)
+
     return resp

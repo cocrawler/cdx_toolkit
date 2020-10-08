@@ -1,3 +1,7 @@
+- 0.9.28 (not yet tagged)
+	+ expose warc_version= keyword argument for warc writing (but it's untested and broken for --ia warc)
+	+ improve dns retry algorithm: always retry for hostnames we expect to exist (ia, cc)
+
 - 0.9.27
 	+ packaging: fix for using markdown without explicit conversion in setup.py
 
