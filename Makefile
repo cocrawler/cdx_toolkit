@@ -14,6 +14,7 @@ clean_coverage:
 
 test_coverage: clean_coverage
 	PYTHONPATH=. py.test --doctest-modules --cov-report= --cov-append --cov cdx_toolkit tests -v -v
+	PYTHONPATH=. examples/iter-and-warc.py --cov-report= --cov-append --cov cdx_toolkit tests -v -v
 	coverage report
 
 distclean:

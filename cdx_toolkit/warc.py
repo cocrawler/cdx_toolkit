@@ -88,7 +88,7 @@ def fake_wb_warc(url, wb_url, resp, capture):
 
     content_bytes = resp.content
 
-    writer = WARCWriter(None)
+    writer = WARCWriter(None)  # needs warc_version here?
     return writer.create_warc_record(url, 'response',
                                      payload=BytesIO(content_bytes),
                                      http_headers=http_headers,
@@ -152,17 +152,25 @@ def fetch_warc_record(capture, warc_url_prefix):
 
 
 class CDXToolkitWARCWriter:
-    def __init__(self, prefix, subprefix, info, size=1000000000, gzip=True):
+    def __init__(self, prefix, subprefix, info, size=1000000000, gzip=True, warc_version=None):
         self.prefix = prefix
         self.subprefix = subprefix
         self.info = info
         self.size = size
         self.gzip = gzip
+        self.warc_version = warc_version
         self.segment = 0
         self.writer = None
 
     def write_record(self, *args, **kwargs):
         if self.writer is None:
+            if self.warc_version is None:
+                # opportunity to intuit warc version here
+                self.warc_version = '1.0'
+            if self.warc_version != '1.0':
+                LOGGER.error('WARC versions other than 1.0 are not correctly supported yet')
+                # ...because fake_wb_warc always generates 1.0
+            # should we also check the warcinfo record to make sure it's got a matching warc_version inside?
             self._start_new_warc()
 
         self.writer.write_record(*args, **kwargs)
@@ -191,7 +199,7 @@ class CDXToolkitWARCWriter:
         self.filename = self._unique_warc_filename()
         self.fd = open(self.filename, 'wb')
         LOGGER.info('opening new warc file %s', self.filename)
-        self.writer = WARCWriter(self.fd, gzip=self.gzip)
+        self.writer = WARCWriter(self.fd, gzip=self.gzip, warc_version=self.warc_version)
         warcinfo = self.writer.create_warcinfo_record(self.filename, self.info)
         self.writer.write_record(warcinfo)
 

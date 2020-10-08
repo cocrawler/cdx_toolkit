@@ -12,7 +12,7 @@ warcinfo = {
     'format': 'WARC file version 1.0',
 }
 
-writer = cdx_toolkit.warc.get_writer('EXAMPLE', 'COMMONCRAWL', warcinfo)
+writer = cdx_toolkit.warc.get_writer('EXAMPLE', 'COMMONCRAWL', warcinfo, warc_version='1.1')
 
 for obj in cdx.iter(url, limit=10):
     url = obj['url']
