@@ -45,7 +45,7 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
             LOGGER.debug('getting %s %r', url, params)
             resp = requests.get(url, params=params, headers=headers,
                                 timeout=(30., 30.), allow_redirects=False)
-            if cdx and resp.status_code in (400, 404):
+            if cdx and resp.status_code in {400, 404}:
                 # 400: ia html error page -- probably page= is too big -- not an error
                 # 404: pywb {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
                 LOGGER.debug('giving up with status %d, no captures found', resp.status_code)
@@ -54,7 +54,7 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
             if allow404 and resp.status_code == 404:
                 retry = False
                 break
-            if resp.status_code in (503, 502, 504, 500):  # pragma: no cover
+            if resp.status_code in {503, 502, 504, 500}:  # pragma: no cover
                 # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
                 retries += 1
                 if retries > 5:
@@ -63,7 +63,7 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                     LOGGER.info('retrying after 1s for %d', resp.status_code)
                 time.sleep(1)
                 continue
-            if resp.status_code in (400, 404):  # pragma: no cover
+            if resp.status_code in {400, 404}:  # pragma: no cover
                 LOGGER.info('response body is %s', resp.text)
                 raise RuntimeError('invalid url of some sort, status={} {}'.format(resp.status_code, url))
             resp.raise_for_status()
