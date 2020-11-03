@@ -1,3 +1,6 @@
+- 0.9.29
+	+ python 3.9 support marked in setup.py
+
 - 0.9.28
 	+ expose warc_version= keyword argument for warc writing (but it's untested and broken for --ia warc)
 	+ improve dns retry algorithm: always retry for hostnames we expect to exist (ia, cc)
