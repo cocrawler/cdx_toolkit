@@ -9,7 +9,7 @@ jobs:
       matrix:
         Python35:
           python.version: '3.5'
-        Python35:
+        Python35debug:
           python.version: '3.5'
 	  myenv: LOGLEVEL=DEBUG
         Python36:
