@@ -1,6 +1,6 @@
 # cdx_toolkit
 
-[![Build Status](https://travis-ci.com/cocrawler/cdx_toolkit.svg?branch=master)](https://travis-ci.com/cocrawler/cdx_toolkit) [![Coverage Status](https://coveralls.io/repos/github/cocrawler/cdx_toolkit/badge.svg?branch=master)](https://coveralls.io/github/cocrawler/cdx_toolkit?branch=master) [![Apache License 2.0](https://img.shields.io/github/license/cocrawler/cdx_toolkit.svg)](LICENSE)
+[![Build Status](https://dev.azure.com/cocrawler/cdx_toolkit/_apis/build/status/cocrawler.cdx_toolkit?branchName=master)](https://dev.azure.com/cocrawler/cdx_toolkit/_build/latest?definitionId=1&branchName=master) [![Coverage](https://img.shields.io/azure-devops/coverage/cocrawler/cdx_toolkit/1)](https://dev.azure.com/cocrawler/cdx_toolkit/_build/latest?definitionId=1&branchName=master) [![Apache License 2.0](https://img.shields.io/github/license/cocrawler/cdx_toolkit.svg)](LICENSE)
 
 cdx_toolkit is a set of tools for working with CDX indices of web
 crawls and archives, including those at CommonCrawl and the Internet

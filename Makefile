@@ -1,20 +1,18 @@
-.PHONY: init pytest test distclean dist install
+.PHONY: init test clean_coverage test_coverage distclean distcheck dist install
 
 init:
 	pip install -r requirements.txt
 
-pytest:
-	python ./setup.py test
-
 test:
-	python ./setup.py test
+	PYTHONPATH=. py.test --doctest-modules tests -v -v
+	PYTHONPATH=. examples/iter-and-warc.py
 
 clean_coverage:
 	rm -f .coverage
 
 test_coverage: clean_coverage
-	PYTHONPATH=. py.test --doctest-modules --cov-report= --cov-append --cov cdx_toolkit tests -v -v
-	PYTHONPATH=. examples/iter-and-warc.py --cov-report= --cov-append --cov cdx_toolkit tests -v -v
+	PYTHONPATH=. coverage run -a --source=cdx_toolkit,examples examples/iter-and-warc.py
+	PYTHONPATH=. py.test --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests -v -v
 	coverage report
 
 distclean:
