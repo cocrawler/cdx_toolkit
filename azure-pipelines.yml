@@ -11,7 +11,7 @@ jobs:
           python.version: '3.5'
         Python35debug:
           python.version: '3.5'
-	  myenv: LOGLEVEL=DEBUG
+          myenv: LOGLEVEL=DEBUG
         Python36:
           python.version: '3.6'
         Python37:
@@ -34,6 +34,9 @@ jobs:
 
     - script: |
         pip install pytest pytest-azurepipelines
+        if [ ! -z "$(myenv)" ]; then
+          export $(myenv)
+        fi
         make test_coverage
       displayName: 'pytest'
 
@@ -65,6 +68,9 @@ jobs:
 
     - script: |
         pip install pytest pytest-azurepipelines
+        if [ ! -z "$(myenv)" ]; then
+          export $(myenv)
+        fi
         make test_coverage
       displayName: 'pytest'
 
