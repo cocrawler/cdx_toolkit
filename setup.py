@@ -11,7 +11,7 @@ packages = [
 
 requires = ['requests', 'warcio']
 
-test_requirements = ['pytest>=3.0.0']  # 'coverage', 'pytest-cov']
+test_requirements = ['pytest', 'pytest-cov', 'coverage']
 
 extras_require = {
     'test': test_requirements,  # setup no longer tests, so make them an extra
@@ -59,5 +59,4 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3 :: Only',
     ],
-    cmdclass={'test': PyTest},
 )
