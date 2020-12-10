@@ -11,7 +11,7 @@ jobs:
           python.version: '3.5'
         Python35debug:
           python.version: '3.5'
-          myenv: LOGLEVEL=DEBUG
+          myenv: LOGLEVEL=DEBUG EXACT_PIP_VERSIONS=1
         Python36:
           python.version: '3.6'
         Python37:
@@ -29,6 +29,13 @@ jobs:
 
     - script: |
         python -m pip install --upgrade pip
+        if [ ! -z "$(myenv)" ]; then
+          export $(myenv)
+        fi
+        if [ ! -z "$EXACT_PIP_VERSIONS" ]; then
+          echo Installing exact versions of dependencies
+          pip install -r requirements.txt
+        fi
         pip install . .[test]
       displayName: 'Install dependencies'
 
