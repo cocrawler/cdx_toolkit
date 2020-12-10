@@ -9,11 +9,11 @@ jobs:
       matrix:
         Python35:
           python.version: '3.5'
-        Python35debug:
-          python.version: '3.5'
-          myenv: LOGLEVEL=DEBUG EXACT_PIP_VERSIONS=1
         Python36:
           python.version: '3.6'
+        Python36debug:
+          python.version: '3.6'
+          myenv: LOGLEVEL=DEBUG EXACT_PIP_VERSIONS=1
         Python37:
           python.version: '3.7'
         Python38:
@@ -33,7 +33,8 @@ jobs:
           export $(myenv)
         fi
         if [ ! -z "$EXACT_PIP_VERSIONS" ]; then
-          echo Installing exact versions of dependencies
+          echo "Installing exact versions of dependencies"
+          echo "Note: using 3.6 because packages are deprecating 3.5 support"
           pip install -r requirements.txt
         fi
         pip install . .[test]
