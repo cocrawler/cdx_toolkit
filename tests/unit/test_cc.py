@@ -45,17 +45,26 @@ my_cc_endpoints = [
     'http://index.commoncrawl.org/CC-MAIN-2018-09-index',
     'http://index.commoncrawl.org/CC-MAIN-2018-13-index',
 ]
+'''
+    "cdx-api": "https://index.commoncrawl.org/CC-MAIN-2012-index"
+    "cdx-api": "https://index.commoncrawl.org/CC-MAIN-2009-2010-index"
+    "cdx-api": "https://index.commoncrawl.org/CC-MAIN-2008-2009-index"
+'''
 
 
 def test_customize_index_list():
     tests = [
         # gets the whole list because 201704 is before the first 2017 index
+        # XXX why is 2013-20 being included ?!
         [{'to': '201804'}, list(reversed(my_cc_endpoints))],
-        [{'from_ts': '201801', 'to': '201804'}, my_cc_endpoints[4:0:-1]],
-        [{'from_ts': '20180214', 'to': '201804'}, my_cc_endpoints[4:1:-1]],
+
+        [{'from_ts': '201801', 'to': '201804'}, my_cc_endpoints[4:0:-1]],  # gets 2017-51 but not 2013-20
+        [{'from_ts': '20180214', 'to': '201804'}, my_cc_endpoints[4:1:-1]],  # does not get
         [{'from_ts': '20180429', 'to': '20180430'}, my_cc_endpoints[4:5]],
+
         # empty time range
         [{'from_ts': '20180430', 'to': '20180429'}, my_cc_endpoints[4:5]],
+
         # very empty time range
         [{'from_ts': '20180430', 'to': '20100429'}, []],
     ]

@@ -62,11 +62,10 @@ def apply_cc_defaults(params, now=None):
             pass
 
 
-def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
-    endpoints = raw_index_list.copy()
-
+def make_cc_maps(raw_index_list):  # XXX test me
     # chainsaw all of the cc index names to a time, which we'll use as the end-time of its data
 
+    endpoints = raw_index_list.copy()
     cc_times = []
     cc_map = {}
     timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
@@ -75,8 +74,13 @@ def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
         cc_times.append(t)
         cc_map[t] = endpoints.pop(0)
 
-    # bisect in cc_times and then index into cc_map to find the actual endpoint
+    # XXX cc_times list must be sorted ascending
+    # XXX right now we depend on the json having it sorted
+    return cc_map, cc_times
 
+
+def cc_check_from_to(params):  # XXX test me
+    # given caller's time specification, select from and to times; enforce limit on combinations
     if 'closest' in params:
         if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
             raise ValueError('Cannot happen')
@@ -100,7 +104,10 @@ def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
                 raise ValueError('Cannot happen')
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])
+    return from_ts_t, to_t
 
+
+def cc_bisect(cc_times, raw_index_list, from_ts_t, to_t):  # XXX test me
     # bisect to find the start and end of our cc indexes
     start = bisect.bisect_left(cc_times, from_ts_t) - 1
     start = max(0, start)
@@ -109,16 +116,28 @@ def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
         end = min(end, len(raw_index_list))
     else:
         end = len(raw_index_list)
+    return raw_index_list[start:end]
 
-    index_list = raw_index_list[start:end]
+
+def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
+    cc_map, cc_times = make_cc_maps(raw_index_list)
+
+    from_ts_t, to_t = cc_check_from_to(params)
+
+    index_list = cc_bisect(cc_times, raw_index_list, from_ts_t, to_t)
+
+    # write the fully-adjusted from and to into params XXX necessasry?
+    # XXX wut? should we only do this when we've changed or added these ?!
     params['from_ts'] = time_to_timestamp(from_ts_t)
     if to_t is not None:
         params['to'] = time_to_timestamp(to_t)
 
+    # adjust index_list order based on cc_sort order
     if 'closest' in params:
+        # XXX funky ordering not implemented, inform the caller
+        # cli already prints a warning for iter + closer, telling user to use get instead
+        # this routine is called for both get and iter
         pass
-        # XXX funky ordering
-
     if cc_sort == 'ascending':
         pass  # already in ascending order
     elif cc_sort == 'mixed':
