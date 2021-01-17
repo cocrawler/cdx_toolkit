@@ -78,9 +78,9 @@ def test_bisect_cc():
 
     tests = [
         #[(from, to), (first, last)],
-        [('201801', '201804'), ('2017-51', '2018-13')],  # XXX one too many at start
-        [('20180214', '201804'), ('2018-05', '2018-13')],  # XXX one too many at start
-        [('20180429', '20180430'), ('2018-13', '2018-13')],  # XXX one too early for start and end XXX should be visible in cli... cli shows 2018-{17,13,9}
+        [('201801', '201804'), ('2017-51', '2018-13', 4)],  # XXX one too many at start
+        [('20180214', '201804'), ('2018-05', '2018-13', 3)],  # XXX one too many at start
+        [('20180429', '20180430'), ('2018-13', '2018-13', 1)],  # XXX one too early for start and end XXX should be visible in cli... cli shows 2018-{17,13,9}
         #[('', ''), ('', '')],
         #[('', ''), ('', '')],
     ]
@@ -92,12 +92,17 @@ def test_bisect_cc():
         to_t = timestamp_to_time(t[0][1])
         i_from = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][0])
         i_to = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][1])
+        i_count = t[1][2]
+
         index_list = cdx_toolkit.commoncrawl.bisect_cc(cc_map, cc_times, from_ts_t, to_t)
-        assert i_from == index_list[0], 'test: '+repr(t)
-        assert i_to == index_list[-1], 'test: '+repr(t)
+        assert index_list[0] == i_from, 'test: '+repr(t)
+        assert index_list[-1] == i_to, 'test: '+repr(t)
+        assert len(index_list) == i_count
+
         index_list = cdx_toolkit.commoncrawl.bisect_cc(cc_map, cc_times, from_ts_t, None)
-        assert i_from == index_list[0], 'test: '+repr(t)
-        assert i_last == index_list[-1], 'test: '+repr(t)
+        assert index_list[0] == i_from, 'test: '+repr(t)
+        assert index_list[-1] == i_last, 'test: '+repr(t)
+        assert len(index_list) >= i_count
 
 
 def test_customize_index_list():
