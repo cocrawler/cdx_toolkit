@@ -62,7 +62,7 @@ def apply_cc_defaults(params, now=None):
             pass
 
 
-def make_cc_maps(raw_index_list):  # XXX test me
+def make_cc_maps(raw_index_list):
     # chainsaw all of the cc index names to a time, which we'll use as the end-time of its data
 
     endpoints = raw_index_list.copy()
@@ -74,19 +74,17 @@ def make_cc_maps(raw_index_list):  # XXX test me
         cc_times.append(t)
         cc_map[t] = endpoints.pop(0)
 
-    # XXX cc_times list must be sorted ascending
-    # XXX right now we depend on the json having it sorted
-    return cc_map, cc_times
+    return cc_map, sorted(cc_times)
 
 
-def cc_check_from_to(params):  # XXX test me
+def check_cc_from_to(params):
     # given caller's time specification, select from and to times; enforce limit on combinations
     if 'closest' in params:
-        if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
+        if 'from_ts' not in params or params['from_ts'] is None:
             raise ValueError('Cannot happen')
         else:
             from_ts_t = timestamp_to_time(params['from_ts'])
-        if 'to' not in params or params['to'] is None:  # pragma: no cover
+        if 'to' not in params or params['to'] is None:
             raise ValueError('Cannot happen')
         else:
             to_t = timestamp_to_time(params['to'])
@@ -94,37 +92,37 @@ def cc_check_from_to(params):  # XXX test me
         if 'to' in params:
             to = pad_timestamp_up(params['to'])
             to_t = timestamp_to_time(to)
-            if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
+            if 'from_ts' not in params or params['from_ts'] is None:
                 raise ValueError('Cannot happen')
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])
         else:
             to_t = None
-            if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
+            if 'from_ts' not in params or params['from_ts'] is None:
                 raise ValueError('Cannot happen')
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])
     return from_ts_t, to_t
 
 
-def cc_bisect(cc_times, raw_index_list, from_ts_t, to_t):  # XXX test me
+def bisect_cc(cc_map, cc_times, from_ts_t, to_t):
     # bisect to find the start and end of our cc indexes
     start = bisect.bisect_left(cc_times, from_ts_t) - 1
     start = max(0, start)
     if to_t is not None:
         end = bisect.bisect_right(cc_times, to_t) + 1
-        end = min(end, len(raw_index_list))
+        end = min(end, len(cc_times))
     else:
-        end = len(raw_index_list)
-    return raw_index_list[start:end]
+        end = len(cc_times)
+    return [cc_map[x] for x in cc_times[start:end]]
 
 
 def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
     cc_map, cc_times = make_cc_maps(raw_index_list)
 
-    from_ts_t, to_t = cc_check_from_to(params)
+    from_ts_t, to_t = check_cc_from_to(params)
 
-    index_list = cc_bisect(cc_times, raw_index_list, from_ts_t, to_t)
+    index_list = bisect_cc(cc_map, cc_times, from_ts_t, to_t)
 
     # write the fully-adjusted from and to into params XXX necessasry?
     # XXX wut? should we only do this when we've changed or added these ?!

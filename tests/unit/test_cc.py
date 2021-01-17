@@ -2,7 +2,7 @@ import unittest.mock as mock
 import pytest
 
 import cdx_toolkit.commoncrawl
-import cdx_toolkit.timeutils
+from cdx_toolkit.timeutils import timestamp_to_time
 
 # useful for debugging:
 import logging
@@ -39,27 +39,77 @@ def test_apply_cc_defaults():
 
 
 my_cc_endpoints = [
-    'http://index.commoncrawl.org/CC-MAIN-2013-20-index',
-    'http://index.commoncrawl.org/CC-MAIN-2017-51-index',
-    'http://index.commoncrawl.org/CC-MAIN-2018-05-index',
-    'http://index.commoncrawl.org/CC-MAIN-2018-09-index',
-    'http://index.commoncrawl.org/CC-MAIN-2018-13-index',
+    'https://index.commoncrawl.org/CC-MAIN-2013-20-index',
+    'https://index.commoncrawl.org/CC-MAIN-2017-51-index',
+    'https://index.commoncrawl.org/CC-MAIN-2018-05-index',
+    'https://index.commoncrawl.org/CC-MAIN-2018-09-index',
+    'https://index.commoncrawl.org/CC-MAIN-2018-13-index',
 ]
 '''
-    "cdx-api": "https://index.commoncrawl.org/CC-MAIN-2012-index"
-    "cdx-api": "https://index.commoncrawl.org/CC-MAIN-2009-2010-index"
-    "cdx-api": "https://index.commoncrawl.org/CC-MAIN-2008-2009-index"
+    'https://index.commoncrawl.org/CC-MAIN-2012-index',
+    'https://index.commoncrawl.org/CC-MAIN-2009-2010-index',
+    'https://index.commoncrawl.org/CC-MAIN-2008-2009-index',
+]
 '''
+
+
+def test_make_cc_maps():
+    cc_map, cc_times = cdx_toolkit.commoncrawl.make_cc_maps(my_cc_endpoints)
+    t = cc_times[0]
+    assert cc_map[t] == 'https://index.commoncrawl.org/CC-MAIN-2013-20-index'
+    t = cc_times[-1]
+    assert cc_map[t] == 'https://index.commoncrawl.org/CC-MAIN-2018-13-index'
+
+
+def test_check_cc_from_to():
+    params_that_raise = [
+        {'closest': '2010', 'to': '2010'},  # needs from
+        {'closest': '2010', 'from_ts': '2010'},  # needs to
+        {'to': '2010'},  # needs from_ts
+        {},  # needs 'from_ts'
+    ]
+    for params in params_that_raise:
+        with pytest.raises(ValueError):
+            cdx_toolkit.commoncrawl.check_cc_from_to(params)
+
+
+def test_bisect_cc():
+    cc_map, cc_times = cdx_toolkit.commoncrawl.make_cc_maps(my_cc_endpoints)
+
+    tests = [
+        #[(from, to), (first, last)],
+        [('201801', '201804'), ('2017-51', '2018-13')],  # XXX one too many at start
+        [('20180214', '201804'), ('2018-05', '2018-13')],  # XXX one too many at start
+        [('20180429', '20180430'), ('2018-13', '2018-13')],  # XXX one too early for start and end XXX should be visible in cli... cli shows 2018-{17,13,9}
+        #[('', ''), ('', '')],
+        #[('', ''), ('', '')],
+    ]
+
+    i_last = sorted(my_cc_endpoints)[-1]
+
+    for t in tests:
+        from_ts_t = timestamp_to_time(t[0][0])
+        to_t = timestamp_to_time(t[0][1])
+        i_from = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][0])
+        i_to = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][1])
+        index_list = cdx_toolkit.commoncrawl.bisect_cc(cc_map, cc_times, from_ts_t, to_t)
+        assert i_from == index_list[0], 'test: '+repr(t)
+        assert i_to == index_list[-1], 'test: '+repr(t)
+        index_list = cdx_toolkit.commoncrawl.bisect_cc(cc_map, cc_times, from_ts_t, None)
+        assert i_from == index_list[0], 'test: '+repr(t)
+        assert i_last == index_list[-1], 'test: '+repr(t)
 
 
 def test_customize_index_list():
     tests = [
+        # XXX change to first, last count?
+
         # gets the whole list because 201704 is before the first 2017 index
         # XXX why is 2013-20 being included ?!
         [{'to': '201804'}, list(reversed(my_cc_endpoints))],
 
         [{'from_ts': '201801', 'to': '201804'}, my_cc_endpoints[4:0:-1]],  # gets 2017-51 but not 2013-20
-        [{'from_ts': '20180214', 'to': '201804'}, my_cc_endpoints[4:1:-1]],  # does not get
+        [{'from_ts': '20180214', 'to': '201804'}, my_cc_endpoints[4:1:-1]],  # does not get 2017-51, does 2018-05 XXX
         [{'from_ts': '20180429', 'to': '20180430'}, my_cc_endpoints[4:5]],
 
         # empty time range
