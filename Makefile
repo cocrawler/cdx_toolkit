@@ -4,7 +4,7 @@ init:
 	pip install -r requirements.txt
 
 test:
-	PYTHONPATH=. py.test --doctest-modules tests -v -v
+	PYTHONPATH=. py.test --doctest-modules cdx_toolkit tests -v -v
 	PYTHONPATH=. examples/iter-and-warc.py
 
 clean_coverage:
