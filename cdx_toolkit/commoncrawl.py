@@ -8,7 +8,7 @@ import bisect
 import logging
 
 from .myrequests import myrequests_get
-from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, cc_index_to_time
+from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, cc_index_to_time, cc_index_to_time_special
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,27 +62,39 @@ def apply_cc_defaults(params, now=None):
             pass
 
 
-def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
-    endpoints = raw_index_list.copy()
-
+def make_cc_maps(raw_index_list):
     # chainsaw all of the cc index names to a time, which we'll use as the end-time of its data
 
+    endpoints = raw_index_list.copy()
     cc_times = []
     cc_map = {}
-    timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
-    for timestamp in timestamps:
-        t = cc_index_to_time(timestamp)
+    for endpoint in endpoints:
+        t = None
+        m = re.search(r'CC-MAIN-(\d\d\d\d-\d\d)-', endpoint)
+        if m:
+            t = cc_index_to_time(m.group(1))
+        m = re.search(r'CC-MAIN-(\d\d\d\d-\d\d\d\d)-', endpoint)
+        if m:
+            t = cc_index_to_time_special(m.group(1))
+        m = re.search(r'CC-MAIN-(\d\d\d\d)-i', endpoint)
+        if m:
+            t = cc_index_to_time_special(m.group(1))
+        if t is None:
+            LOGGER.error('unable to parse date out of %s', endpoint)
+            continue
         cc_times.append(t)
-        cc_map[t] = endpoints.pop(0)
+        cc_map[t] = endpoint
+    return cc_map, sorted(cc_times)
 
-    # bisect in cc_times and then index into cc_map to find the actual endpoint
 
+def check_cc_from_to(params):
+    # given caller's time specification, select from and to times; enforce limit on combinations
     if 'closest' in params:
-        if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
+        if 'from_ts' not in params or params['from_ts'] is None:
             raise ValueError('Cannot happen')
         else:
             from_ts_t = timestamp_to_time(params['from_ts'])
-        if 'to' not in params or params['to'] is None:  # pragma: no cover
+        if 'to' not in params or params['to'] is None:
             raise ValueError('Cannot happen')
         else:
             to_t = timestamp_to_time(params['to'])
@@ -90,35 +102,50 @@ def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
         if 'to' in params:
             to = pad_timestamp_up(params['to'])
             to_t = timestamp_to_time(to)
-            if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
+            if 'from_ts' not in params or params['from_ts'] is None:
                 raise ValueError('Cannot happen')
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])
         else:
             to_t = None
-            if 'from_ts' not in params or params['from_ts'] is None:  # pragma: no cover
+            if 'from_ts' not in params or params['from_ts'] is None:
                 raise ValueError('Cannot happen')
             else:
                 from_ts_t = timestamp_to_time(params['from_ts'])
+    return from_ts_t, to_t
 
+
+def bisect_cc(cc_map, cc_times, from_ts_t, to_t):
     # bisect to find the start and end of our cc indexes
     start = bisect.bisect_left(cc_times, from_ts_t) - 1
     start = max(0, start)
     if to_t is not None:
         end = bisect.bisect_right(cc_times, to_t) + 1
-        end = min(end, len(raw_index_list))
+        end = min(end, len(cc_times))
     else:
-        end = len(raw_index_list)
+        end = len(cc_times)
+    return [cc_map[x] for x in cc_times[start:end]]
 
-    index_list = raw_index_list[start:end]
+
+def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
+    cc_map, cc_times = make_cc_maps(raw_index_list)
+
+    from_ts_t, to_t = check_cc_from_to(params)
+
+    index_list = bisect_cc(cc_map, cc_times, from_ts_t, to_t)
+
+    # write the fully-adjusted from and to into params XXX necessasry?
+    # XXX wut? should we only do this when we've changed or added these ?!
     params['from_ts'] = time_to_timestamp(from_ts_t)
     if to_t is not None:
         params['to'] = time_to_timestamp(to_t)
 
+    # adjust index_list order based on cc_sort order
     if 'closest' in params:
+        # XXX funky ordering not implemented, inform the caller
+        # cli already prints a warning for iter + closer, telling user to use get instead
+        # this routine is called for both get and iter
         pass
-        # XXX funky ordering
-
     if cc_sort == 'ascending':
         pass  # already in ascending order
     elif cc_sort == 'mixed':
