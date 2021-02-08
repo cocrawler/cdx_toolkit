@@ -47,6 +47,8 @@ setup(
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
+        'Operating System :: POSIX :: Linux',
+        'Environment :: MacOS X',
         'Intended Audience :: Information Technology',
         'Intended Audience :: Developers',
         'Natural Language :: English',

@@ -23,6 +23,9 @@ distcheck: distclean
 	twine check dist/*
 
 dist: distclean
+	echo "reminder, you must have tagged this commit or you'll end up failing"
+	echo "  git tag v0.x.x"
+	echo "  git push --tags"
 	python ./setup.py sdist
 	twine upload dist/* -r pypi
 

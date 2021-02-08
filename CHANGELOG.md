@@ -1,5 +1,6 @@
-- 0.9.30 (not yet tagged)
+- 0.9.30
 	+ add support for CC early indices, 2008-2010
+	+ MacOS support marked in setup.py
 
 - 0.9.29
 	+ python 3.9 support marked in setup.py
