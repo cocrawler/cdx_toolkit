@@ -76,6 +76,27 @@ def cc_index_to_time(cc):
     return datetime.datetime.strptime(cc+'-0', CC_TIMESTAMP).replace(tzinfo=utc).timestamp()
 
 
+def cc_index_to_time_special(cc):
+    '''
+    Convert a "special" Commoncrawl index name to a unixtime
+
+    >>> cc_index_to_time_special('2012')
+    1338508800.0
+    >>> cc_index_to_time_special('2009-2010')
+    1283299200.0
+    '''
+
+    table = {  # times provided by Sebastian
+        '2012': timestamp_to_time('201206'),  # end 20120605, start was 20120127
+        '2009-2010': timestamp_to_time('201009'),  # end 20100910, start was 20100910
+        '2008-2009': timestamp_to_time('200901'),  # end 20090109, start was 20080509
+    }
+    if cc in table:
+        return table[cc]
+
+    LOGGER.error('could not convert endpoint name %s to an end time', cc)
+
+
 def validate_timestamps(params):
     # will have to change once we start supporting sub-second timestamps
     for key in ('from_ts', 'to', 'closest'):

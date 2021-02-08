@@ -44,19 +44,17 @@ my_cc_endpoints = [
     'https://index.commoncrawl.org/CC-MAIN-2018-05-index',
     'https://index.commoncrawl.org/CC-MAIN-2018-09-index',
     'https://index.commoncrawl.org/CC-MAIN-2018-13-index',
-]
-'''
+    # and the specials
     'https://index.commoncrawl.org/CC-MAIN-2012-index',
     'https://index.commoncrawl.org/CC-MAIN-2009-2010-index',
     'https://index.commoncrawl.org/CC-MAIN-2008-2009-index',
 ]
-'''
 
 
 def test_make_cc_maps():
     cc_map, cc_times = cdx_toolkit.commoncrawl.make_cc_maps(my_cc_endpoints)
     t = cc_times[0]
-    assert cc_map[t] == 'https://index.commoncrawl.org/CC-MAIN-2013-20-index'
+    assert cc_map[t] == 'https://index.commoncrawl.org/CC-MAIN-2008-2009-index'
     t = cc_times[-1]
     assert cc_map[t] == 'https://index.commoncrawl.org/CC-MAIN-2018-13-index'
 
@@ -77,12 +75,11 @@ def test_bisect_cc():
     cc_map, cc_times = cdx_toolkit.commoncrawl.make_cc_maps(my_cc_endpoints)
 
     tests = [
-        #[(from, to), (first, last)],
+        #[(from, to), (first, last, count)],
         [('201801', '201804'), ('2017-51', '2018-13', 4)],  # XXX one too many at start
         [('20180214', '201804'), ('2018-05', '2018-13', 3)],  # XXX one too many at start
         [('20180429', '20180430'), ('2018-13', '2018-13', 1)],  # XXX one too early for start and end XXX should be visible in cli... cli shows 2018-{17,13,9}
-        #[('', ''), ('', '')],
-        #[('', ''), ('', '')],
+        #[('', ''), ('', '', 1)],
     ]
 
     i_last = sorted(my_cc_endpoints)[-1]
@@ -107,21 +104,21 @@ def test_bisect_cc():
 
 def test_customize_index_list():
     tests = [
-        # XXX change to first, last count?
+        #[(from, to), (first, last, count)],
 
         # gets the whole list because 201704 is before the first 2017 index
-        # XXX why is 2013-20 being included ?!
-        [{'to': '201804'}, list(reversed(my_cc_endpoints))],
+        # XXX why is 2013-20 being included ?! 1 year should leave it off
+        [(None, '201804'), ('2018-13', '2013-20', 5)],
 
-        [{'from_ts': '201801', 'to': '201804'}, my_cc_endpoints[4:0:-1]],  # gets 2017-51 but not 2013-20
-        [{'from_ts': '20180214', 'to': '201804'}, my_cc_endpoints[4:1:-1]],  # does not get 2017-51, does 2018-05 XXX
-        [{'from_ts': '20180429', 'to': '20180430'}, my_cc_endpoints[4:5]],
+        [('201801', '201804'), ('2018-13', '2017-51', 4)],  # my_cc_endpoints[4:0:-1]],  # gets 2017-51 but not 2013-20
+        [('20180214', '201804'), ('2018-13', '2018-05', 3)],  # my_cc_endpoints[4:1:-1]],  # does not get 2017-51, does 2018-05 XXX
+        [('20180429', '20180430'), ('2018-13', '2018-13', 1)],  # my_cc_endpoints[4:5]],
 
         # empty time range
-        [{'from_ts': '20180430', 'to': '20180429'}, my_cc_endpoints[4:5]],
+        [('20180430', '20180429'), ('2018-13', '2018-13', 1)],  # my_cc_endpoints[4:5]],
 
         # very empty time range
-        [{'from_ts': '20180430', 'to': '20100429'}, []],
+        [('20180430', '20100429'), ()],
     ]
 
     with mock.patch('cdx_toolkit.get_cc_endpoints', return_value=my_cc_endpoints):
@@ -129,30 +126,64 @@ def test_customize_index_list():
         cdxa = cdx_toolkit.CDXFetcher(source='cc', cc_sort='ascending')
         cdxb = cdx_toolkit.CDXFetcher(source='cc', cc_sort='invalid', loglevel='DEBUG')
 
-        for params, custom_list in tests:
+        for t in tests:
+            params = {
+                'from_ts': t[0][0],
+                'to': t[0][1],
+            }
             cdx_toolkit.commoncrawl.apply_cc_defaults(params)
-            assert cdx.customize_index_list(params) == custom_list
-            assert cdxa.customize_index_list(params) == list(reversed(custom_list))
+
             with pytest.raises(ValueError):
-                cdxb.customize_index_list(params)
+                index_list = cdxb.customize_index_list(params)
+
+            index_list = cdx.customize_index_list(params)
+            index_lista = cdxa.customize_index_list(params)
+
+            if not t[1]:
+                assert len(index_list) == 0
+                assert len(index_lista) == 0
+                continue
+
+            i_from = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][0])
+            i_to = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][1])
+            i_count = t[1][2]
+
+            assert index_list[0] == i_from, 'test: '+repr(t)
+            assert index_list[-1] == i_to, 'test: '+repr(t)
+            assert len(index_list) == i_count
+
+            assert index_lista[0] == i_to, 'test asc: '+repr(t)
+            assert index_lista[-1] == i_from, 'test asc: '+repr(t)
+            assert len(index_lista) == i_count
 
 
 def test_customize_index_list_closest():
-    # when I implement the funky sort order, this will become different
-    my_cc_endpoints_rev = list(reversed(my_cc_endpoints))
     tests = [
-        [{'closest': '201801', 'from_ts': '20171230', 'to': None}, my_cc_endpoints_rev[0:4]],
-        [{'closest': '201803', 'from_ts': '20180214', 'to': None}, my_cc_endpoints_rev[0:3]],
-        [{'closest': '201801', 'from_ts': '20171230', 'to': '201802'}, my_cc_endpoints_rev[2:4]],
+        [('201801', '20171230', None), ('2018-13', '2017-51', 4)],
+        [('201803', '20180214', None), ('2018-13', '2018-05', 3)],
+        [('201801', '20171230', '201802'), ('2018-05', '2017-51', 2)],
     ]
 
     with mock.patch('cdx_toolkit.get_cc_endpoints', return_value=my_cc_endpoints):
         cdx = cdx_toolkit.CDXFetcher(source='cc')
 
-        for params, custom_list in tests:
+        for t in tests:
+            params = {
+                'closest': t[0][0],
+                'from_ts': t[0][1],
+                'to': t[0][2],
+            }
             cdx_toolkit.commoncrawl.apply_cc_defaults(params)
-            print(params)
-            assert cdx.customize_index_list(params) == custom_list
+
+            index_list = cdx.customize_index_list(params)
+
+            i_from = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][0])
+            i_to = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][1])
+            i_count = t[1][2]
+
+            assert index_list[0] == i_from, 'test closest: '+repr(t)
+            assert index_list[-1] == i_to, 'test closest: '+repr(t)
+            assert len(index_list) == i_count
 
 
 def test_filter_cc_endpoints():

@@ -8,7 +8,7 @@ import bisect
 import logging
 
 from .myrequests import myrequests_get
-from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, cc_index_to_time
+from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, cc_index_to_time, cc_index_to_time_special
 
 LOGGER = logging.getLogger(__name__)
 
@@ -68,12 +68,22 @@ def make_cc_maps(raw_index_list):
     endpoints = raw_index_list.copy()
     cc_times = []
     cc_map = {}
-    timestamps = re.findall(r'CC-MAIN-(\d\d\d\d-\d\d)', ''.join(endpoints))
-    for timestamp in timestamps:
-        t = cc_index_to_time(timestamp)
+    for endpoint in endpoints:
+        t = None
+        m = re.search(r'CC-MAIN-(\d\d\d\d-\d\d)-', endpoint)
+        if m:
+            t = cc_index_to_time(m.group(1))
+        m = re.search(r'CC-MAIN-(\d\d\d\d-\d\d\d\d)-', endpoint)
+        if m:
+            t = cc_index_to_time_special(m.group(1))
+        m = re.search(r'CC-MAIN-(\d\d\d\d)-i', endpoint)
+        if m:
+            t = cc_index_to_time_special(m.group(1))
+        if t is None:
+            LOGGER.error('unable to parse date out of %s', endpoint)
+            continue
         cc_times.append(t)
-        cc_map[t] = endpoints.pop(0)
-
+        cc_map[t] = endpoint
     return cc_map, sorted(cc_times)
 
 
