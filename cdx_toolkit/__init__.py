@@ -51,8 +51,9 @@ def cdx_to_captures(resp, wb=None, warc_url_prefix=None):
         # this is an empty result for pywb iff {"error": "No Captures found for: ..."}
         if resp.text.startswith('{'):
             j = json.loads(resp.text)
-            if 'error' in j:
+            if 'error' in j or 'message' in j:
                 return []
+        LOGGER.debug('404 seen for API call, body is %s', resp.text)
         raise ValueError('404 seen for API call, did you configure the endpoint correctly?')
 
     text = resp.text
