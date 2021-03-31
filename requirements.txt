@@ -1,4 +1,5 @@
 # Install with "python -m pip install -r requirements.txt".
+# must be kept in sync with setup.py
 
 requests==2.25.0
 warcio==1.7.4
@@ -11,6 +12,6 @@ pytest-sugar==0.9.4
 coveralls==2.2.0
 
 # packaging
-twine<2  # python 3.5
+twine<2  # python 3.5 needs < 2
 setuptools==51.0.0
-setuptools-scm==4.1.2
+setuptools-scm==4.1.2  # python 3.5 needs < 6

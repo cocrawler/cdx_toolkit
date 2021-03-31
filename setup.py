@@ -9,12 +9,18 @@ packages = [
     'cdx_toolkit',
 ]
 
+# remember: keep requires synchronized with requirements.txt
 requires = ['requests', 'warcio']
 
 test_requirements = ['pytest', 'pytest-cov', 'coverage']
 
+# twine and setuptools-scm limits are caused by python 3.5.
+# also see below for another reference to setuptools-scm
+package_requirements = ['twine<2', 'setuptools', 'setuptools-scm<6']
+
 extras_require = {
     'test': test_requirements,  # setup no longer tests, so make them an extra
+    'package': package_requirements,
 }
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']
@@ -35,7 +41,7 @@ setup(
     packages=packages,
     python_requires=">=3.5.*",
     extras_require=extras_require,
-    setup_requires=['setuptools_scm'],
+    setup_requires=['setuptools-scm<6'],
     install_requires=requires,
     entry_points='''
         [console_scripts]
