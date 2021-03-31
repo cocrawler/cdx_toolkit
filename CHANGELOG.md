@@ -1,3 +1,7 @@
+- 0.9.31
+	+ pywb 2.5 changed a json error message key
+	+ tolerate the first capture returned for example.com being a revisit record
+
 - 0.9.30
 	+ add support for CC early indices, 2008-2010
 	+ MacOS support marked in setup.py
