@@ -1,3 +1,6 @@
+- 0.9.32
+	+ rename master to main
+
 - 0.9.31
 	+ pywb 2.5 changed a json error message key
 	+ tolerate the first capture returned for example.com being a revisit record
