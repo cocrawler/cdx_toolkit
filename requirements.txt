@@ -12,6 +12,6 @@ pytest-sugar==0.9.4
 coveralls==3.1.0
 
 # packaging
-twine<2  # python 3.5 needs < 2
+twine==3.4.1
 setuptools==57.0.0
-setuptools-scm<6  # python 3.5 needs < 6
+setuptools-scm==6.0.1

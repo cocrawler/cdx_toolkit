@@ -14,9 +14,7 @@ requires = ['requests', 'warcio']
 
 test_requirements = ['pytest', 'pytest-cov', 'coverage']
 
-# twine and setuptools-scm limits are caused by python 3.5.
-# also see below for another reference to setuptools-scm
-package_requirements = ['twine<2', 'setuptools', 'setuptools-scm<6']
+package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
 extras_require = {
     'test': test_requirements,  # setup no longer tests, so make them an extra
@@ -60,7 +58,7 @@ setup(
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 3.5',
+        #'Programming Language :: Python :: 3.5',  # setuptools-scm problem
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
