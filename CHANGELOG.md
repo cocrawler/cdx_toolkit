@@ -1,5 +1,9 @@
-- 0.9.32
+- 0.9.33
 	+ rename master to main
+	+ drop python 3.5 testing because of setuptools-scm
+
+- 0.9.32
+	+ there was no 0.9.32
 
 - 0.9.31
 	+ pywb 2.5 changed a json error message key
