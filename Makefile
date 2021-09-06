@@ -1,7 +1,11 @@
 .PHONY: init test clean_coverage test_coverage distclean distcheck dist install
 
-init:
+init36:
+	# packages are deprecating support, so this uses exact versions
 	pip install -r requirements.txt
+
+init:
+	pip install --use-feature=in-tree-build .
 
 test:
 	PYTHONPATH=. py.test --doctest-modules cdx_toolkit tests -v -v

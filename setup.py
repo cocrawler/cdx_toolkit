@@ -12,7 +12,7 @@ packages = [
 # remember: keep requires synchronized with requirements.txt
 requires = ['requests', 'warcio']
 
-test_requirements = ['pytest', 'pytest-cov', 'coverage']
+test_requirements = ['pytest', 'pytest-cov', 'coveralls']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
