@@ -7,6 +7,9 @@ init36:
 init:
 	pip install --use-feature=in-tree-build .
 
+unit:
+	PYTHONPATH=. py.test --doctest-modules cdx_toolkit tests/unit -v -v
+
 test:
 	PYTHONPATH=. py.test --doctest-modules cdx_toolkit tests -v -v
 	PYTHONPATH=. examples/iter-and-warc.py

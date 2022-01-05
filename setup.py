@@ -37,9 +37,9 @@ setup(
     author_email='lindahl@pbm.com',
     url='https://github.com/cocrawler/cdx_toolkit',
     packages=packages,
-    python_requires=">=3.5.*",
+    python_requires=">=3.6.*",
     extras_require=extras_require,
-    setup_requires=['setuptools-scm<6'],
+    setup_requires=['setuptools-scm'],
     install_requires=requires,
     entry_points='''
         [console_scripts]
@@ -49,7 +49,7 @@ setup(
     scripts=scripts,
     license='Apache 2.0',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Environment :: Console',
         'Operating System :: POSIX :: Linux',
         'Environment :: MacOS X',
@@ -63,6 +63,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3 :: Only',
     ],
 )
