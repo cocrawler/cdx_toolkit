@@ -1,5 +1,6 @@
 # Install with "python -m pip install -r requirements.txt".
-# must be kept in sync with setup.py
+# names must be kept in sync with setup.py
+# exact versions are tested in the azure-pipelines.yml config
 
 requests==2.25.1
 warcio==1.7.4
