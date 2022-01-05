@@ -1,3 +1,25 @@
+- 0.9.33
+	+ rename master to main
+	+ drop python 3.5 testing because of setuptools-scm
+
+- 0.9.32
+	+ there was no 0.9.32
+
+- 0.9.31
+	+ pywb 2.5 changed a json error message key
+	+ tolerate the first capture returned for example.com being a revisit record
+
+- 0.9.30
+	+ add support for CC early indices, 2008-2010
+	+ MacOS support marked in setup.py
+
+- 0.9.29
+	+ python 3.9 support marked in setup.py
+
+- 0.9.28
+	+ expose warc_version= keyword argument for warc writing (but it's untested and broken for --ia warc)
+	+ improve dns retry algorithm: always retry for hostnames we expect to exist (ia, cc)
+
 - 0.9.27
 	+ packaging: fix for using markdown without explicit conversion in setup.py
 

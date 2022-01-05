@@ -46,13 +46,14 @@ def pages_to_samples(pages):
     return int(pages)
 
 
-def cdx_to_captures(resp, wb=None, warc_prefix=None):
+def cdx_to_captures(resp, wb=None, warc_url_prefix=None):
     if resp.status_code == 404:
         # this is an empty result for pywb iff {"error": "No Captures found for: ..."}
         if resp.text.startswith('{'):
             j = json.loads(resp.text)
-            if 'error' in j:
+            if 'error' in j or 'message' in j:
                 return []
+        LOGGER.debug('404 seen for API call, body is %s', resp.text)
         raise ValueError('404 seen for API call, did you configure the endpoint correctly?')
 
     text = resp.text
@@ -62,7 +63,7 @@ def cdx_to_captures(resp, wb=None, warc_prefix=None):
         lines = resp.text.splitlines()
         ret = []
         for l in lines:
-            ret.append(CaptureObject(json.loads(l), wb=wb, warc_prefix=warc_prefix))
+            ret.append(CaptureObject(json.loads(l), wb=wb, warc_url_prefix=warc_url_prefix))
         return ret
 
     # ia output='json' is a json list of lists
@@ -77,7 +78,7 @@ def cdx_to_captures(resp, wb=None, warc_prefix=None):
             raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))
 
         ret = munge_fields(fields, lines)
-        return [CaptureObject(r, wb=wb, warc_prefix=warc_prefix) for r in ret]
+        return [CaptureObject(r, wb=wb, warc_url_prefix=warc_url_prefix) for r in ret]
 
     raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))  # pragma: no cover
 
@@ -86,10 +87,10 @@ class CaptureObject(MutableMapping):
     '''
     Represents a single capture of a webpage, plus less-visible info about how to fetch the content.
     '''
-    def __init__(self, data, wb=None, warc_prefix=None):
+    def __init__(self, data, wb=None, warc_url_prefix=None):
         self.data = data
         self.wb = wb
-        self.warc_prefix = warc_prefix
+        self.warc_url_prefix = warc_url_prefix
         self.warc_record = None
         self._content = None
 
@@ -100,13 +101,12 @@ class CaptureObject(MutableMapping):
         return False
 
     def fetch_warc_record(self):
-        print(self.warc_record, file=sys.stderr)
         if self.warc_record is not None:
             return self.warc_record
         if self.wb:
             self.warc_record = fetch_wb_warc(self.data, wb=self.wb)
-        elif self.warc_prefix:
-            self.warc_record = fetch_warc_record(self.data, self.warc_prefix)
+        elif self.warc_url_prefix:
+            self.warc_record = fetch_warc_record(self.data, self.warc_url_prefix)
         else:
             raise ValueError('no content source configured')
         return self.warc_record
@@ -201,24 +201,24 @@ class CDXFetcherIter:
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', wb=None, warc_prefix=None, cc_mirror=None, cc_sort='mixed', loglevel=None):
+    def __init__(self, source='cc', wb=None, warc_url_prefix=None, cc_mirror=None, cc_sort='mixed', loglevel=None):
         self.source = source
         self.cc_sort = cc_sort
         self.source = source
-        if wb is not None and warc_prefix is not None:
-            raise ValueError('cannot specify both wb and warc_prefix')
+        if wb is not None and warc_url_prefix is not None:
+            raise ValueError('cannot specify both wb and warc_url_prefix')
         self.wb = wb
-        self.warc_prefix = warc_prefix
+        self.warc_url_prefix = warc_url_prefix
 
         if source == 'cc':
             self.cc_mirror = cc_mirror or 'https://index.commoncrawl.org/'
             self.raw_index_list = get_cc_endpoints(self.cc_mirror)
             if wb is not None:
                 raise ValueError('cannot specify wb= for source=cc')
-            self.warc_prefix = warc_prefix or 'https://commoncrawl.s3.amazonaws.com'
+            self.warc_url_prefix = warc_url_prefix or 'https://commoncrawl.s3.amazonaws.com'
         elif source == 'ia':
             self.index_list = ('https://web.archive.org/cdx/search/cdx',)
-            if self.warc_prefix is None and self.wb is None:
+            if self.warc_url_prefix is None and self.wb is None:
                 self.wb = 'https://web.archive.org/web'
         elif source.startswith('https://') or source.startswith('http://'):
             self.index_list = (source,)
@@ -258,7 +258,7 @@ class CDXFetcher:
         ret = []
         for endpoint in index_list:
             resp = myrequests_get(endpoint, params=params, cdx=True)
-            objs = cdx_to_captures(resp, wb=self.wb, warc_prefix=self.warc_prefix)  # turns 400 and 404 into []
+            objs = cdx_to_captures(resp, wb=self.wb, warc_url_prefix=self.warc_url_prefix)  # turns 400 and 404 into []
             ret.extend(objs)
             if 'limit' in params:
                 params['limit'] -= len(objs)
@@ -306,7 +306,7 @@ class CDXFetcher:
         if resp.text == '':  # ia
             return 'last page', []
 
-        ret = cdx_to_captures(resp, wb=self.wb, warc_prefix=self.warc_prefix)  # turns 404 into []
+        ret = cdx_to_captures(resp, wb=self.wb, warc_url_prefix=self.warc_url_prefix)  # turns 404 into []
         if 'limit' in params:
             params['limit'] -= len(ret)
         return 'ok', ret

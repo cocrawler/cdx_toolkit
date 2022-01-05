@@ -1,6 +1,6 @@
 # cdx_toolkit
 
-[![Build Status](https://travis-ci.com/cocrawler/cdx_toolkit.svg?branch=master)](https://travis-ci.com/cocrawler/cdx_toolkit) [![Coverage Status](https://coveralls.io/repos/github/cocrawler/cdx_toolkit/badge.svg?branch=master)](https://coveralls.io/github/cocrawler/cdx_toolkit?branch=master) [![Apache License 2.0](https://img.shields.io/github/license/cocrawler/cdx_toolkit.svg)](LICENSE)
+[![Build Status](https://dev.azure.com/cocrawler/cdx_toolkit/_apis/build/status/cocrawler.cdx_toolkit?branchName=main)](https://dev.azure.com/cocrawler/cdx_toolkit/_build/latest?definitionId=1&branchName=main) [![Coverage](https://coveralls.io/repos/github/cocrawler/cdx_toolkit/badge.svg?branch=main)](https://coveralls.io/github/cocrawler/cdx_toolkit?branch=main) [![Apache License 2.0](https://img.shields.io/github/license/cocrawler/cdx_toolkit.svg)](LICENSE)
 
 cdx_toolkit is a set of tools for working with CDX indices of web
 crawls and archives, including those at CommonCrawl and the Internet
@@ -34,6 +34,7 @@ $ cdxt --cc size 'commoncrawl.org/*'
 $ cdxt --cc --limit 10 iter 'commoncrawl.org/*'
 $ cdxt --cc --limit 10 --filter '=status:200' iter 'commoncrawl.org/*'
 $ cdxt --ia --limit 10 iter 'commoncrawl.org/*'
+$ cdxt --ia --limit 10 warc 'commoncrawl.org/*'
 ```
 
 cdxt takes a large number of command line switches, controlling
@@ -77,11 +78,14 @@ commoncrawl.org/* size estimate 36000
 {'urlkey': 'org,commoncrawl)/', 'timestamp': '20180219112308', 'mime-detected': 'text/html', 'url': 'http://commoncrawl.org/', 'status': '200', 'filename': 'crawl-data/CC-MAIN-2018-09/segments/1518891812584.40/warc/CC-MAIN-20180219111908-20180219131908-00494.warc.gz', 'mime': 'text/html', 'length': '5365', 'digest': 'FM7M2JDBADOQIHKCSFKVTAML4FL2HPHT', 'offset': '81614902'}
 ```
 
-You can also fetch the content as bytes:
+You can also fetch the content of the web capture as bytes:
 
 ```
     print(obj.content)
 ```
+
+There's a full example of iterating and selecting a subset of captures
+to write into an extracted WARC file in [examples/iter-and-warc.py](examples/iter-and-warc.py)
 
 ## Filter syntax
 

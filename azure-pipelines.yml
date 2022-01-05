@@ -1,0 +1,94 @@
+trigger:
+- main
+
+jobs:
+  - job: linux
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      matrix:
+        Python36:
+          python.version: '3.6'
+        Python36debug:
+          python.version: '3.6'
+          myenv: LOGLEVEL=DEBUG EXACT_PIP_VERSIONS=1
+        Python37:
+          python.version: '3.7'
+        Python38:
+          python.version: '3.8'
+        Python39:
+          python.version: '3.9'
+
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(python.version)'
+      displayName: 'Use Python $(python.version)'
+
+    - script: |
+        python -m pip install --upgrade pip
+        if [ ! -z "$(myenv)" ]; then
+          export $(myenv)
+        fi
+        if [ ! -z "$EXACT_PIP_VERSIONS" ]; then
+          echo "Installing exact versions of dependencies"
+          echo "Note: using 3.6 because packages are deprecating 3.5 support"
+          pip install -r requirements.txt
+        fi
+        pip --use-feature=in-tree-build install . .[test]
+      displayName: 'Install dependencies'
+
+    - script: |
+        pip install pytest pytest-azurepipelines
+        if [ ! -z "$(myenv)" ]; then
+          export $(myenv)
+        fi
+        make test_coverage
+      displayName: 'pytest'
+
+    - script: |
+        pip install coveralls
+        export CIRCLE_BRANCH=$BUILD_SOURCEBRANCH
+        coveralls
+      displayName: 'coveralls'
+      env:
+        CIRCLECI: 1
+        CIRCLE_BUILD_NUM: $(Build.BuildNumber)
+        COVERALLS_REPO_TOKEN: $(coveralls_repo_token)
+
+  - job: macos
+    pool:
+      vmImage: 'macOS-latest'
+    strategy:
+      matrix:
+        Python38:
+          python.version: '3.8'
+
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(python.version)'
+      displayName: 'Use Python $(python.version)'
+
+    - script: |
+        python -m pip install --upgrade pip
+        pip --use-feature=in-tree-build install . .[test]
+      displayName: 'Install dependencies'
+
+    - script: |
+        pip install pytest pytest-azurepipelines
+        if [ ! -z "$(myenv)" ]; then
+          export $(myenv)
+        fi
+        make test_coverage
+      displayName: 'pytest'
+
+    - script: |
+        pip install coveralls
+        export CIRCLE_BRANCH=$BUILD_SOURCEBRANCH
+        coveralls
+      displayName: 'coveralls'
+      env:
+        CIRCLECI: 1
+        CIRCLE_BUILD_NUM: $(Build.BuildNumber)
+        COVERALLS_REPO_TOKEN: $(coveralls_repo_token)

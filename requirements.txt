@@ -1,17 +1,17 @@
 # Install with "python -m pip install -r requirements.txt".
+# must be kept in sync with setup.py
 
-requests==2.24.0
+requests==2.25.1
 warcio==1.7.4
 pyathena==1.11.1
 
 # used by Makefile
-coverage==5.2.1
-pytest==6.0.1
-pytest-cov==2.10.1
+pytest==6.2.4
+pytest-cov==2.12.1
 pytest-sugar==0.9.4
-coveralls==2.1.2
+coveralls==3.1.0
 
 # packaging
-twine<2  # python 3.5
-setuptools==49.6.0
-setuptools-scm==4.1.2
+twine==3.4.1
+setuptools==57.0.0
+setuptools-scm==6.0.1

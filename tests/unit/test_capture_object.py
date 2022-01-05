@@ -17,15 +17,19 @@ def test_capture_object():
         got_one = True
         with pytest.raises(ValueError):
             _ = obj.content
-    assert got_one
+    assert got_one, 'found a capture cdx_only'
 
     for cdx in (cdx_cc, cdx_ia):
         got_one = False
         for obj in cdx.iter(url, **kwargs):
             got_one = True
             content = obj.content
-            assert len(content) > 100
             assert isinstance(content, six.binary_type)
+            if len(content) == 0:
+                # if the first capture happens to be a revisit, the content length will be zero
+                pass
+            else:
+                assert len(content) > 100, str(obj)
 
             content2 = obj.content
             assert content == content2

@@ -1,41 +1,25 @@
 #!/usr/bin/env python
 
-import sys
 from os import path
 
 from setuptools import setup
-from setuptools.command.test import test as TestCommand
-
-
-class PyTest(TestCommand):
-    args = ['--doctest-modules', 'cdx_toolkit/', 'tests']
-    user_options = [('pytest-args=', 'a', "Arguments to pass into py.test")]
-    # python ./setup.py --pytest-args='-v -v'
-
-    def initialize_options(self):
-        TestCommand.initialize_options(self)
-        self.args = PyTest.args.copy()
-        self.pytest_args = ''
-
-    def finalize_options(self):
-        TestCommand.finalize_options(self)
-
-    def run_tests(self):
-        import pytest
-        import shlex
-        if self.pytest_args:
-            self.args.extend(shlex.split(self.pytest_args))
-        errno = pytest.main(self.args)
-        sys.exit(errno)
 
 
 packages = [
     'cdx_toolkit',
 ]
 
-requires = ['requests', 'warcio', 'pyathena']
+# remember: keep requires synchronized with requirements.txt
+requires = ['requests', 'warcio']
 
-test_requirements = ['pytest>=3.0.0']  # 'coverage', 'pytest-cov']
+test_requirements = ['pytest', 'pytest-cov', 'coveralls']
+
+package_requirements = ['twine', 'setuptools', 'setuptools-scm']
+
+extras_require = {
+    'test': test_requirements,  # setup no longer tests, so make them an extra
+    'package': package_requirements,
+}
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']
 
@@ -54,7 +38,8 @@ setup(
     url='https://github.com/cocrawler/cdx_toolkit',
     packages=packages,
     python_requires=">=3.5.*",
-    setup_requires=['setuptools_scm'],
+    extras_require=extras_require,
+    setup_requires=['setuptools-scm<6'],
     install_requires=requires,
     entry_points='''
         [console_scripts]
@@ -66,17 +51,18 @@ setup(
     classifiers=[
         'Development Status :: 4 - Beta',
         'Environment :: Console',
+        'Operating System :: POSIX :: Linux',
+        'Environment :: MacOS X',
         'Intended Audience :: Information Technology',
         'Intended Audience :: Developers',
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 3.5',
+        #'Programming Language :: Python :: 3.5',  # setuptools-scm problem
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3 :: Only',
     ],
-    cmdclass={'test': PyTest},
-    tests_require=test_requirements,
 )

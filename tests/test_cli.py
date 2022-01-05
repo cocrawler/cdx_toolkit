@@ -19,7 +19,42 @@ def test_basics(capsys):
         assert 'commoncrawl.org' in line
 
 
-def test_multi(capsys, caplog):
+def multi_helper(t, capsys, caplog):
+    inputs = t[0]
+    outputs = t[1]
+    cmdline = '{} {} {} {}'.format(inputs['service'], inputs['mods'], inputs['cmd'], inputs['rest'])
+    args = cmdline.split()
+
+    if 'exception' in outputs:
+        with pytest.raises(outputs['exception']):
+            main(args=args)
+    else:
+        main(args=args)
+
+    out, err = capsys.readouterr()
+
+    assert err == '', cmdline
+    lines = out.splitlines()
+    if 'count' in outputs:
+        assert len(lines) == outputs['count'], cmdline
+    for line in lines:
+        if 'linefgrep' in outputs:
+            assert outputs['linefgrep'] in line, cmdline
+        if 'linefgrepv' in outputs:
+            assert outputs['linefgrepv'] not in line, cmdline
+        if 'csv' in outputs:
+            assert line.count(',') >= 2, cmdline
+        if 'jsonl' in outputs:
+            assert line.startswith('{') and line.endswith('}'), cmdline
+            assert json.loads(line), cmdline
+        if 'is_int' in outputs:
+            assert line.isdigit(), cmdline
+
+    if 'debug' in outputs:
+        assert len(caplog.records) > outputs['debug'], cmdline
+
+
+def test_multi_cc1(capsys, caplog):
     tests = [
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
@@ -41,7 +76,14 @@ def test_multi(capsys, caplog):
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
         [{'service': '--cc', 'mods': '--limit 10 --from=2017 --to=2017', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'timestamp 2017'}],
+    ]
 
+    for t in tests:
+        multi_helper(t, capsys, caplog)
+
+
+def test_multi_cc2(capsys, caplog):
+    tests = [
         [{'service': '--cc', 'mods': '--limit 3 --get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
         [{'service': '--cc', 'mods': '--limit 3 --get --filter status:200 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
@@ -55,7 +97,14 @@ def test_multi(capsys, caplog):
          {'count': 10, 'jsonl': True}],
         [{'service': '--cc', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'debug': 5}],
+    ]
 
+    for t in tests:
+        multi_helper(t, capsys, caplog)
+
+
+def test_multi_ia(capsys, caplog):
+    tests = [
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/thisurlneverdidexist'},
@@ -66,13 +115,20 @@ def test_multi(capsys, caplog):
          {'count': 4, 'linefgrep': 'timestamp '}],  # returns 2008 ?! bug probably on my end
         [{'service': '--ia', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'debug': 5}],
+    ]
 
+    for t in tests:
+        multi_helper(t, capsys, caplog)
+
+
+def test_multi_rest(capsys, caplog):
+    tests = [
         [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'debug': 15, 'exception': ValueError}],  # 9 lines for the non-fail case, many more for fail
+         {'exception': ValueError}],
         [{'service': '-v -v --source https://example.com/404', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'debug': 15, 'exception': ValueError}],  # 9 lines for the non-fail case, many more for fail
+         {'exception': ValueError}],
 
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
@@ -90,38 +146,7 @@ def test_multi(capsys, caplog):
     ]
 
     for t in tests:
-        inputs = t[0]
-        outputs = t[1]
-        cmdline = '{} {} {} {}'.format(inputs['service'], inputs['mods'], inputs['cmd'], inputs['rest'])
-        args = cmdline.split()
-
-        if 'exception' in outputs:
-            with pytest.raises(outputs['exception']):
-                main(args=args)
-        else:
-            main(args=args)
-
-        out, err = capsys.readouterr()
-
-        assert err == '', cmdline
-        lines = out.splitlines()
-        if 'count' in outputs:
-            assert len(lines) == outputs['count'], cmdline
-        for line in lines:
-            if 'linefgrep' in outputs:
-                assert outputs['linefgrep'] in line, cmdline
-            if 'linefgrepv' in outputs:
-                assert outputs['linefgrepv'] not in line, cmdline
-            if 'csv' in outputs:
-                assert line.count(',') >= 2, cmdline
-            if 'jsonl' in outputs:
-                assert line.startswith('{') and line.endswith('}'), cmdline
-                assert json.loads(line), cmdline
-            if 'is_int' in outputs:
-                assert line.isdigit(), cmdline
-
-        if 'debug' in outputs:
-            assert len(caplog.records) > outputs['debug'], cmdline
+        multi_helper(t, capsys, caplog)
 
 
 def test_warc(tmpdir, caplog):

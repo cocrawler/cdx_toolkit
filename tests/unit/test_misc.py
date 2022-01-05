@@ -25,7 +25,7 @@ def test_showNumPages():
 
 def test_args():
     with pytest.raises(ValueError):
-        cdx = cdx_toolkit.CDXFetcher(wb='foo', warc_prefix='foo')
+        cdx = cdx_toolkit.CDXFetcher(wb='foo', warc_url_prefix='foo')
     with pytest.raises(ValueError):
         cdx = cdx_toolkit.CDXFetcher(source='asdf')
     with pytest.raises(ValueError):
