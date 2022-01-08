@@ -12,7 +12,7 @@ from pyathena.cursor import Cursor, DictCursor
 from pyathena.pandas.cursor import PandasCursor
 from pyathena.async_cursor import AsyncCursor, AsyncDictCursor
 from pyathena.pandas.async_cursor import AsyncPandasCursor
-from pyathena.utils import parse_output_location
+from pyathena.util import parse_output_location
 
 LOGGER = logging.getLogger(__name__)
 

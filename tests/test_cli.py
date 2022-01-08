@@ -212,3 +212,4 @@ def test_athena():
     # asummarize
     # asql (test an example that's in the docs)
     # aiter (something short, using the new reverse hostname field?
+    pass
