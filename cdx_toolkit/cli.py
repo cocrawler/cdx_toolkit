@@ -313,12 +313,12 @@ def asetuper(cmd, cmdline):
 
 def asummarizer(cmd, cmdline):
     connection, kwargs = athena_init(cmd)
-    print(athena.get_summary(connection, **kwargs))
+    print(athena.asummarize(connection, **kwargs))
 
 
 def asqler(cmd, cmdline):
     connection, kwargs = athena_init(cmd)
-    print(athena.run_sql_from_file(connection, cmd, **kwargs))
+    print(athena.asql(connection, cmd, **kwargs))
 
 
 def aiterator(cmd, cmdline):

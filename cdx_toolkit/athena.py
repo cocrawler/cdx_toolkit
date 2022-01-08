@@ -8,6 +8,11 @@ import json
 
 from pyathena import connect
 import pyathena.error
+from pyathena.cursor import Cursor, DictCursor
+from pyathena.pandas.cursor import PandasCursor
+from pyathena.async_cursor import AsyncCursor, AsyncDictCursor
+from pyathena.pandas.async_cursor import AsyncPandasCursor
+from pyathena.utils import parse_output_location
 
 LOGGER = logging.getLogger(__name__)
 
@@ -31,9 +36,7 @@ def print_text_messages(connection, location):
     if location is None or not location.endswith('.txt'):
         return []
 
-    parts = location.split('/')
-    bucket = parts[2]
-    key = '/'.join(parts[3:])
+    bucket, key = parse_output_location(location)
     LOGGER.info('looking for text messages in bucket {} key {}'.format(bucket, key))
 
     s3 = connection.session.client('s3')  # reuse the connection parameters we already set up
@@ -45,10 +48,25 @@ def print_text_messages(connection, location):
         return True
 
 
+def download_result_csv(connection, location, output_file):
+    if location is None or not location.endswith('.csv'):
+        raise ValueError('athena query did not return a csv')
+
+    bucket, key = parse_output_location(location)
+    LOGGER.info('looking for csv in bucket {} key {}'.format(bucket, key))
+    s3 = connection.session.client('s3')  # reuse the connection parameters we already set up
+    try:
+        s3.Bucket(bucket).download_file(key, output_file)
+    except Exception:
+        raise
+
+
 database_name = 'ccindex'
 table_name = 'ccindex'
 
-# XXX ccindex -> "ccindex"."ccindex"
+# depends on schema_name="ccindex'
+# https://github.com/commoncrawl/cc-index-table/blob/master/src/sql/athena/cc-index-create-table-flat.sql
+
 create_table = '''
 CREATE EXTERNAL TABLE IF NOT EXISTS ccindex (
   url_surtkey                   STRING,
@@ -63,6 +81,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS ccindex (
   url_host_registered_domain    STRING,
   url_host_private_suffix       STRING,
   url_host_private_domain       STRING,
+  url_host_name_reversed        STRING,
   url_protocol                  STRING,
   url_port                      INT,
   url_path                      STRING,
@@ -152,36 +171,107 @@ dev_s3_client = session.client('s3')
 '''
 
 
-def print_debug_info(params=None):
+def debug_credentials(params=None):
     print('here are some debugging hints: add at least one -v early in the command line', file=sys.stderr)
+    print('these are in the same order that boto3 uses them:', file=sys.stderr)
+
     if params:
         print('params:', file=sys.stderr)
         for k, v in params:
             print(' ', k, v, file=sys.stderr)
+    profile_name = params.get('profile_name')
+
+    print('environment variables', file=sys.stderr)
     for k, v in os.environ.items():
         if k.startswith('AWS_'):
+            if k in {'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AWS_SECURITY_TOKEN'}:
+                v = '<secret>'
             print(k, v, file=sys.stderr)
-    for f in ('~/.aws/credentials', '~/.aws/config', '/etc/boto.cfg', '~/.boto'):
+            if k == 'AWS_SECURITY_TOKEN':
+                print('AWS_SECURITY_TOKEN is deprecated', file=sys.stderr)
+
+    if 'AWS_PROFILE' not in os.environ and not profile_name:
+        print('NOTE: AWS_PROFILE is not set, so we will look for the default profile', file=sys.stderr)
+        profile_name = 'default'
+    elif not profile_name:
+        profile_name = os.environ.get('AWS_PROFILE', 'default')
+
+    scf = os.environ.get('AWS_SHARED_CREDENTIALS_FILE', '~/.aws/credentials')
+    scf = os.path.expanduser(scf)
+    if os.path.exists(scf):
+        print(scf, 'exists', file=sys.stderr)
+        # XXX read it
+        # only allowed to have 3 keys. every section is a profile name
+        # aws_access_key_id, aws_secret_access_key, aws_session_token
+
+    if os.path.exists(os.path.expanduser('~/.aws/config')):
+        print('~/.aws/config', 'exists', file=sys.stderr)
+        # XXX read it
+        # profiles have to have section names like "profile prod"
+        # in addition to profiles with the 3 keys, this can have region, region_name, s3_staging_dir
+        # can also have "assume role provider" in a profile
+        # source_profile=foo will look for foo in either config or credentials
+
+    for f in ('/etc/boto.cfg', '~/.boto'):
         if os.path.exists(os.path.expanduser(f)):
             print(f, 'exists', file=sys.stderr)
+            # XXX only uses the [Credentials] section
+
+    print('finally: instance metadata if running in EC2 with IAM', file=sys.stderr)
+
+
+def log_session_info(session):
+    LOGGER.debug('Session info:')
+    LOGGER.debug('session.profile_name: ' + session.profile_name)
+    LOGGER.debug('session.available_profiles: ' + session.available_profiles)
+    LOGGER.debug('session.region_name: ' + session.region_name)
+    # get_credentials ? botocore.credential.Credential
+
+
+kinds = {
+    'default': {'cursor': Cursor},
+    'dict': {'cursor': DictCursor},
+    'pandas': {'cursor': PandasCursor},
+    'default_async': {'cursor': AsyncCursor},
+    'dict_async': {'cursor': AsyncDictCursor},
+    'pandas_async': {'cursor': AsyncPandasCursor},
+}
 
 
 def get_athena(**kwargs):
     LOGGER.info('connecting to athena')
 
+    # XXX verify that s3_staging_dir is set, and not set to common crawl's bucket (which is ro)
+    # XXX verify that there is a schema_name
+
+    cursor_class = kwargs.pop('cursor_class', None)
+    if not cursor_class:
+        kind = kwargs.pop('kind', 'default')
+        cursor_class = kinds.get(kind)
+        if not cursor_class:
+            raise ValueError('Unknown cursor kind of '+kind)
+    elif kind in kwargs and kwargs[kind]:
+        LOGGER.warning('User specified both cursor_class and kind, ignoring kind')
+
     try:
-        connection = connect(**kwargs)
+        connection = connect(cursor_class=cursor_class, **kwargs)
     except Exception:
-        print_debug_info(params=kwargs)
+        debug_credentials(params=kwargs)
         raise
 
+    log_session_info(connection.session)
+
+    # XXX cursor._result_set_class = OurExponentialResultClass
     return connection
 
 
 def asetup(connection, **kwargs):
-
     LOGGER.info('creating database')
+
+    # XXX verify that there is a schema_name? needed for create and repair
+
     create_database = 'CREATE DATABASE ccindex'
+
     try:
         cursor = my_execute(connection, create_database, warn_for_cost=True, **kwargs)
     except pyathena.error.OperationalError as e:
@@ -196,30 +286,11 @@ def asetup(connection, **kwargs):
     my_execute(connection, create_table, warn_for_cost=True, **kwargs)
 
     LOGGER.info('repairing table')
-    # ccindex -> "ccindex"."ccindex"
+    # depends on schema_name="ccindex'
     repair_table = '''
 MSCK REPAIR TABLE ccindex;
     '''
     my_execute(connection, repair_table, warn_for_cost=True, **kwargs)
-
-
-class WrapCursor:
-    '''
-    Make the cursor iterator easier to use, returns a dict with keys for the field names
-    XXX consider making this a subclass of pyathena.cursor.Cursor ?
-    '''
-    def __init__(self, cursor):
-        self.cursor = cursor
-        self.fields = [d[0] for d in cursor.description]
-        if self.fields:
-            LOGGER.info('observed fields of %s', ','.join(self.fields))
-
-    def __next__(self):
-        row = next(self.cursor)
-        return dict(zip(self.fields, row))
-
-    def __iter__(self):
-        return self
 
 
 def my_execute(connection, sql, params={}, dry_run=False,
@@ -244,7 +315,7 @@ def my_execute(connection, sql, params={}, dry_run=False,
     try:
         cursor.execute(sql)
     except Exception:
-        print_debug_info()
+        debug_credentials()
         raise
 
     m = None
@@ -258,12 +329,12 @@ def my_execute(connection, sql, params={}, dry_run=False,
             LOGGER.info('estimated cost $%.6f', c)
 
     if m and raise_for_messages:
-        raise ValueError('Expected no messages')
+        raise ValueError('Expected no messages, see above')
 
-    return WrapCursor(cursor)
+    return cursor
 
 
-def iter(connection, **kwargs):
+def aiter(connection, **kwargs):
     # form the query:
     # all verbatim queries to be passed in
     # if not verbatim:
@@ -293,7 +364,7 @@ def get_all_crawls(connection, **kwargs):
     return sorted(ret)
 
 
-def get_summary(connection, **kwargs):
+def asummary(connection, **kwargs):
     count_by_partition = '''
 SELECT COUNT(*) as n_captures,
        crawl,
@@ -309,14 +380,14 @@ GROUP BY crawl, subset;
     return '\n'.join([json.dumps(row, sort_keys=True) for row in cursor])
 
 
-def run_sql_from_file(connection, cmd, **kwargs):
+def asql(connection, cmd, **kwargs):
     with open(cmd.file, 'r') as fd:
         sql = fd.read()
 
     params = {}
     if cmd.param:
         for p in cmd.param:
-            if '=' not in p:
+            if p.count('=') != 1:
                 raise ValueError('paramters should have a single equals sign')
             k, v = p.split('=', 1)
             params[k] = v

@@ -1,3 +1,6 @@
+- 0.9.34 (not yet tagged)
+	+ experimental support for CC's columnar index
+
 - 0.9.33
 	+ rename master to main
 	+ drop python 3.5 testing because of setuptools-scm
