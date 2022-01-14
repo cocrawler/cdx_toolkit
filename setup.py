@@ -17,6 +17,7 @@ test_requirements = ['pytest', 'pytest-cov', 'coveralls']
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
 extras_require = {
+    'athena': ['pyathena[pandas]>=2'],
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
 }
@@ -44,7 +45,7 @@ setup(
     entry_points='''
         [console_scripts]
         cdxt = cdx_toolkit.cli:main
-        #ccathena = cdx_toolkit.cli:main_athena
+        ccathena = cdx_toolkit.cli:main_athena
     ''',
     scripts=scripts,
     license='Apache 2.0',

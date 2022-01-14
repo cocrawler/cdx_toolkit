@@ -185,7 +185,7 @@ def one_ia_corner(tmpdir, cmdline):
 def test_warc_ia_corners(tmpdir, caplog):
     '''
     To test these more properly, need to add a --exact-warcname and then postprocess.
-    For now, these tests show up in the coverage report
+    For now, these are just crash-only tests
     '''
 
     # revisit vivification
@@ -203,3 +203,13 @@ def test_warc_ia_corners(tmpdir, caplog):
     # warcing a 404 is a corner case in myrequests
     cmdline = '--ia --from 20080512074145 --to 20080512074145 warc http://www.pbm.com/oly/archive/design94/0074.html'
     one_ia_corner(tmpdir, cmdline)
+
+
+def test_athena():
+    # tests of configuration file reading? can be unit tests?
+
+    # asetup (must be done first, but it's implicit in all of the following)
+    # asummarize
+    # asql (test an example that's in the docs)
+    # aiter (something short, using the new reverse hostname field?
+    pass
