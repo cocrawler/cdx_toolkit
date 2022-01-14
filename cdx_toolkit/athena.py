@@ -15,6 +15,7 @@ from pyathena.pandas.async_cursor import AsyncPandasCursor
 from pyathena.util import parse_output_location
 
 LOGGER = logging.getLogger(__name__)
+saved_connect_kwargs = None
 
 
 def all_results_properties(cursor):
@@ -175,10 +176,15 @@ def debug_credentials(params=None):
     print('here are some debugging hints: add at least one -v early in the command line', file=sys.stderr)
     print('these are in the same order that boto3 uses them:', file=sys.stderr)
 
-    if params:
-        print('params:', file=sys.stderr)
-        for k, v in params:
+    if saved_connect_kwargs:
+        print('athena connect kwargs:', file=sys.stderr)
+        for k, v in params.items():
             print(' ', k, v, file=sys.stderr)
+    if params:
+        print('params for this call:', file=sys.stderr)
+        for k, v in params.items():
+            print(' ', k, v, file=sys.stderr)
+
     profile_name = params.get('profile_name')
 
     print('environment variables', file=sys.stderr)
@@ -186,12 +192,12 @@ def debug_credentials(params=None):
         if k.startswith('AWS_'):
             if k in {'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN', 'AWS_SECURITY_TOKEN'}:
                 v = '<secret>'
-            print(k, v, file=sys.stderr)
+            print(' ', k, v, file=sys.stderr)
             if k == 'AWS_SECURITY_TOKEN':
                 print('AWS_SECURITY_TOKEN is deprecated', file=sys.stderr)
 
     if 'AWS_PROFILE' not in os.environ and not profile_name:
-        print('NOTE: AWS_PROFILE is not set, so we will look for the default profile', file=sys.stderr)
+        print(' ', 'NOTE: AWS_PROFILE is not set, so we will look for the default profile', file=sys.stderr)
         profile_name = 'default'
     elif not profile_name:
         profile_name = os.environ.get('AWS_PROFILE', 'default')
@@ -223,7 +229,7 @@ def debug_credentials(params=None):
 def log_session_info(session):
     LOGGER.debug('Session info:')
     LOGGER.debug('session.profile_name: ' + session.profile_name)
-    LOGGER.debug('session.available_profiles: ' + session.available_profiles)
+    LOGGER.debug('session.available_profiles: ' + str(session.available_profiles))
     LOGGER.debug('session.region_name: ' + session.region_name)
     # get_credentials ? botocore.credential.Credential
 
@@ -238,7 +244,7 @@ kinds = {
 }
 
 
-def get_athena(**kwargs):
+def aconnect(**kwargs):
     LOGGER.info('connecting to athena')
 
     # XXX verify that s3_staging_dir is set, and not set to common crawl's bucket (which is ro)
@@ -247,16 +253,19 @@ def get_athena(**kwargs):
     cursor_class = kwargs.pop('cursor_class', None)
     if not cursor_class:
         kind = kwargs.pop('kind', 'default')
-        cursor_class = kinds.get(kind)
+        cursor_class = kinds.get(kind).get('cursor')
         if not cursor_class:
             raise ValueError('Unknown cursor kind of '+kind)
     elif kind in kwargs and kwargs[kind]:
         LOGGER.warning('User specified both cursor_class and kind, ignoring kind')
 
+    global saved_connect_kwargs
+    saved_connect_kwargs = kwargs
+
     try:
         connection = connect(cursor_class=cursor_class, **kwargs)
     except Exception:
-        debug_credentials(params=kwargs)
+        debug_credentials()
         raise
 
     log_session_info(connection.session)
@@ -269,6 +278,7 @@ def asetup(connection, **kwargs):
     LOGGER.info('creating database')
 
     # XXX verify that there is a schema_name? needed for create and repair
+    # XXX schema_name can be specified when you create the cursor, pass it to .cursor()
 
     create_database = 'CREATE DATABASE ccindex'
 
@@ -279,26 +289,28 @@ def asetup(connection, **kwargs):
             LOGGER.info('database ccindex already exists')
         else:
             cursor = connection.cursor()
+            # XXX does this really work? a fresh cursor has the previous output_location in it ???
             print_text_messages(connection, cursor.output_location)
             raise
 
     LOGGER.info('creating table')
+    # depends on schema_name="ccindex"
     my_execute(connection, create_table, warn_for_cost=True, **kwargs)
 
     LOGGER.info('repairing table')
-    # depends on schema_name="ccindex'
+    # depends on schema_name="ccindex"
     repair_table = '''
 MSCK REPAIR TABLE ccindex;
     '''
     my_execute(connection, repair_table, warn_for_cost=True, **kwargs)
 
 
-def my_execute(connection, sql, params={}, dry_run=False,
+def my_execute(connection, sql, sql_params={}, dry_run=False,
                print_cost=True, print_messages=True,
-               warn_for_cost=False, raise_for_messages=False):
+               warn_for_cost=False, raise_for_messages=False, **kwargs):
 
     try:
-        sql = sql % params
+        sql = sql % sql_params
     except KeyError as e:
         raise KeyError('sql template referenced an unknown parameter: '+str(e))
     except ValueError as e:
@@ -310,12 +322,13 @@ def my_execute(connection, sql, params={}, dry_run=False,
         print(sql, file=sys.stderr)
         return []  # callers expect an iterable
 
-    cursor = connection.cursor()
+    cursor = connection.cursor()  # XXX kwargs? schema_name= exists in both Connection and Cursor objects
 
     try:
-        cursor.execute(sql)
-    except Exception:
-        debug_credentials()
+        cursor.execute(sql)  # XXX kwargs?
+    except Exception as e:
+        LOGGER.warning('saw exception {} in my_execute'.format(str(e)))
+        debug_credentials(**kwargs)
         raise
 
     m = None
@@ -359,7 +372,8 @@ def get_all_crawls(connection, **kwargs):
 
     ret = []
     for row in cursor:
-        ret.append(row['crawl'])
+        # XXX this needs to take into account the cursor class?
+        ret.append(row['crawl'])  # XXX row is a tuple,
 
     return sorted(ret)
 

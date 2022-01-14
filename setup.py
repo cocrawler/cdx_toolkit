@@ -17,7 +17,7 @@ test_requirements = ['pytest', 'pytest-cov', 'coveralls']
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
 extras_require = {
-    'athena': ['pyathena>=2'],
+    'athena': ['pyathena[pandas]>=2'],
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
 }

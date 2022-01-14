@@ -30,11 +30,17 @@ def add_global_args(parser):
     parser.add_argument('--filter', action='append', help='see CDX API documentation for usage')
 
 
-def main(args=None):
-    parser = ArgumentParser(description='cdx_toolkit iterator command line tool')
+def add_athena_args(parser):
+    parser.add_argument('--profile-name', action='store', help='choose which section of your boto conf files is used')
+    parser.add_argument('--role-arn', action='store', help='Amazon resource name roley')
+    parser.add_argument('--work-group', action='store', help='Amazon Athena work group name')
+    parser.add_argument('--s3-staging-dir', action='store', help='an s3 bucket to hold outputs')
+    parser.add_argument('--region-name', action='store', default='us-east-1',
+                        help='AWS region to use, you probably want the one the commoncrawl data is in (us-east-1)')
+    parser.add_argument('--dry-run', '-n', action='store_true', help='print the SQL and exit without executing it')
 
-    add_global_args(parser)
 
+def add_cdx_args(parser):
     parser.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/WARCs')
     parser.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
     parser.add_argument('--source', action='store', help='direct the query to this CDX server')
@@ -43,6 +49,14 @@ def main(args=None):
     parser.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
     parser.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration. default limit=1000')
     parser.add_argument('--closest', action='store', help='get the closest capture to this timestamp. use with --get')
+
+
+def main(args=None):
+    parser = ArgumentParser(description='cdx_toolkit iterator command line tool')
+
+    add_global_args(parser)
+    add_athena_args(parser)
+    add_cdx_args(parser)
 
     subparsers = parser.add_subparsers(dest='cmd')
     subparsers.required = True
@@ -71,51 +85,18 @@ def main(args=None):
     size.add_argument('url', help='')
     size.set_defaults(func=sizer)
 
-    if args is not None:
-        cmdline = ' '.join(args)
-    else:  # pragma: no cover
-        # there's something magic about args and console_scripts
-        # this fallback is needed when installed by setuptools
-        if len(sys.argv) > 1:
-            cmdline = 'cdxt ' + ' '.join(sys.argv[1:])
-        else:
-            cmdline = 'cdxt'
-    cmd = parser.parse_args(args=args)
-    set_loglevel(cmd)
-    cmd.func(cmd, cmdline)
-
-
-def add_athena_args(parser):
-    parser.add_argument('--profile-name', action='store', help='choose which section of your boto conf files is used')
-    parser.add_argument('--role-arn', action='store', help='Amazon resource name roley')
-    parser.add_argument('--work-group', action='store', help='Amazon Athena work group name')
-    parser.add_argument('--s3-staging-dir', action='store', help='an s3 bucket to hold outputs')
-    parser.add_argument('--region-name', action='store', default='us-east-1',
-                        help='AWS region to use, you probably want the one the commoncrawl data is in (us-east-1)')
-    parser.add_argument('--dry-run', '-n', action='store_true', help='print the SQL and exit without executing it')
-
-
-def main_athena(args=None):
-    parser = ArgumentParser(description='CommonCrawl column database command line tool')
-
-    add_global_args(parser)
-    add_athena_args(parser)
-
-    subparsers = parser.add_subparsers(dest='cmd')
-    subparsers.required = True
-
-    asetup = subparsers.add_parser('setup', help='set up amazon athena ccindex database and table')
+    asetup = subparsers.add_parser('asetup', help='set up amazon athena ccindex database and table')
     asetup.set_defaults(func=asetuper)
 
-    asummarize = subparsers.add_parser('summarize', help='summarize the partitions currently in the table')
+    asummarize = subparsers.add_parser('asummarize', help='summarize the partitions currently in the table')
     asummarize.set_defaults(func=asummarizer)
 
-    asql = subparsers.add_parser('sql', help='run arbitrary SQL statement from a file')
+    asql = subparsers.add_parser('asql', help='run arbitrary SQL statement from a file')
     asql.add_argument('--param', action='append', help='parameteres for templating the SQL, e.g. SUBSET=warc')
     asql.add_argument('file', help='')
     asql.set_defaults(func=asqler)
 
-    aiter = subparsers.add_parser('iter', help='iterate printing captures')
+    aiter = subparsers.add_parser('aiter', help='iterate printing captures')
     aiter.add_argument('--all-fields', action='store_true')
     aiter.add_argument('--fields', action='store', default='url,warc_filename,warc_record_offset,warc_record_length', help='try --all-fields if you need the list')
     aiter.add_argument('--jsonl', action='store_true')
@@ -301,7 +282,7 @@ def athena_init(cmd):
     if 'dry_run' in cmd and cmd.dry_run:
         kwargs['dry_run'] = True
 
-    connection = athena.get_athena(**conn_kwargs)
+    connection = athena.aconnect(**conn_kwargs)
     return connection, kwargs
 
 

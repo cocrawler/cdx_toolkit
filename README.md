@@ -12,6 +12,10 @@ hides these differences as best it can. cdx_toolkit also knits
 together the monthly Common Crawl CDX indices into a single, virtual
 index.
 
+CommonCrawl also has a non-CDX "columnar index" hosted on AWS,
+accessible via the (paid) Amazon Athena service. This index can be
+queried using SQL, and has a few columns not present in the CDX index.
+
 Finally, cdx_toolkit allows extracting archived pages from CC and IA
 into WARC files.  If you're looking to create subsets of CC or IA data
 and then process them into WET or WAT files, this is a feature you'll
@@ -218,7 +222,7 @@ cdx_toolkit has reached the beta-testing stage of development.
 
 ## License
 
-Copyright 2018-2020 Greg Lindahl and others
+Copyright 2018-2022 Greg Lindahl and others
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this software except in compliance with the License.
