@@ -1,3 +1,6 @@
+- 0.9.34 (not yet tagged)
+	+ made 429 and 509 retryable errors. Neither IA or CC sends this status.
+
 - 0.9.33
 	+ rename master to main
 	+ drop python 3.5 testing because of setuptools-scm

@@ -54,8 +54,9 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
             if allow404 and resp.status_code == 404:
                 retry = False
                 break
-            if resp.status_code in {503, 502, 504, 500}:  # pragma: no cover
+            if resp.status_code in {429, 500, 502, 503, 504, 509}:  # pragma: no cover
                 # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
+                # I have never seen IA or CC send 429 or 509, but just in case...
                 retries += 1
                 if retries > 5:
                     LOGGER.warning('retrying after 1s for %d', resp.status_code)
