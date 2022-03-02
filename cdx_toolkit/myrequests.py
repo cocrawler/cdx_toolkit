@@ -10,7 +10,7 @@ LOGGER = logging.getLogger(__name__)
 
 previously_seen_hostnames = {
     'commoncrawl.s3.amazonaws.com',
-    'web.archive.org',
+    'data.commoncrawl.org',
     'web.archive.org',
 }
 

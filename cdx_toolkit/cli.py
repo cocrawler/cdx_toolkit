@@ -48,6 +48,7 @@ def main(args=None):
     warc.add_argument('--operator', action='store', help='a person, if the creator is an organization')
     warc.add_argument('--url-fgrep', action='store', help='this pattern must be present to warc an url')
     warc.add_argument('--url-fgrepv', action='store', help='this pattern must not be present to warc an url, e.g. /robots.txt')
+    warc.add_argument('--warc-download-prefix', action='store', help='prefix for downloading content, automatically set for CC')
     warc.add_argument('url')
     warc.set_defaults(func=warcer)
 
@@ -99,6 +100,8 @@ def setup(cmd):
         kwargs['wb'] = cmd.wb
     if cmd.cc_mirror:
         kwargs['cc_mirror'] = cmd.cc_mirror
+    if getattr(cmd, 'warc_download_prefix', None) is not None:
+        kwargs['warc_download_prefix'] = cmd.warc_download_prefix
 
     cdx = cdx_toolkit.CDXFetcher(**kwargs)
 

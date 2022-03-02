@@ -1,4 +1,6 @@
-- 0.9.34 (not yet tagged)
+- 0.9.34
+	+ renamed class CDXFetcher kwarg warc_url_prefix to warc_download_prefix
+	+ changed CC warc downloads to use the Cloudfront url, which has rate limits
 	+ made 429 and 509 retryable errors. Neither IA or CC sends this status.
 
 - 0.9.33
