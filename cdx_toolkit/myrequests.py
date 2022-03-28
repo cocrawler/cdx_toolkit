@@ -56,16 +56,22 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 break
             if resp.status_code in {429, 500, 502, 503, 504, 509}:  # pragma: no cover
                 # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
+                # CC takes a 503 from storage and then emits a 500 with error text in resp.text
                 # I have never seen IA or CC send 429 or 509, but just in case...
                 retries += 1
                 if retries > 5:
                     LOGGER.warning('retrying after 1s for %d', resp.status_code)
+                    if resp.text:
+                        LOGGER.warning('response body is %s', resp.text)
                 else:
                     LOGGER.info('retrying after 1s for %d', resp.status_code)
+                    if resp.text:
+                        LOGGER.info('response body is %s', resp.text)
                 time.sleep(1)
                 continue
             if resp.status_code in {400, 404}:  # pragma: no cover
-                LOGGER.info('response body is %s', resp.text)
+                if resp.text:
+                    LOGGER.info('response body is %s', resp.text)
                 raise RuntimeError('invalid url of some sort, status={} {}'.format(resp.status_code, url))
             resp.raise_for_status()
             retry = False
