@@ -37,7 +37,7 @@ setup(
     author_email='lindahl@pbm.com',
     url='https://github.com/cocrawler/cdx_toolkit',
     packages=packages,
-    python_requires=">=3.6.*",
+    python_requires=">=3.6",
     extras_require=extras_require,
     setup_requires=['setuptools-scm'],
     install_requires=requires,
