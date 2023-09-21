@@ -58,6 +58,9 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
                 # CC takes a 503 from storage and then emits a 500 with error text in resp.text
                 # I have never seen IA or CC send 429 or 509, but just in case...
+
+                if resp.status_code in {429}:
+                    raise requests.exceptions.ConnectionError("429 rate limited")
                 retries += 1
                 if retries > 5:
                     LOGGER.warning('retrying after 1s for %d', resp.status_code)
