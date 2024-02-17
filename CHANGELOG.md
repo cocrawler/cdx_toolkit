@@ -1,3 +1,6 @@
+- 0.9.35
+    + exponential backoff retries now that IA is sending 429
+
 - 0.9.34
 	+ renamed class CDXFetcher kwarg warc_url_prefix to warc_download_prefix
 	+ changed CC warc downloads to use the Cloudfront url, which has rate limits
