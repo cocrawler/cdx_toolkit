@@ -3,7 +3,7 @@
 import cdx_toolkit
 
 cdx = cdx_toolkit.CDXFetcher(source='cc')
-url = 'commoncrawl.org/*'
+url = 'commoncrawl.org/blog/*'
 
 warcinfo = {
     'software': 'pypi_cdx_toolkit iter-and-warc example',
