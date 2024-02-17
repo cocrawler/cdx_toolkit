@@ -38,6 +38,8 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
         headers['User-Agent'] = 'pypi_cdx_toolkit/'+__version__
 
     retry = True
+    retry_sec = 1
+    retry_max_sec = 30
     retries = 0
     connect_errors = 0
     while retry:
@@ -58,6 +60,7 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 # 503=slow down, 50[24] are temporary outages, 500=Amazon S3 generic error
                 # CC takes a 503 from storage and then emits a 500 with error text in resp.text
                 # I have never seen IA or CC send 429 or 509, but just in case...
+                # 429 is also a slow down, IA started sending them mid-2023
                 retries += 1
                 if retries > 5:
                     LOGGER.warning('retrying after 1s for %d', resp.status_code)
@@ -67,7 +70,8 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                     LOGGER.info('retrying after 1s for %d', resp.status_code)
                     if resp.text:
                         LOGGER.info('response body is %s', resp.text)
-                time.sleep(1)
+                time.sleep(retry_sec)
+                retry_sec = min(retry_sec*2, retry_max_sec)
                 continue
             if resp.status_code in {400, 404}:  # pragma: no cover
                 if resp.text:
@@ -90,7 +94,8 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
             if connect_errors > 10:
                 LOGGER.warning(string)
             LOGGER.info('retrying after 1s for '+str(e))
-            time.sleep(1)
+            time.sleep(retry_sec)
+            retry_sec = min(retry_sec*2, retry_max_sec)
         except requests.exceptions.RequestException as e:  # pragma: no cover
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
             raise
