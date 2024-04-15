@@ -135,10 +135,10 @@ redirect to another page, an error such as 404 (page not found), or a
 revisit record (page identical to a previous capture.)
 
 The **url** used by cdx_tools can be wildcarded in two ways. One way
-is `*.example.com`, which in CDX jargon sets **matchType='domain'**, and
-will return captures for blog.example.com, support.example.com, etc.
-The other, `example.com/*`, will return captures for any page on
-example.com.
+is `*.example.com`, which in CDX jargon sets **matchType='domain'**,
+and will return captures for example.com and blog.example.com and
+support.example.com. The other, `example.com/*`, will return captures
+for any page on example.com.
 
 A **timestamp** represents year-month-day-time as a string of digits run togther.
 Example: January 5, 2016 at 12:34:56 UTC is 20160105123456. These timestamps are
