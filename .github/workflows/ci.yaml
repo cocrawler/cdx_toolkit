@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        os: [ubuntu-latest]
+        EXTRA: [false]  # used to force includes to get included
+        include:
+          - python-version: '3.12'
+            os: ubuntu-latest
+            EXTRA: true
+            env:
+              LOGLEVEL=DEBUG
+          - python-version: '3.11'
+            os: macos-latest
+            EXTRA: true
+          - python-version: '3.12'
+            os: macos-latest
+            EXTRA: true
+          - python-version: '3.7'
+            os: windows-latest
+            EXTRA: true
+          - python-version: '3.12'
+            os: windows-latest
+            EXTRA: true
+          - python-version: '3.7'
+            os: ubuntu-20.04  # oldest version on github actions
+            EXTRA: true
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install setuptools on python 3.12+
+        if: ${{ matrix.python-version >= '3.12' }}
+        run: |
+          pip install setuptools
+
+      - name: Install cdx_toolkit
+        run: pip install .[testing]
+
+      - name: Run tests
+        run: |
+          make test_coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
