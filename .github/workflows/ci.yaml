@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
         include:
@@ -52,7 +52,7 @@ jobs:
           pip install setuptools
 
       - name: Install cdx_toolkit
-        run: pip install .[testing]
+        run: pip install .[test]
 
       - name: Run tests
         run: |
