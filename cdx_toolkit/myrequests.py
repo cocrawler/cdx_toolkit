@@ -7,12 +7,14 @@ from . import __version__
 
 LOGGER = logging.getLogger(__name__)
 
-
 previously_seen_hostnames = {
     'commoncrawl.s3.amazonaws.com',
     'data.commoncrawl.org',
     'web.archive.org',
 }
+
+next_fetch = time.time()
+minimum_interval = 3.0  # seconds
 
 
 def dns_fatal(url):
@@ -23,6 +25,13 @@ def dns_fatal(url):
 
 
 def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
+    t = time.time()
+    global next_fetch
+    if t < next_fetch:
+        time.sleep(next_fetch - t)
+    # next_fetch is also updated at the bottom
+    next_fetch = next_fetch + minimum_interval
+
     if params:
         if 'from_ts' in params:
             params['from'] = params['from_ts']
@@ -38,8 +47,8 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
         headers['User-Agent'] = 'pypi_cdx_toolkit/'+__version__
 
     retry = True
-    retry_sec = 1
-    retry_max_sec = 30
+    retry_sec = 2 * minimum_interval
+    retry_max_sec = 60
     retries = 0
     connect_errors = 0
     while retry:
@@ -62,14 +71,10 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 # I have never seen IA or CC send 429 or 509, but just in case...
                 # 429 is also a slow down, IA started sending them mid-2023
                 retries += 1
-                if retries > 5:
-                    LOGGER.warning('retrying after 1s for %d', resp.status_code)
-                    if resp.text:
-                        LOGGER.warning('response body is %s', resp.text)
-                else:
-                    LOGGER.info('retrying after 1s for %d', resp.status_code)
-                    if resp.text:
-                        LOGGER.info('response body is %s', resp.text)
+                level = 30 if retries > 5 else 20  # 30=warning 20=info
+                LOGGER.log(level, 'retrying after %.2fs for %d', retry_sec, resp.status_code)
+                if resp.text:
+                    LOGGER.log(level, 'response body is %s', resp.text)
                 time.sleep(retry_sec)
                 retry_sec = min(retry_sec*2, retry_max_sec)
                 continue
@@ -93,8 +98,8 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 raise ValueError(string)
             if connect_errors > 10:
                 LOGGER.warning(string)
-            LOGGER.info('retrying after 1s for '+str(e))
-            time.sleep(retry_sec)
+            LOGGER.info('retrying after {:.2f}s for '.format(retry_max_sec)+str(e))
+            time.sleep(retry_max_sec)  # notice the extra-long sleep
             retry_sec = min(retry_sec*2, retry_max_sec)
         except requests.exceptions.RequestException as e:  # pragma: no cover
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
@@ -103,5 +108,8 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
     hostname = urlparse(url).hostname
     if hostname not in previously_seen_hostnames:
         previously_seen_hostnames.add(hostname)
+
+    # in case we had a lot of retries, etc
+    next_fetch = time.time() + minimum_interval
 
     return resp
