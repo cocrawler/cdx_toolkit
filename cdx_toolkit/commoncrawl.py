@@ -4,7 +4,9 @@ Code specific to accessing the Common Crawl index
 import time
 import re
 import bisect
-
+import os
+import os.path
+import json
 import logging
 
 from .myrequests import myrequests_get
@@ -13,15 +15,56 @@ from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, c
 LOGGER = logging.getLogger(__name__)
 
 
-def get_cc_endpoints(cc_mirror):
-    collinfo = cc_mirror.rstrip('/') + '/collinfo.json'
-    r = myrequests_get(collinfo)
-    if r.status_code != 200:
-        raise RuntimeError('error {} getting list of cc indices from {}'.format(r.status_code, collinfo))  # pragma: no cover
+def get_cache_names(cc_mirror):
+    cache = os.path.expanduser('~/.cache/cdx_toolkit/')
+    filename = re.sub(r'[^\w]', '_', cc_mirror.replace('https://', ''))
+    return cache, filename
 
-    j = r.json()
-    endpoints = [x['cdx-api'] for x in j]
-    if len(endpoints) < 30:  # last seen to be 39
+
+def check_collinfo_cache(cc_mirror):
+    cache, filename = get_cache_names(cc_mirror)
+    try:
+        mtime = os.path.getmtime(cache + filename)
+    except Exception as e:
+        LOGGER.debug('unable to get collinfo cache mtime: '+repr(e))
+        return
+    if mtime > time.time() - 86400:
+        try:
+            LOGGER.debug('collinfo cache hit')
+            with open(cache + filename) as fd:
+                return json.load(fd)
+        except Exception as e:
+            LOGGER.debug('unable to read collinfo cache: '+repr(e))
+    else:
+        LOGGER.debug('collinfo cache too old')
+
+
+def set_collinfo_cache(cc_mirror, collinfo):
+    cache, filename = get_cache_names(cc_mirror)
+
+    try:
+        os.makedirs(cache, exist_ok=True)
+        with open(cache + filename + '.new', 'w') as fd:
+            fd.write(collinfo)
+        os.rename(cache + filename + '.new', cache + filename)
+        LOGGER.debug('collinfo cache written')
+    except Exception as e:
+        LOGGER.debug('problem writing collinfo cache: '+repr(e))
+
+
+def get_cc_endpoints(cc_mirror):
+    col = check_collinfo_cache(cc_mirror)
+    if not col:
+        url = cc_mirror.rstrip('/') + '/collinfo.json'
+        r = myrequests_get(url)
+        if r.status_code != 200:
+            raise RuntimeError('error {} getting list of cc indices from {}'.format(r.status_code, collinfo))  # pragma: no cover
+        set_collinfo_cache(cc_mirror, r.text)
+        time.sleep(5)  # XXX to avoid triggering rate limit
+        col = r.json()
+
+    endpoints = [x['cdx-api'] for x in col]
+    if len(endpoints) < 60:  # last seen to be 100
         raise ValueError('Surprisingly few endpoints for common crawl index')  # pragma: no cover
     LOGGER.info('Found %d endpoints in the Common Crawl index', len(endpoints))
 
