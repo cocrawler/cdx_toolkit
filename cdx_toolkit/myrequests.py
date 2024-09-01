@@ -13,15 +13,15 @@ previously_seen_hostnames = {
     'web.archive.org',
 }
 
-next_fetch = time.time()
-minimum_interval = 3.0  # seconds
-
-
 def dns_fatal(url):
     '''We have a dns error, should we fail immediately or not?'''
     hostname = urlparse(url).hostname
     if hostname not in previously_seen_hostnames:
         return True
+
+
+next_fetch = time.time()
+minimum_interval = 3.0  # seconds
 
 
 def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
