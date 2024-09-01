@@ -90,7 +90,6 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
     while retry:
         try:
             LOGGER.debug('getting %s %r', url, params)
-            time.sleep(3.0)  # XXX
             resp = requests.get(url, params=params, headers=headers,
                                 timeout=(30., 30.), allow_redirects=False)
             if cdx and resp.status_code in {400, 404}:
