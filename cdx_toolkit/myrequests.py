@@ -13,24 +13,60 @@ previously_seen_hostnames = {
     'web.archive.org',
 }
 
-def dns_fatal(url):
+
+def dns_fatal(hostname):
     '''We have a dns error, should we fail immediately or not?'''
-    hostname = urlparse(url).hostname
     if hostname not in previously_seen_hostnames:
         return True
 
 
-next_fetch = time.time()
-minimum_interval = 3.0  # seconds
+retry_info = {
+    'default': {
+        'next_fetch': 0,
+        'minimum_interval': 3.0,
+    },
+    'index.commoncrawl.org': {
+        'next_fetch': 0,
+        'minimum_interval': 3.0,
+    },
+    'data.commoncrawl.org': {
+        'next_fetch': 0,
+        'minimum_interval': 3.0,
+    },
+    'web.archive.org': {
+        'next_fetch': 0,
+        'minimum_interval': 6.0,
+    },
+}
+
+
+def get_retries(hostname):
+    if hostname not in retry_info:
+        retry_info[hostname] = retry_info['default'].copy()
+        LOGGER.debug('initializing retry info for new host '+hostname)
+    entry = retry_info[hostname]
+    if not entry['next_fetch']:
+        entry['next_fetch'] = time.time()
+    return entry['next_fetch'], entry['minimum_interval']
+
+
+def update_next_fetch(hostname, next_fetch):
+    retry_info[hostname]['next_fetch'] = next_fetch
 
 
 def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
     t = time.time()
-    global next_fetch
+
+    hostname = urlparse(url).hostname
+    next_fetch, minimum_interval = get_retries(hostname)
+
     if t < next_fetch:
-        time.sleep(next_fetch - t)
+        dt = next_fetch - t
+        if dt > 3.1:
+            LOGGER.debug('sleeping for {:.3f}s before next fetch'.format(dt))
+        time.sleep(dt)
     # next_fetch is also updated at the bottom
-    next_fetch = next_fetch + minimum_interval
+    update_next_fetch(hostname, next_fetch + minimum_interval)
 
     if params:
         if 'from_ts' in params:
@@ -110,6 +146,6 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
         previously_seen_hostnames.add(hostname)
 
     # in case we had a lot of retries, etc
-    next_fetch = time.time() + minimum_interval
+    update_next_fetch(hostname, time.time() + minimum_interval)
 
     return resp
