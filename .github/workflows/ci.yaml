@@ -1,10 +1,11 @@
 name: CI
 
 on:
-  push:
-    branches:
-    - main
-  pull_request:
+  # runtime is erratic and up to an hour, so make this human-requested only
+  #push:
+  #  branches:
+  #  - main
+  #pull_request:
 
 jobs:
   unit-tests:
