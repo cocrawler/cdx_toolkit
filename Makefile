@@ -22,7 +22,7 @@ test_coverage: clean_coverage
 	# -rA to see all output, pass or fail
 	# LOGLEVEL=DEBUG
 	# -vvvv -s
-	LOGLEVEL=DEBUG PYTHONPATH=. py.test -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests -v -v
+	PYTHONPATH=. py.test -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests -v -v
 	coverage report
 
 distclean:
