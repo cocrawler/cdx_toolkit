@@ -103,6 +103,7 @@ def test_multi_cc2(capsys, caplog):
         multi_helper(t, capsys, caplog)
 
 
+@pytest.mark.skip(reason='needs some ratelimit love XXX')
 def test_multi_ia(capsys, caplog):
     tests = [
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
@@ -121,7 +122,7 @@ def test_multi_ia(capsys, caplog):
         multi_helper(t, capsys, caplog)
 
 
-def test_multi_rest(capsys, caplog):
+def test_multi_misc_notia(capsys, caplog):
     tests = [
         [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
@@ -132,17 +133,26 @@ def test_multi_rest(capsys, caplog):
 
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
-        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
-         {'count': 1, 'is_int': True}],
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
-         {'count': 2}],
-        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
-         {'count': 2}],
-        [{'service': '--ia', 'mods': '--from 20180101 --to 20180110 --limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org'},
          {'count': 2}],
 
         [{'service': '', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'exception': ValueError}],
+    ]
+
+    for t in tests:
+        multi_helper(t, capsys, caplog)
+
+
+@pytest.mark.skip(reason='needs some ratelimit love XXX')
+def test_multi_misc_ia(capsys, caplog):
+    tests = [
+        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
+         {'count': 1, 'is_int': True}],
+        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
+         {'count': 2}],
+        [{'service': '--ia', 'mods': '--from 20180101 --to 20180110 --limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org'},
+         {'count': 2}],
     ]
 
     for t in tests:
@@ -163,6 +173,9 @@ def test_warc(tmpdir, caplog):
 
     with tmpdir.as_cwd():
         for p in prefixes:
+            if '--ia' in p or 'archive.org' in p:
+                # XXX skip
+                continue
             cmdline = p + base
             print(cmdline, file=sys.stderr)
             args = cmdline.split()
@@ -182,6 +195,7 @@ def one_ia_corner(tmpdir, cmdline):
         main(args=cmdline.split())
 
 
+@pytest.mark.skip(reason='needs some ratelimit love XXX')
 def test_warc_ia_corners(tmpdir, caplog):
     '''
     To test these more properly, need to add a --exact-warcname and then postprocess.
