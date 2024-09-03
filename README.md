@@ -87,6 +87,38 @@ You can also fetch the content of the web capture as bytes:
 There's a full example of iterating and selecting a subset of captures
 to write into an extracted WARC file in [examples/iter-and-warc.py](examples/iter-and-warc.py)
 
+### Caching
+
+It is possible to cache request to the index by using the requests_cache library https://github.com/reclosedev/requests-cache.
+This is a nice way to reduce the load on the CC servers and speed up your
+code at the same time.
+
+To make this work we need to initialize the cache with more allowable codes
+in order to also cache "empty" search results from the Index Server (404 and 400).
+The 206 Http code is needed for downloading contents of the WARC archives.
+
+Just put the following code at the start of your script before making any calls to the
+index using cdx_toolkit:
+
+```
+import requests_cache
+
+requests_cache.install_cache(
+  "/my/path/to/cache",
+  include_get_headers=True,
+  allowable_codes=(200, 404, 400, 206)
+  )
+```
+
+Additionally, in order for the caching to work we need a static request url. cdx_toolkit
+default parameters use a dynamic timestamp parameter. It is necessary to override this
+by a custom static date when fetching the index parts:
+
+```
+for obj in cdx.iter(url, limit=1, from_ts="20191207000000")):
+    print(obj)
+```
+
 ## Filter syntax
 
 Filters can be used to limit captures to a subset of the results.
