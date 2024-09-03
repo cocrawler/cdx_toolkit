@@ -2,10 +2,13 @@ import json
 import sys
 import os
 import platform
+import logging
 
 import pytest
 
 from cdx_toolkit.cli import main
+
+LOGGER = logging.getLogger(__name__)
 
 
 def slow_ci():
@@ -14,11 +17,17 @@ def slow_ci():
     Detect those runners, so that we can cut testing short.
     '''
     if os.environ.get('FAKE_GITHUB_ACTION'):
+        LOGGER.error('limiting pytest because FAKE_GITHUB_ACTION')
         return True
     if os.environ.get('GITHUB_ACTION'):
         if platform.system() in {'Darwin', 'Windows'}:
+            LOGGER.error('limiting pytest because GITHUB_ACTION')
             return True
-
+    v = sys.version_info
+    if os.environ.get('GITHUB_ACTION') and v.major == 3 and v.minor != 12:
+        LOGGER.error('limiting pytest because GITHUB_ACTION and py != 3.12')
+        return False
+    LOGGER.error('full pytest')
 
 
 def test_basics(capsys):
