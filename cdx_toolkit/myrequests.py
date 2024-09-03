@@ -27,11 +27,11 @@ retry_info = {
     },
     'index.commoncrawl.org': {
         'next_fetch': 0,
-        'minimum_interval': 3.0,
+        'minimum_interval': 1.0,
     },
     'data.commoncrawl.org': {
         'next_fetch': 0,
-        'minimum_interval': 3.0,
+        'minimum_interval': 0.55,
     },
     'web.archive.org': {
         'next_fetch': 0,
