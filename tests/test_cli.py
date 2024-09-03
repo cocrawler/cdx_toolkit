@@ -1,10 +1,24 @@
-from cdx_toolkit.cli import main
-
 import json
 import sys
+import os
+import platform
 
 import pytest
-import requests
+
+from cdx_toolkit.cli import main
+
+
+def slow_ci():
+    '''
+    For Github Actions, the windows and macos runners are very slow.
+    Detect those runners, so that we can cut testing short.
+    '''
+    if os.environ.get('FAKE_GITHUB_ACTION'):
+        return True
+    if os.environ.get('GITHUB_ACTION'):
+        if platform.system() in {'Darwin', 'Windows'}:
+            return True
+
 
 
 def test_basics(capsys):
@@ -80,6 +94,8 @@ def test_multi_cc1(capsys, caplog):
 
     for t in tests:
         multi_helper(t, capsys, caplog)
+        if slow_ci():
+            break
 
 
 def test_multi_cc2(capsys, caplog):
@@ -101,9 +117,10 @@ def test_multi_cc2(capsys, caplog):
 
     for t in tests:
         multi_helper(t, capsys, caplog)
+        if slow_ci():
+            break
 
 
-@pytest.mark.skip(reason='needs some ratelimit love XXX')
 def test_multi_ia(capsys, caplog):
     tests = [
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
@@ -120,12 +137,11 @@ def test_multi_ia(capsys, caplog):
 
     for t in tests:
         multi_helper(t, capsys, caplog)
+        break  # XXX minimize IA for ratelimit purposes
 
 
-def test_multi_misc_notia(capsys, caplog):
+def test_multi_misc_not_ia(capsys, caplog):
     tests = [
-        [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'exception': ValueError}],
         [{'service': '-v -v --source https://example.com/404', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
@@ -142,11 +158,14 @@ def test_multi_misc_notia(capsys, caplog):
 
     for t in tests:
         multi_helper(t, capsys, caplog)
+        if slow_ci():
+            break
 
 
-@pytest.mark.skip(reason='needs some ratelimit love XXX')
 def test_multi_misc_ia(capsys, caplog):
     tests = [
+        [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
          {'count': 1, 'is_int': True}],
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
@@ -157,35 +176,44 @@ def test_multi_misc_ia(capsys, caplog):
 
     for t in tests:
         multi_helper(t, capsys, caplog)
+        break  # XXX minimize IA for ratelimit reasons
 
 
 def test_warc(tmpdir, caplog):
     # crash testing only, so far
 
-    base = ' --limit 10 warc commoncrawl.org/*'
+    base = ' --limit 1 warc commoncrawl.org/*'
 
-    prefixes = ('-v -v --cc', '--ia',
-                '--cc --cc-mirror https://index.commoncrawl.org/',
-                '--source https://web.archive.org/cdx/search/cdx --wb https://web.archive.org/web')
-    suffixes = ('--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar',
-                '--prefix EMPTY --size 1 --url-fgrep bar',
-                '--prefix EMPTY --size 1 --url-fgrepv common')
+    prefixes = (  # note limit 2 below
+        '-v -v --cc',  # only case run by slow_cli
+        '--ia',
+        '--cc --cc-mirror https://index.commoncrawl.org/',
+        '--source https://web.archive.org/cdx/search/cdx --wb https://web.archive.org/web',
+    )
+    suffixes = (
+        '--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar',
+        '--prefix EMPTY --size 1 --url-fgrep bar',
+        '--prefix EMPTY --size 1 --url-fgrepv common'
+    )
 
     with tmpdir.as_cwd():
         for p in prefixes:
-            if '--ia' in p or 'archive.org' in p:
-                # XXX skip
-                continue
             cmdline = p + base
+            if 'cc' in cmdline:
+                cmdline = cmdline.replace(' 1', ' 2')
             print(cmdline, file=sys.stderr)
             args = cmdline.split()
             main(args=args)
+            if slow_ci():
+                break
 
         for s in suffixes:
             cmdline = prefixes[0] + base + ' ' + s
             print(cmdline, file=sys.stderr)
             args = cmdline.split()
             main(args=args)
+            if slow_ci():
+                break
 
         assert True
 
@@ -195,11 +223,11 @@ def one_ia_corner(tmpdir, cmdline):
         main(args=cmdline.split())
 
 
-@pytest.mark.skip(reason='needs some ratelimit love XXX')
+@pytest.mark.skip(reason='needs some ratelimit love')
 def test_warc_ia_corners(tmpdir, caplog):
     '''
     To test these more properly, need to add a --exact-warcname and then postprocess.
-    For now, these tests show up in the coverage report
+    For now, these are only crash tests.
     '''
 
     # revisit vivification
