@@ -15,6 +15,18 @@ from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp_up, c
 LOGGER = logging.getLogger(__name__)
 
 
+def normalize_crawl(crawl):
+    crawls = []
+    for c in crawl:
+        if ',' in c:
+            crawls.extend(c.split(','))
+        else:
+            crawls.append(c)
+    if len(crawls) > 1 and any(x.isdigit() for x in crawls):
+        raise ValueError('If you specify an integer, only one crawl is allowed')
+    return crawls
+
+
 def get_cache_names(cc_mirror):
     cache = os.path.expanduser('~/.cache/cdx_toolkit/')
     filename = re.sub(r'[^\w]', '_', cc_mirror.replace('https://', ''))
@@ -75,6 +87,9 @@ def get_cc_endpoints(cc_mirror):
 
 
 def apply_cc_defaults(params, now=None):
+    if 'crawl' in params:
+        return
+
     three_months = 3 * 30 * 86400
     year = 365*86400
     if params.get('from_ts') is None:
@@ -171,6 +186,13 @@ def bisect_cc(cc_map, cc_times, from_ts_t, to_t):
 
 
 def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
+    # YYY with --crawl, just check that the list is crawls that exist
+    # YYY if we want to expand CC-MAIN-2024 to be all 2024 crawls, that can be done here
+    # YYY we do need to reorder according to cc_sort
+    # what is the type of raw_index_list -- it is from collinfo.json cdx-api
+    # "cdx-api": "https://index.commoncrawl.org/CC-MAIN-2024-18-index"
+
+    # if no --crawl
     cc_map, cc_times = make_cc_maps(raw_index_list)
 
     from_ts_t, to_t = check_cc_from_to(params)
@@ -186,7 +208,8 @@ def filter_cc_endpoints(raw_index_list, cc_sort, params={}):
     # adjust index_list order based on cc_sort order
     if 'closest' in params:
         # XXX funky ordering not implemented, inform the caller
-        # cli already prints a warning for iter + closer, telling user to use get instead
+        # cli already prints a warning for iter + closest, telling user to use get instead
+        # no need to warn if it's a single crawl
         # this routine is called for both get and iter
         pass
     if cc_sort == 'ascending':

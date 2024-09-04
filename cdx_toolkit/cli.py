@@ -6,6 +6,7 @@ import json
 import os
 
 import cdx_toolkit
+from cdx_toolkit.commoncrawl import normalize_crawl
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ def main(args=None):
     parser.add_argument('--limit', type=int, action='store')
     parser.add_argument('--cc-mirror', action='store', help='use this Common Crawl index mirror')
     parser.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
+    parser.add_argument('--crawl', nargs='*', action='store', help='crawl names or an integer for the most recent N crawls. Implies --cc')
     parser.add_argument('--from', action='store')  # XXX default for cc
     parser.add_argument('--to', action='store')
     parser.add_argument('--filter', action='append', help='see CDX API documentation for usage')
@@ -93,13 +95,15 @@ def get_version():
 
 def setup(cmd):
     kwargs = {}
-    kwargs['source'] = cmd.cc or cmd.ia or cmd.source or None
+    kwargs['source'] = 'cc' if cmd.crawl else cmd.cc or cmd.ia or cmd.source or None
     if kwargs['source'] is None:
         raise ValueError('must specify --cc, --ia, or a --source')
     if cmd.wb:
         kwargs['wb'] = cmd.wb
     if cmd.cc_mirror:
         kwargs['cc_mirror'] = cmd.cc_mirror
+    if cmd.crawl:
+        kwargs['crawl'] = normalize_crawl(cmd.crawl)
     if getattr(cmd, 'warc_download_prefix', None) is not None:
         kwargs['warc_download_prefix'] = cmd.warc_download_prefix
 

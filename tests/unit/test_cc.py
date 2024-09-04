@@ -9,6 +9,22 @@ import logging
 logging.basicConfig(level='INFO')
 
 
+def test_normalize_crawl():
+    tests = [
+        [['1'], ['1']],
+        [['a'], ['a']],
+        [['a', 'b'], ['a', 'b']],
+        [['a,b', 'c'], ['a', 'b', 'c']],
+        [['a,b,c,d'], ['a', 'b', 'c', 'd']],
+        [['a', 'b,c'], ['a', 'b', 'c']],
+    ]
+
+    for t in tests:
+        assert cdx_toolkit.commoncrawl.normalize_crawl(t[0]) == t[1]
+    with pytest.raises(ValueError):
+        cdx_toolkit.commoncrawl.normalize_crawl(['1', '2'])
+
+
 def test_apply_cc_defaults():
     # no from
     #  closest -- sets from, to
