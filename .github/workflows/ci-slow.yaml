@@ -1,6 +1,6 @@
 name: CI-slow
 
-on:
+on: workflow_dispatch
 
 jobs:
   unit-tests:
