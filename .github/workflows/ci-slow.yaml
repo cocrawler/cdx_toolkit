@@ -1,13 +1,6 @@
-name: CI
+name: CI-slow
 
-on:
-  # runtime is erratic and up to an hour
-  push:
-    branches:
-    - main
-  pull_request:
-    branches:
-    - main
+on: workflow_dispatch
 
 jobs:
   unit-tests:
@@ -16,19 +9,19 @@ jobs:
       fail-fast: false
       #max-parallel: 1
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
-        os: [ubuntu-latest]
-        EXTRA: [false]  # used to force includes to get included
         include:
+          - python-version: '3.11'
+            os: macos-latest
+            EXTRA: true
           - python-version: '3.12'
-            os: ubuntu-latest
+            os: macos-latest
             EXTRA: true
-            env:
-              LOGLEVEL=DEBUG
           - python-version: '3.7'
-            os: ubuntu-20.04  # oldest version on github actions
+            os: windows-latest
             EXTRA: true
-
+          - python-version: '3.12'
+            os: windows-latest
+            EXTRA: true
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -49,8 +42,3 @@ jobs:
       - name: Run tests
         run: |
           make test_coverage
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
