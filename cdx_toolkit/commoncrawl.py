@@ -60,7 +60,6 @@ def get_cc_endpoints(cc_mirror):
         if r.status_code != 200:
             raise RuntimeError('error {} getting list of cc indices from {}'.format(r.status_code, collinfo))  # pragma: no cover
         set_collinfo_cache(cc_mirror, r.text)
-        time.sleep(5)  # XXX to avoid triggering rate limit
         col = r.json()
 
     endpoints = [x['cdx-api'] for x in col]
