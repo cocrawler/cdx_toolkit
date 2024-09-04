@@ -1,5 +1,7 @@
 name: CI-slow
 
+on:
+
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
