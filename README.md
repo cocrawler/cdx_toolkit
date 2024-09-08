@@ -47,15 +47,30 @@ of 1000 records (`--limit 1000`) and a limit of 1 year of CC indexes.
 To exceed these limits, use `--limit` and `--crawl` or `--from` and
 `--to`.
 
+If it seems like nothing is happening, add `-v` or `-vv` at the start:
+
+```
+$ cdxt -vv --cc size 'commoncrawl.org/*'
+```
+
 ## Selecting particular CCF crawls
 
 Common Crawl's data is divided into "crawls", which were yearly at the
 start, and are currently done monthly. There are over 100 of them.
-
-XXX
+[You can find details about these crawls here.](https://data.commoncrawl.org/crawl-data/index.html)
 
 Unlike some web archives, CCF doesn't have a single CDX index that
-covers all of these crawls. CCF does have a hive-sharded Parquet index
+covers all of these crawls -- we have 1 index per crawl. The way
+you ask for a particular crawl is:
+
+```
+$ cdxt --crawl CC-MAIN-2024-33 iter 'commoncrawl.org/*'
+```
+
+`--crawl 3` is the latest 3 crawls. `--crawl CC-MAIN-2018` will match all
+of the crawls from 2018.
+
+CCF also has a hive-sharded parquet index
 (called the columnar index) that covers all of our indexes. You
 can find more information about this index at
 [the blog post about it](https://commoncrawl.org/blog/index-to-warc-files-and-urls-in-columnar-format).
@@ -67,7 +82,18 @@ and limit 1000 entries if you do not specify `--from`, `--to`, and `--limit`.
 
 ## Selecting by time
 
-XXX
+In most cases you'll probably use --crawl to select the time range for
+Common Crawl queries, but for the Internet Archive you'll need to specify
+a time range like this:
+
+```
+cdxt --ia --from 2008 --to 200906302359 size 'commoncrawl.org/*'
+```
+
+In this example the time range starts at the beginning of 2008 and
+ends on June 30, 2009 at 23:59. All times are in UTC. If you do not
+specify a time range (and also don't use `--crawl`), you'll get the
+most recent year.
 
 ## The full syntax for command-line tools
 
