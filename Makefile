@@ -33,14 +33,13 @@ distcheck: distclean
 	twine check dist/*
 
 dist: distclean
-	echo "  Finishe CHANGELOG and commit it.
+	echo "  Finishe CHANGELOG.md and commit it."
 	echo "  git tag --list"
-	echo "  git tag v0.x.x"
+	echo "  git tag 0.x.x  # no v"
 	echo "  git push --tags"
 	python ./setup.py sdist
 	twine check dist/*
 	twine upload dist/* -r pypi
 
 install:
-	python ./setup.py install
-
+	pip install .
