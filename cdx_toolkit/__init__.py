@@ -246,6 +246,8 @@ class CDXFetcher:
         validate_timestamps(params)
         params['url'] = url
         params['output'] = 'json'
+        if 'crawl' not in params:
+            params['crawl'] = self.crawl
         if 'filter' in params:
             if isinstance(params['filter'], str):
                 params['filter'] = (params['filter'],)
@@ -275,6 +277,8 @@ class CDXFetcher:
         validate_timestamps(params)
         params['url'] = url
         params['output'] = 'json'
+        if 'crawl' not in params:
+            params['crawl'] = self.crawl
         if 'filter' in params:
             if isinstance(params['filter'], str):
                 params['filter'] = (params['filter'],)

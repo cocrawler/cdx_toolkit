@@ -133,6 +133,8 @@ def match_cc_crawls(crawls, raw_index_list):
     # match crawls requested on the command line to actual crawls
     # note that from/to are not considered here
     # crawls should be normalized so it's supposed to be a list of str
+    if crawls is None:
+        return raw_index_list
     if len(crawls) == 1 and crawls[0].isdigit():
         num = int(crawls[0])
         raw_index_list = raw_index_list[-num:]
