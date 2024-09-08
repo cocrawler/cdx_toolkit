@@ -67,13 +67,15 @@ you ask for a particular crawl is:
 $ cdxt --crawl CC-MAIN-2024-33 iter 'commoncrawl.org/*'
 ```
 
-`--crawl 3` is the latest 3 crawls. `--crawl CC-MAIN-2018` will match all
-of the crawls from 2018.
+- `--crawl CC-MAIN-2024-33` is a single crawl.
+- `--crawl 3` is the latest 3 crawls.
+- `--crawl CC-MAIN-2018` will match all of the crawls from 2018.
+- `--crawl CC-MAIN-2018,CC-MAIN-2019` will match all of the crawls from 2018 and 2019.
 
-CCF also has a hive-sharded parquet index
-(called the columnar index) that covers all of our indexes. You
-can find more information about this index at
-[the blog post about it](https://commoncrawl.org/blog/index-to-warc-files-and-urls-in-columnar-format).
+CCF also has a hive-sharded parquet index (called the columnar index)
+that covers all of our crawls. Querying broad time ranges is much
+faster with the columnar index. You can find more information about
+this index at [the blog post about it](https://commoncrawl.org/blog/index-to-warc-files-and-urls-in-columnar-format).
 
 The Internet Archive cdx index is organized as a single crawl that goes
 from the very beginning until now. That's why there is no `--crawl` for
@@ -87,7 +89,7 @@ Common Crawl queries, but for the Internet Archive you'll need to specify
 a time range like this:
 
 ```
-cdxt --ia --from 2008 --to 200906302359 size 'commoncrawl.org/*'
+$ cdxt --ia --limit 1 --from 2008 --to 200906302359 iter 'commoncrawl.org/*'
 ```
 
 In this example the time range starts at the beginning of 2008 and
