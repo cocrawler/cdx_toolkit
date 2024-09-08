@@ -41,6 +41,16 @@ def test_basics(capsys):
         # this might be commoncrawl.org./ or commoncrawl.org/
         assert 'commoncrawl.org' in line
 
+    args = '--crawl 2 --limit 10 iter commoncrawl.org/*'.split()
+    main(args=args)
+    out, err = capsys.readouterr()
+
+    split = out.splitlines()
+    assert len(split) == 10
+    for line in out.splitlines():
+        # this might be commoncrawl.org./ or commoncrawl.org/
+        assert 'commoncrawl.org' in line
+
 
 def multi_helper(t, capsys, caplog):
     inputs = t[0]
@@ -83,8 +93,8 @@ def test_multi_cc1(capsys, caplog):
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '--cc', 'mods': '--limit 11', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 11, 'linefgrep': 'commoncrawl.org'}],
-#        [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/thisurlneverdidexist'},
-#         {'count': 0}],  # should limit to 1 index because it runs slowly!
+        [{'service': '--crawl 1', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/thisurlneverdidexist'},
+         {'count': 0}],  # runs slowly if we don't limit crawl to 1
         [{'service': '--cc', 'mods': '--cc-mirror https://index.commoncrawl.org/ --limit 11', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 11, 'linefgrep': 'commoncrawl.org'}],
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --all-fields'},
@@ -154,6 +164,11 @@ def test_multi_misc_not_ia(capsys, caplog):
         [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'exception': ValueError}],
         [{'service': '-v -v --source https://example.com/404', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'exception': ValueError}],
+
+        [{'service': '--crawl 1,1', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+         {'exception': ValueError}],
+        [{'service': '--crawl 1,CC-MAIN-2024', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'exception': ValueError}],
 
         [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},

@@ -18,14 +18,14 @@ def main(args=None):
     parser.add_argument('--verbose', '-v', action='count', help='set logging level to INFO (-v) or DEBUG (-vv)')
 
     parser.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/WARCs')
+    parser.add_argument('--crawl', action='store', help='crawl names (comma separated) or an integer for the most recent N crawls. Implies --cc')
     parser.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
     parser.add_argument('--source', action='store', help='direct the query to this CDX server')
     parser.add_argument('--wb', action='store', help='direct replays for content to this wayback')
     parser.add_argument('--limit', type=int, action='store')
     parser.add_argument('--cc-mirror', action='store', help='use this Common Crawl index mirror')
     parser.add_argument('--cc-sort', action='store', help='default mixed, alternatively: ascending')
-    parser.add_argument('--crawl', nargs='*', action='store', help='crawl names or an integer for the most recent N crawls. Implies --cc')
-    parser.add_argument('--from', action='store')  # XXX default for cc
+    parser.add_argument('--from', action='store')
     parser.add_argument('--to', action='store')
     parser.add_argument('--filter', action='append', help='see CDX API documentation for usage')
     parser.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration. default limit=1000')
@@ -103,7 +103,7 @@ def setup(cmd):
     if cmd.cc_mirror:
         kwargs['cc_mirror'] = cmd.cc_mirror
     if cmd.crawl:
-        kwargs['crawl'] = normalize_crawl(cmd.crawl)
+        kwargs['crawl'] = normalize_crawl([cmd.crawl])  # currently a string, not a list
     if getattr(cmd, 'warc_download_prefix', None) is not None:
         kwargs['warc_download_prefix'] = cmd.warc_download_prefix
 
