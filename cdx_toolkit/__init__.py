@@ -197,12 +197,14 @@ class CDXFetcherIter:
                 LOGGER.debug('getting more in __next__')
                 self.get_more()
                 if len(self.captures) <= 0:
+                    # XXX print out a warning if this hits the default limit of 1000
                     raise StopIteration
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', wb=None, warc_download_prefix=None, cc_mirror=None, cc_sort='mixed', loglevel=None):
+    def __init__(self, source='cc', crawl=None, wb=None, warc_download_prefix=None, cc_mirror=None, cc_sort='mixed', loglevel=None):
         self.source = source
+        self.crawl = crawl
         self.cc_sort = cc_sort
         self.source = source
         if wb is not None and warc_download_prefix is not None:
@@ -211,12 +213,11 @@ class CDXFetcher:
         self.warc_download_prefix = warc_download_prefix
 
         if source == 'cc':
-            self.cc_mirror = cc_mirror or 'https://index.commoncrawl.org/'
-            self.raw_index_list = get_cc_endpoints(self.cc_mirror)
             if wb is not None:
                 raise ValueError('cannot specify wb= for source=cc')
+            self.cc_mirror = cc_mirror or 'https://index.commoncrawl.org/'
+            self.raw_index_list = get_cc_endpoints(self.cc_mirror)
             self.warc_download_prefix = warc_download_prefix or 'https://data.commoncrawl.org'
-            #https://commoncrawl.s3.amazonaws.com
         elif source == 'ia':
             self.index_list = ('https://web.archive.org/cdx/search/cdx',)
             if self.warc_download_prefix is None and self.wb is None:
@@ -230,8 +231,10 @@ class CDXFetcher:
             LOGGER.setLevel(level=loglevel)
 
     def customize_index_list(self, params):
-        if self.source == 'cc' and ('from' in params or 'from_ts' in params or 'to' in params or 'closest' in params):
+        if self.source == 'cc' and (self.crawl or 'crawl' in params or 'from' in params or 'from_ts' in params or 'to' in params or 'closest' in params):
             LOGGER.info('making a custom cc index list')
+            if self.crawl and 'crawl' not in params:
+                params['crawl'] = self.crawl
             return filter_cc_endpoints(self.raw_index_list, self.cc_sort, params=params)
         else:
             return self.index_list
@@ -243,6 +246,8 @@ class CDXFetcher:
         validate_timestamps(params)
         params['url'] = url
         params['output'] = 'json'
+        if 'crawl' not in params:
+            params['crawl'] = self.crawl
         if 'filter' in params:
             if isinstance(params['filter'], str):
                 params['filter'] = (params['filter'],)
@@ -272,13 +277,15 @@ class CDXFetcher:
         validate_timestamps(params)
         params['url'] = url
         params['output'] = 'json'
+        if 'crawl' not in params:
+            params['crawl'] = self.crawl
         if 'filter' in params:
             if isinstance(params['filter'], str):
                 params['filter'] = (params['filter'],)
             params['filter'] = munge_filter(params['filter'], self.source)
 
         if self.source == 'cc':
-            apply_cc_defaults(params)
+            apply_cc_defaults(params, crawl_present=bool(self.crawl))
 
         index_list = self.customize_index_list(params)
         return CDXFetcherIter(self, params=params, index_list=index_list)

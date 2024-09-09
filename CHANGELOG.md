@@ -1,7 +1,10 @@
+- 0.9.37
+	+ --crawl for CCF
+
 - 0.9.36
 	+ ratelimit code; both IA and CCF are rate limiting their cdx endpoints
 	+ cache collinfo.json in ~/.cache/cdx_toolkit/
-	+ py3.11 and py3.12 pass testing
+	+ py3.11 and py3.12 pass testing; windows and macos pass testing
 
 - 0.9.35
     + exponential backoff retries now that IA is sending 429

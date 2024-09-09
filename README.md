@@ -3,37 +3,36 @@
 [![build](https://github.com/cocrawler/cdx_toolkit/actions/workflows/ci.yaml/badge.svg)](https://github.com/cocrawler/cdx_toolkit/actions/workflows/ci.yaml) [![coverage](https://codecov.io/gh/cocrawler/cdx_toolkit/graph/badge.svg?token=M1YJB998LE)](https://codecov.io/gh/cocrawler/cdx_toolkit) [![Apache License 2.0](https://img.shields.io/github/license/cocrawler/cdx_toolkit.svg)](LICENSE)
 
 cdx_toolkit is a set of tools for working with CDX indices of web
-crawls and archives, including those at CommonCrawl and the Internet
-Archive's Wayback Machine.
+crawls and archives, including those at the Common Crawl Foundation
+(CCF) and those at the Internet Archive's Wayback Machine.
 
-CommonCrawl uses Ilya Kreymer's pywb to serve the CDX API, which is
-somewhat different from the Internet Archive's CDX API server. cdx_toolkit
-hides these differences as best it can. cdx_toolkit also knits
-together the monthly Common Crawl CDX indices into a single, virtual
-index.
+Common Crawl uses Ilya Kreymer's pywb to serve the CDX API, which is
+somewhat different from the Internet Archive's CDX API server.
+cdx_toolkit hides these differences as best it can. cdx_toolkit also
+knits together the monthly Common Crawl CDX indices into a single,
+virtual index.
 
 Finally, cdx_toolkit allows extracting archived pages from CC and IA
-into WARC files.  If you're looking to create subsets of CC or IA data
-and then process them into WET or WAT files, this is a feature you'll
-find useful.
+into WARC files. If you're looking to create subsets of CC or IA data
+and then further process them, this is a feature you'll find useful.
 
 ## Installing
-
-cdx toolkit requires Python 3.
 
 ```
 $ pip install cdx_toolkit
 ```
 
-or clone this repo and use `python ./setup.py install`.
+or clone this repo and use `pip install .`
 
 ## Command-line tools
 
 ```
 $ cdxt --cc size 'commoncrawl.org/*'
-$ cdxt --cc --limit 10 iter 'commoncrawl.org/*'
+$ cdxt --cc --limit 10 iter 'commoncrawl.org/*'  # returns the most recent year
+$ cdxt --crawl 3 --limit 10 iter 'commoncrawl.org/*'  # returns the most recent 3 crawls
 $ cdxt --cc --limit 10 --filter '=status:200' iter 'commoncrawl.org/*'
-$ cdxt --ia --limit 10 iter 'commoncrawl.org/*'
+
+$ cdxt --ia --limit 10 iter 'commoncrawl.org/*'  # will show the beginning of IA's crawl
 $ cdxt --ia --limit 10 warc 'commoncrawl.org/*'
 ```
 
@@ -41,15 +40,70 @@ cdxt takes a large number of command line switches, controlling
 the time period and all other CDX query options. cdxt can generate
 WARC, jsonl, and csv outputs.
 
-** Note that by default, cdxt --cc will iterate over the previous
-year of captures. **
+If you don't specify much about the crawls or dates or number of
+records you're interested in, some default limits will kick in to
+prevent overly-large queries. These default limits include a maximum
+of 1000 records (`--limit 1000`) and a limit of 1 year of CC indexes.
+To exceed these limits, use `--limit` and `--crawl` or `--from` and
+`--to`.
 
-See
+If it seems like nothing is happening, add `-v` or `-vv` at the start:
+
+```
+$ cdxt -vv --cc size 'commoncrawl.org/*'
+```
+
+## Selecting particular CCF crawls
+
+Common Crawl's data is divided into "crawls", which were yearly at the
+start, and are currently done monthly. There are over 100 of them.
+[You can find details about these crawls here.](https://data.commoncrawl.org/crawl-data/index.html)
+
+Unlike some web archives, CCF doesn't have a single CDX index that
+covers all of these crawls -- we have 1 index per crawl. The way
+you ask for a particular crawl is:
+
+```
+$ cdxt --crawl CC-MAIN-2024-33 iter 'commoncrawl.org/*'
+```
+
+- `--crawl CC-MAIN-2024-33` is a single crawl.
+- `--crawl 3` is the latest 3 crawls.
+- `--crawl CC-MAIN-2018` will match all of the crawls from 2018.
+- `--crawl CC-MAIN-2018,CC-MAIN-2019` will match all of the crawls from 2018 and 2019.
+
+CCF also has a hive-sharded parquet index (called the columnar index)
+that covers all of our crawls. Querying broad time ranges is much
+faster with the columnar index. You can find more information about
+this index at [the blog post about it](https://commoncrawl.org/blog/index-to-warc-files-and-urls-in-columnar-format).
+
+The Internet Archive cdx index is organized as a single crawl that goes
+from the very beginning until now. That's why there is no `--crawl` for
+`--ia`. Note that cdx queries to `--ia` will default to one year year
+and limit 1000 entries if you do not specify `--from`, `--to`, and `--limit`.
+
+## Selecting by time
+
+In most cases you'll probably use --crawl to select the time range for
+Common Crawl queries, but for the Internet Archive you'll need to specify
+a time range like this:
+
+```
+$ cdxt --ia --limit 1 --from 2008 --to 200906302359 iter 'commoncrawl.org/*'
+```
+
+In this example the time range starts at the beginning of 2008 and
+ends on June 30, 2009 at 23:59. All times are in UTC. If you do not
+specify a time range (and also don't use `--crawl`), you'll get the
+most recent year.
+
+## The full syntax for command-line tools
 
 ```
 $ cdxt --help
 $ cdxt iter --help
 $ cdxt warc --help
+$ cdxt size --help
 ```
 
 for full details. Note that argument order really matters; each switch
@@ -57,7 +111,10 @@ is valid only either before or after the {iter,warc,size} command.
 
 Add -v (or -vv) to see what's going on under the hood.
 
-## Programming example
+## Python programming example
+
+Everything that you can do on the command line, and much more, can
+be done by writing a Python program.
 
 ```
 import cdx_toolkit
@@ -231,5 +288,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-

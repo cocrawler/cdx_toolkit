@@ -9,6 +9,22 @@ import logging
 logging.basicConfig(level='INFO')
 
 
+def test_normalize_crawl():
+    tests = [
+        [['1'], ['1']],
+        [['a'], ['a']],
+        [['a', 'b'], ['a', 'b']],
+        [['a,b', 'c'], ['a', 'b', 'c']],
+        [['a,b,c,d'], ['a', 'b', 'c', 'd']],
+        [['a', 'b,c'], ['a', 'b', 'c']],
+    ]
+
+    for t in tests:
+        assert cdx_toolkit.commoncrawl.normalize_crawl(t[0]) == t[1]
+    with pytest.raises(ValueError):
+        cdx_toolkit.commoncrawl.normalize_crawl(['1', '2'])
+
+
 def test_apply_cc_defaults():
     # no from
     #  closest -- sets from, to
@@ -24,31 +40,50 @@ def test_apply_cc_defaults():
     now = 1524962339.157388  # 20180429003859
 
     tests = [
+        [{'crawl': 'foo'}, {}],
         [{'closest': '20180101'}, {'from_ts': '20171003000000', 'to': '20180401000000'}],
         [{'closest': '20180101', 'to': '20181201'}, {'from_ts': '20171003000000'}],
         [{'to': '20180101'}, {'from_ts': '20170131235959'}],
-        [{}, {'from_ts': '20170429003859'}],  # hits both elses, uses now
+        [{}, {'from_ts': '20170429003859'}],  # uses now
         [{'from_ts': '20100101', 'closest': '20150301'}, {'to': '20150530000000'}],
-        [{'from_ts': '20100101'}, {}],  # hits the second else only
+        [{'from_ts': '20100101'}, {}],
     ]
 
     for test_in, test_out in tests:
+        crawl_present = bool(test_in.pop('crawl', None))
         test_out.update(test_in)
-        cdx_toolkit.commoncrawl.apply_cc_defaults(test_in, now=now)
+        cdx_toolkit.commoncrawl.apply_cc_defaults(test_in, crawl_present=crawl_present, now=now)
         assert test_in == test_out
 
 
 my_cc_endpoints = [
+    # expected to be ascending
+    'https://index.commoncrawl.org/CC-MAIN-2008-2009-index',
+    'https://index.commoncrawl.org/CC-MAIN-2009-2010-index',
+    'https://index.commoncrawl.org/CC-MAIN-2012-index',
     'https://index.commoncrawl.org/CC-MAIN-2013-20-index',
     'https://index.commoncrawl.org/CC-MAIN-2017-51-index',
     'https://index.commoncrawl.org/CC-MAIN-2018-05-index',
     'https://index.commoncrawl.org/CC-MAIN-2018-09-index',
     'https://index.commoncrawl.org/CC-MAIN-2018-13-index',
-    # and the specials
-    'https://index.commoncrawl.org/CC-MAIN-2012-index',
-    'https://index.commoncrawl.org/CC-MAIN-2009-2010-index',
-    'https://index.commoncrawl.org/CC-MAIN-2008-2009-index',
 ]
+
+
+def test_match_cc_crawls():
+    tests = [
+        [['CC-MAIN-2013-20'], ['https://index.commoncrawl.org/CC-MAIN-2013-20-index']],
+        [['CC-MAIN-2017'], ['https://index.commoncrawl.org/CC-MAIN-2017-51-index']],
+        [['CC-MAIN-2018'], ['https://index.commoncrawl.org/CC-MAIN-2018-05-index',
+                            'https://index.commoncrawl.org/CC-MAIN-2018-09-index',
+                            'https://index.commoncrawl.org/CC-MAIN-2018-13-index']],
+        [['CC-MAIN-2013', 'CC-MAIN-2017'], ['https://index.commoncrawl.org/CC-MAIN-2013-20-index',
+                                            'https://index.commoncrawl.org/CC-MAIN-2017-51-index']],
+        [['CC-MAIN-2013-20', 'no match'], ['https://index.commoncrawl.org/CC-MAIN-2013-20-index']],  # .warning
+    ]
+    for t in tests:
+        assert cdx_toolkit.commoncrawl.match_cc_crawls(t[0], my_cc_endpoints) == t[1]
+    with pytest.raises(ValueError):
+        cdx_toolkit.commoncrawl.match_cc_crawls(['no match'], my_cc_endpoints)
 
 
 def test_make_cc_maps():
