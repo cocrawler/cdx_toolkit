@@ -56,6 +56,7 @@ def update_next_fetch(hostname, next_fetch):
 
 def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
     t = time.time()
+    s = requests.Session()
 
     hostname = urlparse(url).hostname
     next_fetch, minimum_interval = get_retries(hostname)
@@ -90,7 +91,7 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
     while retry:
         try:
             LOGGER.debug('getting %s %r', url, params)
-            resp = requests.get(url, params=params, headers=headers,
+            resp = s.get(url, params=params, headers=headers,
                                 timeout=(30., 30.), allow_redirects=False)
             if cdx and resp.status_code in {400, 404}:
                 # 400: ia html error page -- probably page= is too big -- not an error
