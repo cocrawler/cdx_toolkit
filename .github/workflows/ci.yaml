@@ -16,11 +16,11 @@ jobs:
       fail-fast: false
       max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
         include:
-          - python-version: '3.12'
+          - python-version: '3.13'
             os: ubuntu-latest
             EXTRA: true
             env:
