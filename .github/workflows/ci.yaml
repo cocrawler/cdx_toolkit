@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  # runtime is erratic and up to an hour
   push:
     branches:
     - main
@@ -37,11 +36,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Install setuptools on python 3.12+
-        if: ${{ matrix.python-version >= '3.12' }}
-        run: |
-          pip install setuptools
 
       - name: Install cdx_toolkit
         run: pip install .[test]
