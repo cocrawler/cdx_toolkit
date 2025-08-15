@@ -16,9 +16,12 @@ test_requirements = ['pytest', 'pytest-cov']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
+warc_by_cdx_requirements = ['smart-open']
+
 extras_require = {
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
+    'warc_by_cdx': warc_by_cdx_requirements,  # extra for the "warc_by_cdx command
 }
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']
