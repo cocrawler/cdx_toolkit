@@ -1,48 +1,44 @@
 
 import logging
-import time
 import os
+import time
 import sys
-import glob
 
-from cdx_toolkit.filter_cdx.args import validate_args
+import fsspec
+
 from cdx_toolkit.filter_cdx.matcher import TupleMatcher, TrieMatcher
 
-try:
-    import smart_open
-    smart_open_installed = True
-except ImportError:
-    smart_open_installed = True
 
 logger = logging.getLogger(__name__)
 
 def run_filter_cdx(args, cmdline: str):
     """Filter CDX index files based on a given SURT whitelist. 
 
-    - A index entry's SURT must start with one of the SURTs from the whiteliste to be considered.
+    - A index entry's SURT must start with one of the SURTs from the whitelist to be considered.
     - All other index entries are discarded.
     - All input/output paths can be local or remote paths (S3, ...) and compressed (*.gz).
     """
-
-    validate_args(args)
-    
-    # Resolve input and output paths using glob pattern
-    # TODO this should support glob via S3 (e.g., to fetch the indices from s3://commoncrawl/cc-index/collections/* ...)
-    input_paths, output_paths = resolve_paths(args)
-    validate_resolved_paths(output_paths, args.overwrite)
-
     logger.info("Filtering CDX files based on whitelist")
-    logger.info(f"Found {len(input_paths)} files matching pattern: {os.path.join(args.input_base_path, args.input_glob)}")
-    
-    # Ensure output directories exist
-    # TODO make sure this works with remote paths as well!
-    ensure_output_directories(output_paths)
-    
+
     # Start timing
     start_time = time.time()
+    
+    # Resolve input and output paths using glob pattern
+    # This should support glob via S3 (e.g., to fetch the indices from s3://commoncrawl/cc-index/collections/* ...)
+    input_paths, output_paths = resolve_paths(input_base_path=args.input_base_path, input_glob=args.input_glob, output_base_path=args.output_base_path)
+    validate_resolved_paths(output_paths, args.overwrite)
 
-    # Load SURT prefixes
-    with optional_smart_open(args.surts_file) as input_f:
+    logger.info(f"Found {len(input_paths)} files matching pattern: {args.input_base_path}/{args.input_glob}")
+    
+    # Load SURT prefixes from file (each line is a surt)
+    surt_fs, surt_fs_path = fsspec.url_to_fs(args.surts_file)
+    logger.info("Loading whitelist from %s", surt_fs_path)
+
+    if not surt_fs.exists(surt_fs_path):  # Check that surts file exists
+        logger.error(f"SURT file not found: {surt_fs_path}")
+        sys.exit(1)
+    
+    with surt_fs.open(surt_fs_path, "rt") as input_f:
         include_surt_prefixes = [line.strip() for line in input_f.readlines()]
 
     # Create matcher based on selected approach
@@ -60,6 +56,7 @@ def run_filter_cdx(args, cmdline: str):
     # Process each input/output file pair
     total_lines_n = 0
     total_included_n = 0
+    log_every_n = 100_000
 
     for input_path, output_path in zip(input_paths, output_paths):
         logger.info("Reading index from %s", input_path)
@@ -68,9 +65,20 @@ def run_filter_cdx(args, cmdline: str):
         lines_n = 0
         included_n = 0
 
-        with optional_smart_open(output_path, "w") as output_f:
-            with optional_smart_open(input_path) as input_f:
-                for i, line in enumerate(input_f):
+        # Input/output from local or remote file system
+        input_fs, input_fs_path = fsspec.url_to_fs(input_path)
+        output_fs, output_fs_path = fsspec.url_to_fs(output_path)
+        
+        # Make sure output directory exists
+        output_fs.makedirs(output_fs._parent(output_fs_path), exist_ok=True)
+
+        # Read and write compressed file if needed
+        compression = "gzip" if input_fs_path.endswith(".gz") else None
+
+        with output_fs.open(output_fs_path, "w", compression=compression) as output_f:
+            with input_fs.open(input_fs_path, "rt", compression=compression) as input_f:
+                for i, line in enumerate(input_f, 1):
+                    # Read CDX line
                     surt_length = line.find(
                         " "
                     )  # we do not need to parse the full line
@@ -84,8 +92,13 @@ def run_filter_cdx(args, cmdline: str):
                         output_f.write(line)
                         included_n += 1
 
-                    if (i % 100_000) == 0:
-                        logger.info(f"Lines completed: {i:,}")
+                        if args.limit > 0 and included_n >= args.limit:
+                            logger.info("Limit reached at %i", args.limit)
+                            break
+
+
+                    if (i % log_every_n) == 0:
+                        logger.info(f"Lines completed: {i:,} (matched: {included_n:,})")
 
         logger.info(
             f"File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n/lines_n:.4f}"
@@ -105,63 +118,47 @@ def run_filter_cdx(args, cmdline: str):
         f"Script execution time: {execution_time:.3f} seconds"
     )
 
-def optional_smart_open(*args, **kwargs):
-    """Helper function to make `smart_open` an optional dependency."""
-    if smart_open_installed:
-        return smart_open.open(*args, **kwargs)
-    else:
-        return open(*args, **kwargs)
     
-def resolve_paths(args):
+def resolve_paths(input_base_path: str, input_glob: str,  output_base_path: str):
     """Resolve input paths from glob pattern and generate corresponding output paths."""
-    # Construct full glob pattern
-    full_glob_pattern = os.path.join(args.input_base_path, args.input_glob)
-    
+    # Use fsspec to handle local and remote file systems
+    input_fs, input_fs_base_path = fsspec.url_to_fs(input_base_path)
+    input_full_glob = input_fs_base_path + input_glob
+
     # Get input files from glob pattern
-    input_files = glob.glob(full_glob_pattern, recursive=True)
-    if not input_files:
-        logger.error(f"No files found matching glob pattern: {full_glob_pattern}")
+    input_fs_file_paths = sorted(input_fs.glob(input_full_glob))
+    if not input_fs_file_paths:
+        logger.error(f"No files found matching glob pattern: {input_full_glob}")
         sys.exit(1)
     
-    # Sort for consistent ordering
-    input_files.sort()
-    
     # Generate corresponding output paths
-    output_files = []
-    for input_path in input_files:
-        # Get relative path from input_base_path
-        rel_path = os.path.relpath(input_path, args.input_base_path)
+    output_file_paths = []
+    input_file_paths = []
+    for input_path in input_fs_file_paths:
+        # Get relative path from input_base_path without last slash
+        rel_path = input_path[len(input_fs_base_path)+1:]
         
-        # Create corresponding output path
-        output_path = os.path.join(args.output_base_path, rel_path)
-        output_files.append(output_path)
+        # Create corresponding full input and output path
+        output_file_paths.append(os.path.join(output_base_path, rel_path))
+        input_file_paths.append(os.path.join(input_base_path, rel_path))
     
-    return input_files, output_files
-
-
-def ensure_output_directories(output_paths):
-    """Ensure all output directories exist, creating them if necessary."""
-    created_dirs = set()
-    for output_path in output_paths:
-        output_dir = os.path.dirname(output_path)
-        if output_dir and output_dir not in created_dirs:
-            os.makedirs(output_dir, exist_ok=True)
-            created_dirs.add(output_dir)
-    
-    if created_dirs:
-        logger.info(f"Created {len(created_dirs)} output directories")
-
+    return input_file_paths, output_file_paths
 
 
 def validate_resolved_paths(output_paths, overwrite):
-    """Validate resolved output paths."""
+    """Validate resolved output paths and create directories if needed."""
     # Check if output files exist and overwrite flag
     if not overwrite:
+        output_fs, _ = fsspec.url_to_fs(output_paths[0])
         for output_path in output_paths:
-            if os.path.exists(output_path):
+            if output_fs.exists(output_path):
                 logger.error(
                     f"Output file already exists: {output_path}. "
                     "Use --overwrite to overwrite existing files."
                 )
                 sys.exit(1)
+
+            # Make sure directory exists
+            output_fs.makedirs(output_fs._parent(output_path), exist_ok=True)
+        
 
