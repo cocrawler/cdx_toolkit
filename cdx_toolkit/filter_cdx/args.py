@@ -1,13 +1,4 @@
-import os
-import sys
-import logging
 import argparse
-
-import fsspec
-
-
-logger = logging.getLogger(__name__)
-
 
 def add_filter_cdx_args(parser: argparse.ArgumentParser):
     """Add command line arguments."""

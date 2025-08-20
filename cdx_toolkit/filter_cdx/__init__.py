@@ -1,4 +1,3 @@
-
 import logging
 import os
 import time
@@ -11,8 +10,9 @@ from cdx_toolkit.filter_cdx.matcher import TupleMatcher, TrieMatcher
 
 logger = logging.getLogger(__name__)
 
+
 def run_filter_cdx(args, cmdline: str):
-    """Filter CDX index files based on a given SURT whitelist. 
+    """Filter CDX index files based on a given SURT whitelist.
 
     - A index entry's SURT must start with one of the SURTs from the whitelist to be considered.
     - All other index entries are discarded.
@@ -22,14 +22,20 @@ def run_filter_cdx(args, cmdline: str):
 
     # Start timing
     start_time = time.time()
-    
+
     # Resolve input and output paths using glob pattern
     # This should support glob via S3 (e.g., to fetch the indices from s3://commoncrawl/cc-index/collections/* ...)
-    input_paths, output_paths = resolve_paths(input_base_path=args.input_base_path, input_glob=args.input_glob, output_base_path=args.output_base_path)
+    input_paths, output_paths = resolve_paths(
+        input_base_path=args.input_base_path,
+        input_glob=args.input_glob,
+        output_base_path=args.output_base_path,
+    )
     validate_resolved_paths(output_paths, args.overwrite)
 
-    logger.info(f"Found {len(input_paths)} files matching pattern: {args.input_base_path}/{args.input_glob}")
-    
+    logger.info(
+        f"Found {len(input_paths)} files matching pattern: {args.input_base_path}/{args.input_glob}"
+    )
+
     # Load SURT prefixes from file (each line is a surt)
     surt_fs, surt_fs_path = fsspec.url_to_fs(args.surts_file)
     logger.info("Loading whitelist from %s", surt_fs_path)
@@ -37,7 +43,7 @@ def run_filter_cdx(args, cmdline: str):
     if not surt_fs.exists(surt_fs_path):  # Check that surts file exists
         logger.error(f"SURT file not found: {surt_fs_path}")
         sys.exit(1)
-    
+
     with surt_fs.open(surt_fs_path, "rt") as input_f:
         include_surt_prefixes = [line.strip() for line in input_f.readlines()]
 
@@ -68,7 +74,7 @@ def run_filter_cdx(args, cmdline: str):
         # Input/output from local or remote file system
         input_fs, input_fs_path = fsspec.url_to_fs(input_path)
         output_fs, output_fs_path = fsspec.url_to_fs(output_path)
-        
+
         # Make sure output directory exists
         output_fs.makedirs(output_fs._parent(output_fs_path), exist_ok=True)
 
@@ -96,7 +102,6 @@ def run_filter_cdx(args, cmdline: str):
                             logger.info("Limit reached at %i", args.limit)
                             break
 
-
                     if (i % log_every_n) == 0:
                         logger.info(f"Lines completed: {i:,} (matched: {included_n:,})")
 
@@ -114,12 +119,10 @@ def run_filter_cdx(args, cmdline: str):
     end_time = time.time()
     execution_time = end_time - start_time
 
-    logger.info(
-        f"Script execution time: {execution_time:.3f} seconds"
-    )
+    logger.info(f"Script execution time: {execution_time:.3f} seconds")
 
-    
-def resolve_paths(input_base_path: str, input_glob: str,  output_base_path: str):
+
+def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):
     """Resolve input paths from glob pattern and generate corresponding output paths."""
     # Use fsspec to handle local and remote file systems
     input_fs, input_fs_base_path = fsspec.url_to_fs(input_base_path)
@@ -130,18 +133,18 @@ def resolve_paths(input_base_path: str, input_glob: str,  output_base_path: str)
     if not input_fs_file_paths:
         logger.error(f"No files found matching glob pattern: {input_full_glob}")
         sys.exit(1)
-    
+
     # Generate corresponding output paths
     output_file_paths = []
     input_file_paths = []
     for input_path in input_fs_file_paths:
         # Get relative path from input_base_path without last slash
-        rel_path = input_path[len(input_fs_base_path)+1:]
-        
+        rel_path = input_path[len(input_fs_base_path) + 1 :]
+
         # Create corresponding full input and output path
         output_file_paths.append(os.path.join(output_base_path, rel_path))
         input_file_paths.append(os.path.join(input_base_path, rel_path))
-    
+
     return input_file_paths, output_file_paths
 
 
@@ -160,5 +163,3 @@ def validate_resolved_paths(output_paths, overwrite):
 
             # Make sure directory exists
             output_fs.makedirs(output_fs._parent(output_path), exist_ok=True)
-        
-

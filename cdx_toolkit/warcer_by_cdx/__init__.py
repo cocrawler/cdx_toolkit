@@ -1,103 +1,162 @@
-
+from io import BytesIO
 import json
 import logging
+from pathlib import Path
 import sys
 from typing import Iterable
 
 import fsspec
 
+
+from warcio import WARCWriter
+from warcio.recordloader import ArcWarcRecord
+
 import cdx_toolkit
 from cdx_toolkit.utils import get_version, setup
 
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
-def run_warcer_by_cdx(cmd, cmdline):
+def run_warcer_by_cdx(args, cmdline):
     """Like warcer but fetches WARC records based on an CDX index file.
-    
+
     Approach:
     - Iterate over CDX file to extract capture object (file, offset, length)
     - Fetch WARC record based on capture object
-    - Write to new WARC file with metadata
+    - Write to new WARC file with metadata including resource record with index.
     """
-    cdx, kwargs = setup(cmd)
+    cdx, kwargs = setup(args)
 
-    ispartof = cmd.prefix
-    if cmd.subprefix:
-        ispartof += '-' + cmd.subprefix
+    ispartof = args.prefix
+    if args.subprefix:
+        ispartof += "-" + args.subprefix
 
     info = {
-        'software': 'pypi_cdx_toolkit/'+get_version(),
-        'isPartOf': ispartof,
-        'description': 'warc extraction generated with: '+cmdline,
-        'format': 'WARC file version 1.0',  # todo: if we directly read a warc, have this match the warc
-        # TODO add information from the index file
+        "software": "pypi_cdx_toolkit/" + get_version(),
+        "isPartOf": ispartof,
+        "description": "warc extraction generated with: " + cmdline,
+        "format": "WARC file version 1.0",
     }
-    if cmd.creator:
-        info['creator'] = cmd.creator
-    if cmd.operator:
-        info['operator'] = cmd.operator
+    if args.creator:
+        info["creator"] = args.creator
+    if args.operator:
+        info["operator"] = args.operator
 
     kwargs_writer = {}
-    if 'size' in kwargs:
-        kwargs_writer['size'] = kwargs['size']
-        del kwargs['size']
+    if "size" in kwargs:
+        kwargs_writer["size"] = kwargs["size"]
+        del kwargs["size"]
 
-    writer = cdx_toolkit.warc.get_writer(cmd.prefix, cmd.subprefix, info, **kwargs_writer)
+    writer = cdx_toolkit.warc.get_writer(
+        args.prefix, args.subprefix, info, **kwargs_writer
+    )
 
-    # TODO probably we should support multiple indices as input
-
-    if cmd.index_glob is None:
+    # Prepare index paths
+    if args.index_glob is None:
         # Read from a single index
-        index_paths = [cmd.index_path]
+        index_paths = [args.index_path]
     else:
         # Fetch multiple indicies via glob
-        index_fs, index_fs_path = fsspec.url_to_fs(cmd.index_path)
-        index_paths = sorted(index_fs.glob(cmd.index_glob))
+        index_fs, index_fs_path = fsspec.url_to_fs(args.index_path)
+        index_paths = sorted(index_fs.glob(args.index_glob))
 
-        LOGGER.info('glob pattern found %i index files in %s', len(index_paths), index_fs_path)
+        logger.info(
+            "glob pattern found %i index files in %s", len(index_paths), index_fs_path
+        )
 
         if not index_paths:
-            LOGGER.error('no index files found')
+            logger.error("no index files found")
             sys.exit(1)
-            
+
     # Iterate over index files
+    records_n = 0
     for index_path in index_paths:
-        LOGGER.info('filtering based on index from %s', index_path)
+        logger.info("filtering based on index from %s", index_path)
+
+        # Read index completely (for the WARC resource record)
+        index = get_index_from_path(index_path)
+
+        # Write index as record to WARC
+        # TODO at what position should the resource records be written?
+        writer.write_record(get_index_record(index, index_path))
 
         # The index file holds all the information to download specific objects (file, offset, length etc.)
-        for obj in get_caputure_objects_from_index_file(index_path=index_path, warc_download_prefix=cmd.warc_download_prefix):
-            url = obj['url']
+        for obj in get_caputure_objects_from_index(
+            index=index, warc_download_prefix=cdx.warc_download_prefix
+        ):
+            url = obj["url"]
+            timestamp = obj["timestamp"]
 
-            timestamp = obj['timestamp']
             try:
                 record = obj.fetch_warc_record()
             except RuntimeError:  # pragma: no cover
-                LOGGER.warning('skipping capture for RuntimeError 404: %s %s', url, timestamp)
+                logger.warning(
+                    "skipping capture for RuntimeError 404: %s %s", url, timestamp
+                )
                 continue
             if obj.is_revisit():
-                LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
+                logger.warning(
+                    "revisit record being resolved for url %s %s", url, timestamp
+                )
             writer.write_record(record)
+            records_n += 1
 
-        LOGGER.info('filtering completed (index: %s)', index_path)
+            if args.limit > 0 and records_n >= args.limit:
+                logger.info("Limit reached at %i", args.limit)
+                break
 
-def get_caputure_objects_from_index_file(index_path: str, warc_download_prefix=None) -> Iterable[cdx_toolkit.CaptureObject]:
-    """Read CDX index file and generate CaptureObject objects."""
+        if args.limit > 0 and records_n >= args.limit:
+            # stop index loop
+            break
+
+        logger.info("Filtering completed (index file: %s)", index_path)
+
+    logger.info("WARC records extracted: %i", records_n)
+
+
+def get_index_from_path(index_path: str | Path) -> str:
+    """Fetch (and decompress) index content as string from local or remote path."""
     index_fs, index_fs_path = fsspec.url_to_fs(index_path)
-    
-    with index_fs.open(index_fs_path) as f:
-        for line in enumerate(f):
-            cols = line.split(" ", maxsplit=2)
 
-            if len(cols) == 3:
-                # TODO can there be a different format?
-                # surt, timestamp, json_data = cols 
-                data = json.loads(cols[2])
-                data["timestamp"] = cols[1]
-            else:
-                raise ValueError(f"Cannot parse line: {line}")
-            
-            yield cdx_toolkit.CaptureObject(
-                data=data, wb=None, warc_download_prefix=warc_download_prefix
-            )
+    compression = "gzip" if index_fs_path.endswith(".gz") else None
+
+    with index_fs.open(index_fs_path, "rt", compression=compression) as f:
+        return f.read()
+
+
+def get_index_record(
+    index: str, index_path: str, encoding: str = "utf-8"
+) -> ArcWarcRecord:
+    """Build WARC resource record for index."""
+    return WARCWriter(None).create_warc_record(
+        uri=index_path,  # TODO this could be a local / internal path
+        record_type="resource",
+        payload=BytesIO(index.encode(encoding)),
+        http_headers=None,
+        warc_content_type="application/cdx",
+        warc_headers_dict=None,  # TODO should we add some other metadata headers?
+    )
+
+
+def get_caputure_objects_from_index(
+    index: str, warc_download_prefix=None, limit: int = 0
+) -> Iterable[cdx_toolkit.CaptureObject]:
+    """Read CDX index and generate CaptureObject objects."""
+    for i, line in enumerate(index.splitlines()):
+        cols = line.split(" ", maxsplit=2)
+
+        if len(cols) == 3:
+            # TODO can there be a different format?
+            # surt, timestamp, json_data = cols
+            data = json.loads(cols[2])
+            data["timestamp"] = cols[1]
+        else:
+            raise ValueError(f"Cannot parse line: {line}")
+
+        yield cdx_toolkit.CaptureObject(
+            data=data, wb=None, warc_download_prefix=warc_download_prefix
+        )
+
+        if limit > 0 and i >= limit:
+            break
