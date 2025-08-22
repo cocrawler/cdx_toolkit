@@ -1,9 +1,14 @@
 import logging
 import json
-from pkg_resources import get_distribution, DistributionNotFound
 from collections.abc import MutableMapping
 import sys
 import warnings
+
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:
+    # Python < 3.8 compatibility
+    from importlib_metadata import version, PackageNotFoundError
 
 __version__ = 'installed-from-git'
 
@@ -17,8 +22,8 @@ LOGGER = logging.getLogger(__name__)
 
 try:
     # this works for the pip-installed package
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:  # pragma: no cover
+    __version__ = version(__name__)
+except PackageNotFoundError:  # pragma: no cover
     pass
 
 
