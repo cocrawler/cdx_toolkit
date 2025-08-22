@@ -19,12 +19,15 @@ logger = logging.getLogger(__name__)
 
 
 def run_warcer_by_cdx(args, cmdline):
-    """Like warcer but fetches WARC records based on an CDX index file.
+    """Like warcer but fetches WARC records based on one or more CDX index files.
+
+    The CDX files can be filtered using the `filter_cdx` commands based a given URL/SURT list.
 
     Approach:
-    - Iterate over CDX file to extract capture object (file, offset, length)
+    - Iterate over one or more CDX files to extract capture object (file, offset, length)
     - Fetch WARC record based on capture object
     - Write to new WARC file with metadata including resource record with index.
+    - The CDX resource record is written to the WARC directly before for response records that matches to the CDX.
     """
     cdx, kwargs = setup(args)
 
@@ -35,7 +38,7 @@ def run_warcer_by_cdx(args, cmdline):
     info = {
         "software": "pypi_cdx_toolkit/" + get_version(),
         "isPartOf": ispartof,
-        "description": "warc extraction generated with: " + cmdline,
+        "description": "warc extraction based on CDX generated with: " + cmdline,
         "format": "WARC file version 1.0",
     }
     if args.creator:
@@ -82,7 +85,7 @@ def run_warcer_by_cdx(args, cmdline):
         writer.write_record(get_index_record(index, index_path))
 
         # The index file holds all the information to download specific objects (file, offset, length etc.)
-        for obj in get_caputure_objects_from_index(
+        for obj in generate_caputure_objects_from_index(
             index=index, warc_download_prefix=cdx.warc_download_prefix
         ):
             url = obj["url"]
@@ -139,11 +142,11 @@ def get_index_record(
     )
 
 
-def get_caputure_objects_from_index(
+def generate_caputure_objects_from_index(
     index: str, warc_download_prefix=None, limit: int = 0
 ) -> Iterable[cdx_toolkit.CaptureObject]:
     """Read CDX index and generate CaptureObject objects."""
-    for i, line in enumerate(index.splitlines()):
+    for i, line in enumerate(index.splitlines(), 1):
         cols = line.split(" ", maxsplit=2)
 
         if len(cols) == 3:
