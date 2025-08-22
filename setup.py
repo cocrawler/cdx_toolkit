@@ -2,12 +2,10 @@
 
 from os import path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
-packages = [
-    'cdx_toolkit',
-]
+packages = find_packages(include=['cdx_toolkit*'])
 
 # remember: keep requires synchronized with requirements.txt
 requires = ['requests', 'warcio', 'fsspec[s3]', 'surt']
