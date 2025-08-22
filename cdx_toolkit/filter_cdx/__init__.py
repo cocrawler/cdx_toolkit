@@ -4,6 +4,7 @@ import time
 import sys
 
 import fsspec
+from surt import surt
 
 from cdx_toolkit.filter_cdx.matcher import TupleMatcher, TrieMatcher
 
@@ -12,8 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 def run_filter_cdx(args, cmdline: str):
-    """Filter CDX index files based on a given SURT whitelist.
+    """Filter CDX index files based on a given URL or SURT whitelist.
 
+    - If a URL filter is provided, it is converted to a SURT filter.
     - A index entry's SURT must start with one of the SURTs from the whitelist to be considered.
     - All other index entries are discarded.
     - All input/output paths can be local or remote paths (S3, ...) and compressed (*.gz).
@@ -36,16 +38,24 @@ def run_filter_cdx(args, cmdline: str):
         f"Found {len(input_paths)} files matching pattern: {args.input_base_path}/{args.input_glob}"
     )
 
-    # Load SURT prefixes from file (each line is a surt)
-    surt_fs, surt_fs_path = fsspec.url_to_fs(args.surts_file)
-    logger.info("Loading whitelist from %s", surt_fs_path)
+    # Load URL or SURT prefixes from file (each line is a surt)
+    filter_fs, filter_fs_path = fsspec.url_to_fs(args.filter_file)
+    logger.info("Loading whitelist from %s", filter_fs_path)
 
-    if not surt_fs.exists(surt_fs_path):  # Check that surts file exists
-        logger.error(f"SURT file not found: {surt_fs_path}")
+    if not filter_fs.exists(filter_fs_path):  # Check that surts file exists
+        logger.error(f"Filter file not found: {filter_fs_path}")
         sys.exit(1)
 
-    with surt_fs.open(surt_fs_path, "rt") as input_f:
-        include_surt_prefixes = [line.strip() for line in input_f.readlines()]
+    with filter_fs.open(filter_fs_path, "rt") as input_f:
+        include_prefixes = [line.strip() for line in input_f.readlines()]
+
+    # Convert to SURT if filter file contains URLs 
+    if args.filter_type == "url":
+        logger.info("Converting urls to surts ...")
+        include_surt_prefixes = [surt(url) for url in include_prefixes]
+    else:
+        # Filter is already given as surts
+        include_surt_prefixes = include_prefixes
 
     # Create matcher based on selected approach
     matcher_classes = {
@@ -56,7 +66,7 @@ def run_filter_cdx(args, cmdline: str):
     matcher = matcher_classes[args.matching_approach](include_surt_prefixes)
 
     logger.info(
-        f"Loaded {len(include_surt_prefixes):,} surts using {args.matching_approach} approach"
+        f"Loaded {len(include_surt_prefixes):,} filter entries using {args.matching_approach} approach"
     )
 
     # Process each input/output file pair

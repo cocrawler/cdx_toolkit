@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 
 from cdx_toolkit.cli import main
@@ -6,7 +7,7 @@ from cdx_toolkit.filter_cdx import resolve_paths, validate_resolved_paths
 fixture_path = Path(__file__).parent / "data/filter_cdx"
 
 
-def test_cli_filter_cdx(tmpdir, caplog):
+def test_cli_filter_cdx_with_surts(tmpdir, caplog):
     # check if expected number is reached
     index_path = "s3://commoncrawl/cc-index/collections"
     index_glob = "/CC-MAIN-2024-30/indexes/cdx-00187.gz"
@@ -15,11 +16,25 @@ def test_cli_filter_cdx(tmpdir, caplog):
     )  # matches on first domain and after 100k and 200k lines
 
     main(
-        args=f"-v --limit 1140 filter_cdx {index_path} {str(whitelist_path)} {tmpdir} --input_glob {index_glob}".split()
+        args=f"-v --limit 1140 filter_cdx {index_path} {str(whitelist_path)} {tmpdir} --filter-type surt --input-glob {index_glob}".split()
     )
 
     assert "Limit reached" in caplog.text
+    
+def test_cli_filter_cdx_with_urls(tmpdir, caplog):
+    # check if expected number is reached
+    index_path = "s3://commoncrawl/cc-index/collections"
+    index_glob = "/CC-MAIN-2024-30/indexes/cdx-00187.gz"
+    whitelist_path = (
+        fixture_path / "whitelist_10_urls.txt"
+    )  # matches on first domain and after 100k and 200k lines
 
+    main(
+        args=f"-v --limit 1140 filter_cdx {index_path} {str(whitelist_path)} {tmpdir} --filter-type url --input-glob {index_glob}".split()
+    )
+
+    assert "Limit reached" in caplog.text
+    
 
 def test_resolve_cdx_paths_from_cc_s3_to_local(tmpdir):
     tmpdir = str(tmpdir)
@@ -66,8 +81,6 @@ def test_resolve_cdx_paths_from_cc_s3_to_another_s3():
 
 
 def test_filter_cdx_nonexistent_surt_file_exits(tmpdir, caplog):
-    import pytest
-    
     index_path = "s3://commoncrawl/cc-index/collections"
     index_glob = "/CC-MAIN-2024-30/indexes/cdx-00187.gz"
     nonexistent_surt_file = str(tmpdir / "nonexistent_surts.txt")
@@ -75,16 +88,14 @@ def test_filter_cdx_nonexistent_surt_file_exits(tmpdir, caplog):
     # Test that the command exits when SURT file doesn't exist
     with pytest.raises(SystemExit) as exc_info:
         main(
-            args=f"-v --limit 1140 filter_cdx {index_path} {nonexistent_surt_file} {tmpdir} --input_glob {index_glob}".split()
+            args=f"-v --limit 1140 filter_cdx {index_path} {nonexistent_surt_file} {tmpdir} --input-glob {index_glob}".split()
         )
     
     assert exc_info.value.code == 1
-    assert f"SURT file not found: {nonexistent_surt_file}" in caplog.text
+    assert f"Filter file not found: {nonexistent_surt_file}" in caplog.text
 
 
 def test_resolve_paths_no_files_found_exits(tmpdir, caplog):
-    import pytest
-    
     # Test that resolve_paths exits when no files match the glob pattern
     with pytest.raises(SystemExit) as exc_info:
         resolve_paths(
@@ -98,8 +109,6 @@ def test_resolve_paths_no_files_found_exits(tmpdir, caplog):
 
 
 def test_validate_resolved_paths_existing_file_exits(tmpdir, caplog):
-    import pytest
-    
     # Create an existing output file
     existing_file = tmpdir / "existing_output.txt"
     existing_file.write_text("existing content", encoding="utf-8")
@@ -114,8 +123,3 @@ def test_validate_resolved_paths_existing_file_exits(tmpdir, caplog):
     assert f"Output file already exists: {str(existing_file)}" in caplog.text
     assert "Use --overwrite to overwrite existing files" in caplog.text
 
-
-def test_matcher_approaches():
-    # TODO
-    # a = 
-    pass

@@ -10,7 +10,7 @@ packages = [
 ]
 
 # remember: keep requires synchronized with requirements.txt
-requires = ['requests', 'warcio', 'fsspec[s3]']
+requires = ['requests', 'warcio', 'fsspec[s3]', 'surt']
 
 test_requirements = ['pytest', 'pytest-cov']
 

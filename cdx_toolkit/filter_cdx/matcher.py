@@ -17,6 +17,23 @@ class Matcher(ABC):
         """Check if text starts with any of the prefixes."""
         pass
 
+    @staticmethod
+    def validate_prefixes(prefixes: tuple[str] | list[str]) -> tuple[str]:
+        valid_prefixes = []
+
+        for prefix in prefixes:
+            if prefix is None or not isinstance(prefix, str):
+                raise ValueError("Prefix must be a string and not none.")
+
+            # remove white spaces
+            prefix = prefix.strip()
+
+            if len(prefix) == 0:
+                raise ValueError("Empty prefixes are not allowed")
+
+            valid_prefixes.append(prefix)
+
+        return tuple(valid_prefixes)
 
 class TrieNode:
     def __init__(self):
@@ -29,9 +46,9 @@ class TrieMatcher(Matcher):
 
     def __init__(self, prefixes: tuple[str] | list[str]):
         logger.info(f"Building trie matcher based on {len(prefixes):,} inputs")
-        self.root = self._build_trie(prefixes)
+        self.root = self._build_trie(self.validate_prefixes(prefixes))
 
-    def _build_trie(self, prefixes: tuple[str] | list[str]):
+    def _build_trie(self, prefixes: tuple[str]):
         """Build a trie from a collection of prefixes."""
         root = TrieNode()
         for prefix in prefixes:
@@ -56,11 +73,11 @@ class TrieMatcher(Matcher):
 
 
 class TupleMatcher(Matcher):
-    """Tuple-based matching approach using startswith."""
+    """Tuple-based matching approach using the built-in method `str.startswith`."""
 
     def __init__(self, prefixes: tuple[str] | list[str]):
         logger.info(f"Building tuple matcher based on {len(prefixes):,} inputs")
-        self.prefixes_tuple = tuple(prefixes)
+        self.prefixes_tuple = self.validate_prefixes(prefixes)
 
     def matches(self, text: str) -> bool:
         """Check if text starts with any prefix in the tuple."""

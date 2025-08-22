@@ -8,6 +8,15 @@ logger = logging.getLogger(__name__)
 
 
 def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
+    parser.add_argument(
+        "index_path", help="Path to CDX index file (local or remote, e.g. S3)"
+    )
+    parser.add_argument(
+        "--index-glob",
+        type=str,
+        default=None,
+        help="a glob pattern for read from multiple indices",
+    )
     parser.add_argument("--prefix", default="TEST", help="prefix for the warc filename")
     parser.add_argument(
         "--subprefix",
@@ -33,15 +42,6 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         "--warc-download-prefix",
         action="store",
         help="prefix for downloading content, automatically set for CC",
-    )
-    parser.add_argument(
-        "--index-glob",
-        type=str,
-        default=None,
-        help="a glob pattern for read from multiple indices",
-    )
-    parser.add_argument(
-        "index_path", help="Path to CDX index file (local or remote, e.g. S3)"
     )
 
     return parser
