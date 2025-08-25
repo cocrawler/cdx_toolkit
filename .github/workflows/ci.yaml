@@ -46,6 +46,10 @@ jobs:
       - name: Install cdx_toolkit
         run: pip install .[test]
 
+      - name: Lint code
+        run: |
+          make lint
+
       - name: Run tests
         run: |
           make test_coverage
