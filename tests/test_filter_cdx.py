@@ -3,10 +3,12 @@ from pathlib import Path
 
 from cdx_toolkit.cli import main
 from cdx_toolkit.filter_cdx import resolve_paths, validate_resolved_paths
+from conftest import requires_aws_s3
 
 fixture_path = Path(__file__).parent / "data/filter_cdx"
 
 
+@requires_aws_s3
 def test_cli_filter_cdx_with_surts(tmpdir, caplog):
     # check if expected number is reached
     index_path = "s3://commoncrawl/cc-index/collections"
@@ -20,7 +22,9 @@ def test_cli_filter_cdx_with_surts(tmpdir, caplog):
     )
 
     assert "Limit reached" in caplog.text
-    
+
+
+@requires_aws_s3
 def test_cli_filter_cdx_with_urls(tmpdir, caplog):
     # check if expected number is reached
     index_path = "s3://commoncrawl/cc-index/collections"
@@ -36,6 +40,7 @@ def test_cli_filter_cdx_with_urls(tmpdir, caplog):
     assert "Limit reached" in caplog.text
     
 
+@requires_aws_s3
 def test_resolve_cdx_paths_from_cc_s3_to_local(tmpdir):
     tmpdir = str(tmpdir)
     base_path = "s3://commoncrawl/cc-index/collections"
@@ -58,6 +63,7 @@ def test_resolve_cdx_paths_from_cc_s3_to_local(tmpdir):
     assert input_files[-1] == base_path + "/CC-MAIN-2016-30/indexes/cdx-00299.gz"
 
 
+@requires_aws_s3
 def test_resolve_cdx_paths_from_cc_s3_to_another_s3():
     output_base_path = "s3://some-other-bucket/filter-cdx"
     base_path = "s3://commoncrawl/cc-index/collections"
@@ -80,6 +86,7 @@ def test_resolve_cdx_paths_from_cc_s3_to_another_s3():
     assert input_files[-1] == base_path + "/CC-MAIN-2016-30/indexes/cdx-00099.gz"
 
 
+@requires_aws_s3
 def test_filter_cdx_nonexistent_surt_file_exits(tmpdir, caplog):
     index_path = "s3://commoncrawl/cc-index/collections"
     index_glob = "/CC-MAIN-2024-30/indexes/cdx-00187.gz"
@@ -122,4 +129,26 @@ def test_validate_resolved_paths_existing_file_exits(tmpdir, caplog):
     assert exc_info.value.code == 1
     assert f"Output file already exists: {str(existing_file)}" in caplog.text
     assert "Use --overwrite to overwrite existing files" in caplog.text
+
+
+@requires_aws_s3
+def test_cli_filter_cdx_with_parallel_processing(tmpdir, caplog):
+    """Test that parallel processing works correctly and processes multiple files."""
+    index_path = "s3://commoncrawl/cc-index/collections"
+    index_glob = "/CC-MAIN-2024-30/indexes/cdx-0018[78].gz"  # Multiple files pattern
+    whitelist_path = fixture_path / "whitelist_11_surts.txt"  # Additonal entry for cdx-00188.gz
+
+    # Run with parallel processing (2 workers)
+    main(
+        args=f"-v --limit 10 filter_cdx {index_path} {str(whitelist_path)} {tmpdir} --filter-type surt --input-glob {index_glob} --parallel 2".split()
+    )
+
+    # Check that multiple files were processed in parallel
+    assert "Found" in caplog.text and "files matching pattern" in caplog.text
+    assert "File statistics for" in caplog.text
+    assert "Total statistics:" in caplog.text
+    
+    # Should have processed multiple files (pattern matches 2 files: cdx-00187.gz and cdx-00188.gz)
+    file_stats_count = caplog.text.count("File statistics for")
+    assert file_stats_count == 2, "Should process exactly 2 files with the glob pattern"
 

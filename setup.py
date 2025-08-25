@@ -10,7 +10,7 @@ packages = find_packages(include=['cdx_toolkit*'])
 # remember: keep requires synchronized with requirements.txt
 requires = ['requests', 'warcio', 'fsspec[s3]', 'surt']
 
-test_requirements = ['pytest', 'pytest-cov']
+test_requirements = ['pytest', 'pytest-cov', 'boto3']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 

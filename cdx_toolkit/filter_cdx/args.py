@@ -36,5 +36,11 @@ def add_filter_cdx_args(parser: argparse.ArgumentParser):
         action="store_true",
         help="Allow overwriting existing output files",
     )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Number of parallel workers for processing multiple input files (default: 1, sequential processing)",
+    )
 
     return parser

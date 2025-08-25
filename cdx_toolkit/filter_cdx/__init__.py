@@ -2,6 +2,8 @@ import logging
 import os
 import time
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import partial
 
 import fsspec
 from surt import surt
@@ -69,57 +71,49 @@ def run_filter_cdx(args, cmdline: str):
         f"Loaded {len(include_surt_prefixes):,} filter entries using {args.matching_approach} approach"
     )
 
-    # Process each input/output file pair
+    # Process files in parallel or sequentially
     total_lines_n = 0
     total_included_n = 0
-    log_every_n = 100_000
-
-    for input_path, output_path in zip(input_paths, output_paths):
-        logger.info("Reading index from %s", input_path)
-        logger.info("Writing filter output to %s", output_path)
-
-        lines_n = 0
-        included_n = 0
-
-        # Input/output from local or remote file system
-        input_fs, input_fs_path = fsspec.url_to_fs(input_path)
-        output_fs, output_fs_path = fsspec.url_to_fs(output_path)
-
-        # Make sure output directory exists
-        output_fs.makedirs(output_fs._parent(output_fs_path), exist_ok=True)
-
-        # Read and write compressed file if needed
-        compression = "gzip" if input_fs_path.endswith(".gz") else None
-
-        with output_fs.open(output_fs_path, "w", compression=compression) as output_f:
-            with input_fs.open(input_fs_path, "rt", compression=compression) as input_f:
-                for i, line in enumerate(input_f, 1):
-                    # Read CDX line
-                    surt_length = line.find(
-                        " "
-                    )  # we do not need to parse the full line
-                    record_surt = line[:surt_length]
-                    lines_n += 1
-
-                    # Use matcher
-                    include_record = matcher.matches(record_surt)
-
-                    if include_record:
-                        output_f.write(line)
-                        included_n += 1
-
-                        if args.limit > 0 and included_n >= args.limit:
-                            logger.info("Limit reached at %i", args.limit)
-                            break
-
-                    if (i % log_every_n) == 0:
-                        logger.info(f"Lines completed: {i:,} (matched: {included_n:,})")
-
-        logger.info(
-            f"File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n/lines_n:.4f}"
-        )
-        total_lines_n += lines_n
-        total_included_n += included_n
+    
+    if getattr(args, 'parallel', 1) > 1:
+        # Parallel processing
+        with ProcessPoolExecutor(max_workers=args.parallel) as executor:
+            # Create partial function with common arguments
+            process_file_partial = partial(
+                _process_single_file,
+                matcher=matcher,
+                limit=args.limit if hasattr(args, 'limit') else 0
+            )
+            
+            # Submit all jobs
+            future_to_paths = {
+                executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
+                for input_path, output_path in zip(input_paths, output_paths)
+            }
+            
+            # Collect results
+            for future in as_completed(future_to_paths):
+                input_path, output_path = future_to_paths[future]
+                try:
+                    lines_n, included_n = future.result()
+                    logger.info(
+                        f"File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n/lines_n:.4f}"
+                    )
+                    total_lines_n += lines_n
+                    total_included_n += included_n
+                except Exception as exc:
+                    logger.error(f"File {input_path} generated an exception: {exc}")
+    else:
+        # Sequential processing (original behavior)
+        for input_path, output_path in zip(input_paths, output_paths):
+            lines_n, included_n = _process_single_file(
+                input_path, output_path, matcher, args.limit if hasattr(args, 'limit') else 0
+            )
+            logger.info(
+                f"File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n/lines_n:.4f}"
+            )
+            total_lines_n += lines_n
+            total_included_n += included_n
 
     logger.info(
         f"Total statistics: included_n={total_included_n}; lines_n={total_lines_n}; ratio={total_included_n/total_lines_n:.4f}"
@@ -156,6 +150,49 @@ def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):
         input_file_paths.append(os.path.join(input_base_path, rel_path))
 
     return input_file_paths, output_file_paths
+
+
+def _process_single_file(input_path, output_path, matcher, limit: int = 0, log_every_n: int = 100_000):
+    """Process a single input/output file pair. Returns (lines_n, included_n)."""
+    lines_n = 0
+    included_n = 0
+    
+    logger.info("Reading index from %s", input_path)
+    logger.info("Writing filter output to %s", output_path)
+    
+    # Input/output from local or remote file system
+    input_fs, input_fs_path = fsspec.url_to_fs(input_path)
+    output_fs, output_fs_path = fsspec.url_to_fs(output_path)
+    
+    # Make sure output directory exists
+    output_fs.makedirs(output_fs._parent(output_fs_path), exist_ok=True)
+    
+    # Read and write compressed file if needed
+    compression = "gzip" if input_fs_path.endswith(".gz") else None
+    
+    with output_fs.open(output_fs_path, "w", compression=compression) as output_f:
+        with input_fs.open(input_fs_path, "rt", compression=compression) as input_f:
+            for i, line in enumerate(input_f, 1):
+                # Read CDX line
+                surt_length = line.find(" ")  # we do not need to parse the full line
+                record_surt = line[:surt_length]
+                lines_n += 1
+                
+                # Use matcher
+                include_record = matcher.matches(record_surt)
+                
+                if include_record:
+                    output_f.write(line)
+                    included_n += 1
+                    
+                    if limit > 0 and included_n >= limit:
+                        logger.info("Limit reached at %i from %s", limit, input_path)
+                        break
+                
+                if (i % log_every_n) == 0:
+                    logger.info(f"Lines completed: {i:,} (matched: {included_n:,}) from {input_path}")
+    
+    return lines_n, included_n
 
 
 def validate_resolved_paths(output_paths, overwrite):
