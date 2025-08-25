@@ -73,8 +73,10 @@ def run_filter_cdx(args, cmdline: str):
 
     # Process files in parallel or sequentially
     n_parallel = args.parallel
+    limit = 0 if args.limit is None else args.limit
     total_lines_n = 0
     total_included_n = 0
+    total_errors_n = 0
     
     if n_parallel > 1:
         # Parallel processing
@@ -84,7 +86,7 @@ def run_filter_cdx(args, cmdline: str):
             process_file_partial = partial(
                 _process_single_file,
                 matcher=matcher,
-                limit=args.limit if hasattr(args, 'limit') else 0
+                limit=limit
             )
             
             # Submit all jobs
@@ -103,24 +105,32 @@ def run_filter_cdx(args, cmdline: str):
                     )
                     total_lines_n += lines_n
                     total_included_n += included_n
+
                 except Exception as exc:
                     logger.error(f"File {input_path} generated an exception: {exc}")
+                    total_errors_n += 1
     else:
         # Sequential processing
         logger.info("Sequential processing")
         for input_path, output_path in zip(input_paths, output_paths):
-            lines_n, included_n = _process_single_file(
-                input_path, output_path, matcher, args.limit if hasattr(args, 'limit') else 0
-            )
-            logger.info(
-                f"File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n/lines_n:.4f}"
-            )
-            total_lines_n += lines_n
-            total_included_n += included_n
+            try:
+                lines_n, included_n = _process_single_file(
+                    input_path, output_path, matcher, limit
+                )
+                logger.info(
+                    f"File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n/lines_n:.4f}"
+                )
+                total_lines_n += lines_n
+                total_included_n += included_n
 
+            except Exception as exc:
+                logger.error(f"File {input_path} generated an exception: {exc}")
+                total_errors_n += 1
     logger.info(
         f"Total statistics: included_n={total_included_n}; lines_n={total_lines_n}; ratio={total_included_n/total_lines_n:.4f}"
     )
+    if total_errors_n > 0:
+        logger.error("Processing errors: %i", total_errors_n)
 
     # End timing and log execution time
     end_time = time.time()
@@ -181,7 +191,7 @@ def _process_single_file(input_path, output_path, matcher, limit: int = 0, log_e
                 record_surt = line[:surt_length]
                 lines_n += 1
                 
-                # Use matcher
+                # Use SURT matcher
                 include_record = matcher.matches(record_surt)
                 
                 if include_record:
@@ -195,6 +205,11 @@ def _process_single_file(input_path, output_path, matcher, limit: int = 0, log_e
                 if (i % log_every_n) == 0:
                     logger.info(f"Lines completed: {i:,} (matched: {included_n:,}) from {input_path}")
     
+    # Delete file if empty
+    if included_n == 0:
+        logger.warning("Output file is empty, removing it: %s", output_fs_path)
+        output_fs.rm(output_fs_path)
+
     return lines_n, included_n
 
 
