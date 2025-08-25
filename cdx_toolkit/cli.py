@@ -15,11 +15,30 @@ def main(args=None):
     parser = ArgumentParser(description='cdx_toolkit iterator command line tool')
 
     parser.add_argument('--version', '-V', action='version', version=get_version())
-    parser.add_argument('--verbose', '-v', action='count', help='set logging level to INFO (-v) or DEBUG (-vv)')
-
-    parser.add_argument('--cc', action='store_const', const='cc', help='direct the query to the Common Crawl CDX/WARCs')
-    parser.add_argument('--crawl', action='store', help='crawl names (comma separated) or an integer for the most recent N crawls. Implies --cc')
-    parser.add_argument('--ia', action='store_const', const='ia', help='direct the query to the Internet Archive CDX/wayback')
+    parser.add_argument(
+        '--verbose',
+        '-v',
+        action='count',
+        help='set logging level to INFO (-v) or DEBUG (-vv)'
+    )
+    parser.add_argument(
+        '--cc',
+        action='store_const',
+        const='cc',
+        help='direct the query to the Common Crawl CDX/WARCs'
+    )
+    parser.add_argument(
+        '--crawl',
+        action='store',
+        help=('crawl names (comma separated) or an integer for the most recent N crawls. '
+              'Implies --cc')
+    )
+    parser.add_argument(
+        '--ia',
+        action='store_const',
+        const='ia',
+        help='direct the query to the Internet Archive CDX/wayback'
+    )
     parser.add_argument('--source', action='store', help='direct the query to this CDX server')
     parser.add_argument('--wb', action='store', help='direct replays for content to this wayback')
     parser.add_argument('--limit', type=int, action='store')
@@ -28,15 +47,28 @@ def main(args=None):
     parser.add_argument('--from', action='store')
     parser.add_argument('--to', action='store')
     parser.add_argument('--filter', action='append', help='see CDX API documentation for usage')
-    parser.add_argument('--get', action='store_true', help='use a single get instead of a paged iteration. default limit=1000')
-    parser.add_argument('--closest', action='store', help='get the closest capture to this timestamp. use with --get')
+    parser.add_argument(
+        '--get',
+        action='store_true',
+        help='use a single get instead of a paged iteration. default limit=1000'
+    )
+    parser.add_argument(
+        '--closest',
+        action='store',
+        help='get the closest capture to this timestamp. use with --get'
+    )
 
     subparsers = parser.add_subparsers(dest='cmd')
     subparsers.required = True
 
     iterate = subparsers.add_parser('iter', help='iterate printing captures')
     iterate.add_argument('--all-fields', action='store_true')
-    iterate.add_argument('--fields', action='store', default='url,status,timestamp', help='try --all-fields if you need the list')
+    iterate.add_argument(
+        '--fields',
+        action='store',
+        default='url,status,timestamp',
+        help='try --all-fields if you need the list'
+    )
     iterate.add_argument('--jsonl', action='store_true')
     iterate.add_argument('--csv', action='store_true')
     iterate.add_argument('url')
@@ -44,13 +76,43 @@ def main(args=None):
 
     warc = subparsers.add_parser('warc', help='iterate over capture content, creating a warc')
     warc.add_argument('--prefix', default='TEST', help='prefix for the warc filename')
-    warc.add_argument('--subprefix', type=str, default=None, help='subprefix for the warc filename, default None')
-    warc.add_argument('--size', type=int, default=1000000000, help='target for the warc filesize in bytes')
-    warc.add_argument('--creator', action='store', help='creator of the warc: person, organization, service')
-    warc.add_argument('--operator', action='store', help='a person, if the creator is an organization')
-    warc.add_argument('--url-fgrep', action='store', help='this pattern must be present to warc an url')
-    warc.add_argument('--url-fgrepv', action='store', help='this pattern must not be present to warc an url, e.g. /robots.txt')
-    warc.add_argument('--warc-download-prefix', action='store', help='prefix for downloading content, automatically set for CC')
+    warc.add_argument(
+        '--subprefix',
+        type=str,
+        default=None,
+        help='subprefix for the warc filename, default None'
+    )
+    warc.add_argument(
+        '--size',
+        type=int,
+        default=1000000000,
+        help='target for the warc filesize in bytes'
+    )
+    warc.add_argument(
+        '--creator',
+        action='store',
+        help='creator of the warc: person, organization, service'
+    )
+    warc.add_argument(
+        '--operator',
+        action='store',
+        help='a person, if the creator is an organization'
+    )
+    warc.add_argument(
+        '--url-fgrep',
+        action='store',
+        help='this pattern must be present to warc an url'
+    )
+    warc.add_argument(
+        '--url-fgrepv',
+        action='store',
+        help='this pattern must not be present to warc an url, e.g. /robots.txt'
+    )
+    warc.add_argument(
+        '--warc-download-prefix',
+        action='store',
+        help='prefix for downloading content, automatically set for CC'
+    )
     warc.add_argument('url')
     warc.set_defaults(func=warcer)
 

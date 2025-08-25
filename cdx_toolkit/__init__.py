@@ -2,7 +2,6 @@ import logging
 import json
 from pkg_resources import get_distribution, DistributionNotFound
 from collections.abc import MutableMapping
-import sys
 import warnings
 
 __version__ = 'installed-from-git'
@@ -62,8 +61,8 @@ def cdx_to_captures(resp, wb=None, warc_download_prefix=None):
     if text.startswith('{'):
         lines = resp.text.splitlines()
         ret = []
-        for l in lines:
-            ret.append(CaptureObject(json.loads(l), wb=wb, warc_download_prefix=warc_download_prefix))
+        for line in lines:
+            ret.append(CaptureObject(json.loads(line), wb=wb, warc_download_prefix=warc_download_prefix))
         return ret
 
     # ia output='json' is a json list of lists
@@ -202,7 +201,14 @@ class CDXFetcherIter:
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', crawl=None, wb=None, warc_download_prefix=None, cc_mirror=None, cc_sort='mixed', loglevel=None):
+    def __init__(self,
+                 source='cc',
+                 crawl=None,
+                 wb=None,
+                 warc_download_prefix=None,
+                 cc_mirror=None,
+                 cc_sort='mixed',
+                 loglevel=None):
         self.source = source
         self.crawl = crawl
         self.cc_sort = cc_sort
@@ -231,13 +237,20 @@ class CDXFetcher:
             LOGGER.setLevel(level=loglevel)
 
     def customize_index_list(self, params):
-        if self.source == 'cc' and (self.crawl or 'crawl' in params or 'from' in params or 'from_ts' in params or 'to' in params or 'closest' in params):
-            LOGGER.info('making a custom cc index list')
-            if self.crawl and 'crawl' not in params:
-                params['crawl'] = self.crawl
+        if self.source == "cc" and (
+            self.crawl
+            or "crawl" in params
+            or "from" in params
+            or "from_ts" in params
+            or "to" in params
+            or "closest" in params
+        ):
+            LOGGER.info("making a custom cc index list")
+            if self.crawl and "crawl" not in params:
+                params["crawl"] = self.crawl
             return filter_cc_endpoints(self.raw_index_list, self.cc_sort, params=params)
-        else:
-            return self.index_list
+
+        return self.index_list
 
     def get(self, url, **kwargs):
         # from_ts=None, to=None, matchType=None, limit=None, sort=None, closest=None,
@@ -264,7 +277,11 @@ class CDXFetcher:
         ret = []
         for endpoint in index_list:
             resp = myrequests_get(endpoint, params=params, cdx=True)
-            objs = cdx_to_captures(resp, wb=self.wb, warc_download_prefix=self.warc_download_prefix)  # turns 400 and 404 into []
+            objs = cdx_to_captures(
+                resp,
+                wb=self.wb,
+                warc_download_prefix=self.warc_download_prefix
+                )  # turns 400 and 404 into []
             ret.extend(objs)
             if 'limit' in params:
                 params['limit'] -= len(objs)
