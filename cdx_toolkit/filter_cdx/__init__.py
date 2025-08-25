@@ -72,12 +72,14 @@ def run_filter_cdx(args, cmdline: str):
     )
 
     # Process files in parallel or sequentially
+    n_parallel = args.parallel
     total_lines_n = 0
     total_included_n = 0
     
-    if getattr(args, 'parallel', 1) > 1:
+    if n_parallel > 1:
         # Parallel processing
-        with ProcessPoolExecutor(max_workers=args.parallel) as executor:
+        logger.info("Parallel processes: %i", n_parallel)
+        with ProcessPoolExecutor(max_workers=n_parallel) as executor:
             # Create partial function with common arguments
             process_file_partial = partial(
                 _process_single_file,
@@ -104,7 +106,8 @@ def run_filter_cdx(args, cmdline: str):
                 except Exception as exc:
                     logger.error(f"File {input_path} generated an exception: {exc}")
     else:
-        # Sequential processing (original behavior)
+        # Sequential processing
+        logger.info("Sequential processing")
         for input_path, output_path in zip(input_paths, output_paths):
             lines_n, included_n = _process_single_file(
                 input_path, output_path, matcher, args.limit if hasattr(args, 'limit') else 0
