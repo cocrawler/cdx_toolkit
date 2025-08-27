@@ -57,7 +57,7 @@ def run_warcer_by_cdx(args, cmdline):
         del kwargs["size"]
 
     n_parallel = args.parallel
-    log_every_n = 10_000
+    log_every_n = 5
     limit = 0 if args.limit is None else args.limit
     prefix_path = str(args.prefix)
     prefix_fs, prefix_fs_path =  fsspec.url_to_fs(prefix_path)
@@ -118,9 +118,14 @@ def run_warcer_by_cdx(args, cmdline):
         if index_limit > 0:
             index_lines = index_lines[:index_limit]
 
-        for record in tqdm(fetch_records_from_index(
+        records_gen = fetch_records_from_index(
             index_lines=index_lines, warc_download_prefix=cdx.warc_download_prefix, n_parallel=n_parallel
-        ), desc="Fetch and write WARC", total=len(index_lines)):
+        )
+        # records_gen = tqdm(fetch_records_from_index(
+        #     index_lines=index_lines, warc_download_prefix=cdx.warc_download_prefix, n_parallel=n_parallel
+        # ), desc="Fetch and write WARC", total=len(index_lines))
+
+        for record in records_gen:
             writer.write_record(record)
             records_n += 1
 
