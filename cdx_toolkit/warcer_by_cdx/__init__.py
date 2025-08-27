@@ -7,6 +7,8 @@ import sys
 from typing import Iterable
 
 import fsspec
+from concurrent.futures import ThreadPoolExecutor, as_completed
+    
 
 
 from tqdm import tqdm
@@ -54,6 +56,7 @@ def run_warcer_by_cdx(args, cmdline):
         kwargs_writer["size"] = kwargs["size"]
         del kwargs["size"]
 
+    n_parallel = args.parallel
     log_every_n = 10_000
     limit = 0 if args.limit is None else args.limit
     prefix_path = str(args.prefix)
@@ -109,35 +112,18 @@ def run_warcer_by_cdx(args, cmdline):
             logger.info("CDX resource recorded added")
 
         # The index file holds all the information to download specific objects (file, offset, length etc.)
-        for obj in generate_caputure_objects_from_index(
-            index=index, warc_download_prefix=cdx.warc_download_prefix
+        for record in fetch_records_from_index(
+            index=index, warc_download_prefix=cdx.warc_download_prefix, n_parallel=n_parallel, limit=limit - records_n,
         ):
-            url = obj["url"]
-            timestamp = obj["timestamp"]
-
-            try:
-                record = obj.fetch_warc_record()
-            except RuntimeError:  # pragma: no cover
-                logger.warning(
-                    "skipping capture for RuntimeError 404: %s %s", url, timestamp
-                )
-                continue
-            if obj.is_revisit():
-                logger.warning(
-                    "revisit record being resolved for url %s %s", url, timestamp
-                )
             writer.write_record(record)
             records_n += 1
 
             if (records_n % log_every_n) == 0:
-                logger.info(f"Records completed: {records_n:,} from {index_path}")
-
-            if limit > 0 and records_n >= limit:
-                logger.info("Limit reached at %i", limit)
-                break
+                logger.info(f"Record progress: {records_n:,} from {index_path}")
 
         if limit > 0 and records_n >= limit:
             # stop index loop
+            logger.info("Limit reached")
             break
 
         logger.info("Filtering completed (index file: %s)", index_path)
@@ -174,17 +160,67 @@ def get_index_record(
         warc_headers_dict=None,  # TODO should we add some other metadata headers?
     )
 
+def fetch_single_record(obj):
+    """Fetch a single WARC record with error handling."""
+    url = obj["url"]
+    timestamp = obj["timestamp"]
+
+    try:
+        record = obj.fetch_warc_record()
+        if obj.is_revisit():
+            logger.warning(
+                "revisit record being resolved for url %s %s", url, timestamp
+            )
+        return record
+    except RuntimeError:  # pragma: no cover
+        logger.warning(
+            "skipping capture for RuntimeError 404: %s %s", url, timestamp
+        )
+        return None
+    
+def fetch_records_from_index(
+    index: str, warc_download_prefix=None, limit: int = 0, n_parallel: int = 1
+) -> Iterable[ArcWarcRecord]:
+    """Fetch WARC records based on CDX index."""
+    
+    if n_parallel <= 1:
+        # Sequential processing
+        for obj in generate_caputure_objects_from_index(
+            index=index, warc_download_prefix=warc_download_prefix, limit=limit,
+        ):
+            record = fetch_single_record(obj)
+            if record is not None:
+                yield record
+    else:
+        # Parallel processing
+        logger.info(f"Fetch records in parallel with {n_parallel=}")
+        objects = list(generate_caputure_objects_from_index(
+            index=index, warc_download_prefix=warc_download_prefix, limit=limit,
+        ))
+        
+        with ThreadPoolExecutor(max_workers=n_parallel) as executor:
+            # Submit all tasks
+            future_to_obj = {executor.submit(fetch_single_record, obj): obj for obj in objects}
+            
+            # Yield results as they complete
+            for future in as_completed(future_to_obj):
+                record = future.result()
+                if record is not None:
+                    yield record
 
 def generate_caputure_objects_from_index(
-    index: str, warc_download_prefix=None, limit: int = 0, progress_bar: bool = True
+    index: str, warc_download_prefix=None, limit: int = 0, progress_bar: bool = False
 ) -> Iterable[cdx_toolkit.CaptureObject]:
     """Read CDX index and generate CaptureObject objects."""
     index_lines = index.splitlines()
 
-    # if progress_bar:
-    #     index_lines = tqdm(index_lines, desc="Extracting from WARC", total=len(index_lines))
+    if limit > 0:
+        index_lines = index_lines[:limit]
 
-    for i, line in enumerate(tqdm(index_lines, desc="Extracting from WARC", total=len(index_lines)), 1):
+    if progress_bar:
+        index_lines = tqdm(index_lines, desc="Extracting from WARC", total=len(index_lines))
+
+    for i, line in enumerate(index_lines, 1):
         cols = line.split(" ", maxsplit=2)
 
         if len(cols) == 3:
@@ -202,6 +238,3 @@ def generate_caputure_objects_from_index(
         yield cdx_toolkit.CaptureObject(
             data=data, wb=None, warc_download_prefix=warc_download_prefix
         )
-
-        if limit > 0 and i >= limit:
-            break

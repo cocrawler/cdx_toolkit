@@ -46,5 +46,10 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         action="store_true",
         help="If enable, the CDX index is written as resource record to the WARC file",
     )
-
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Number of parallel workers for fetchin WARC records (default: 1, sequential processing)",
+    )
     return parser

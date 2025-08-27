@@ -16,12 +16,12 @@ from conftest import requires_aws_s3
 fixture_path = Path(__file__).parent / "data/warc_by_cdx"
 
 
-def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog):
+def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args=""):
     # test cli and check output
     index_path = fixture_path / "filtered_CC-MAIN-2024-30_cdx-00187.gz"
 
     main(
-        args=f"""-v --cc --limit 10  warc_by_cdx {str(index_path)} --write-index-as-record --prefix {str(base_prefix)}/TEST_warc_by_index --creator foo --operator bob --warc-download-prefix {warc_download_prefix}""".split()
+        args=f"""-v --cc --limit 10  warc_by_cdx {str(index_path)} --write-index-as-record --prefix {str(base_prefix)}/TEST_warc_by_index --creator foo --operator bob --warc-download-prefix {warc_download_prefix} {extra_args}""".split()
     )
 
     # Check log
@@ -29,7 +29,7 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog):
 
     # Validate extracted WARC
     warc_filename = "TEST_warc_by_index-000000.extracted.warc.gz"
-    warc_path = base_prefix + "/" + warc_filename
+    warc_path = str(base_prefix) + "/" + warc_filename
     resource_record = None
     info_record = None
     response_records = []
@@ -55,6 +55,9 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog):
 
 def test_cli_warc_by_cdx_over_http(tmpdir, caplog):
     assert_cli_warc_by_cdx("https://data.commoncrawl.org", base_prefix=tmpdir, caplog=caplog)
+
+def test_cli_warc_by_cdx_over_http_in_parallel(tmpdir, caplog):
+    assert_cli_warc_by_cdx("https://data.commoncrawl.org", base_prefix=tmpdir, caplog=caplog, extra_args=" --parallel 2")
 
 @requires_aws_s3
 def test_cli_warc_by_cdx_over_s3(tmpdir, caplog):
