@@ -112,9 +112,15 @@ def run_warcer_by_cdx(args, cmdline):
             logger.info("CDX resource recorded added")
 
         # The index file holds all the information to download specific objects (file, offset, length etc.)
-        for record in fetch_records_from_index(
-            index=index, warc_download_prefix=cdx.warc_download_prefix, n_parallel=n_parallel, limit=limit - records_n,
-        ):
+        index_lines = index.splitlines()
+        index_limit = limit - records_n
+
+        if index_limit > 0:
+            index_lines = index_lines[:index_limit]
+
+        for record in tqdm(fetch_records_from_index(
+            index_lines=index_lines, warc_download_prefix=cdx.warc_download_prefix, n_parallel=n_parallel
+        ), desc="Fetch and write WARC", total=len(index_lines)):
             writer.write_record(record)
             records_n += 1
 
@@ -179,14 +185,14 @@ def fetch_single_record(obj):
         return None
     
 def fetch_records_from_index(
-    index: str, warc_download_prefix=None, limit: int = 0, n_parallel: int = 1
+    index_lines: list[str], warc_download_prefix=None, limit: int = 0, n_parallel: int = 1
 ) -> Iterable[ArcWarcRecord]:
     """Fetch WARC records based on CDX index."""
     
     if n_parallel <= 1:
         # Sequential processing
         for obj in generate_caputure_objects_from_index(
-            index=index, warc_download_prefix=warc_download_prefix, limit=limit,
+            index_lines=index_lines, warc_download_prefix=warc_download_prefix, limit=limit,
         ):
             record = fetch_single_record(obj)
             if record is not None:
@@ -195,7 +201,7 @@ def fetch_records_from_index(
         # Parallel processing
         logger.info(f"Fetch records in parallel with {n_parallel=}")
         objects = list(generate_caputure_objects_from_index(
-            index=index, warc_download_prefix=warc_download_prefix, limit=limit,
+            index_lines=index_lines, warc_download_prefix=warc_download_prefix, limit=limit,
         ))
         
         with ThreadPoolExecutor(max_workers=n_parallel) as executor:
@@ -209,10 +215,9 @@ def fetch_records_from_index(
                     yield record
 
 def generate_caputure_objects_from_index(
-    index: str, warc_download_prefix=None, limit: int = 0, progress_bar: bool = False
+    index_lines: list[str], warc_download_prefix=None, limit: int = 0, progress_bar: bool = False
 ) -> Iterable[cdx_toolkit.CaptureObject]:
     """Read CDX index and generate CaptureObject objects."""
-    index_lines = index.splitlines()
 
     if limit > 0:
         index_lines = index_lines[:limit]
