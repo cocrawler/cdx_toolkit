@@ -185,6 +185,10 @@ def generate_caputure_objects_from_index(
         if len(cols) == 3:
             # TODO can there be a different format?
             # surt, timestamp, json_data = cols
+            # 
+            # CC seems to not follow the specification from https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+            # > The default first line of a CDX file is:
+            # > CDX A b e a m s c k r V v D d g M n
             data = json.loads(cols[2])
             data["timestamp"] = cols[1]
         else:
