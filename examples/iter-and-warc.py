@@ -32,3 +32,5 @@ for obj in cdx.iter(url, limit=10):
     writer.write_record(record)
 
     print(' wrote', url)
+
+writer.close()

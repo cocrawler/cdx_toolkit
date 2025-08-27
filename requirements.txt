@@ -5,6 +5,7 @@ requests==2.25.1
 warcio==1.7.4
 fsspec[s3]
 surt>=0.3.1
+tqdm>=4.67.1
 
 # used by Makefile
 pytest==6.2.4

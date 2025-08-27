@@ -12,12 +12,12 @@ from warcio.archiveiterator import ArchiveIterator
 fixture_path = Path(__file__).parent / "data/warc_by_cdx"
 
 
-def test_cli_warc_by_cdx(tmpdir, caplog):
+def assert_cli_warc_by_cdx(warc_download_prefix, tmpdir, caplog):
     # test cli and check output
     index_path = fixture_path / "filtered_CC-MAIN-2024-30_cdx-00187.gz"
 
     main(
-        args=f"""-v --cc --cc-mirror https://index.commoncrawl.org/ --limit 10  warc_by_cdx {str(index_path)} --prefix {str(tmpdir)}/TEST_warc_by_index --creator foo --operator bob""".split()
+        args=f"""-v --cc --limit 10  warc_by_cdx {str(index_path)} --prefix {str(tmpdir)}/TEST_warc_by_index --creator foo --operator bob --warc-download-prefix {warc_download_prefix}""".split()
     )
 
     # Check log
@@ -46,6 +46,15 @@ def test_cli_warc_by_cdx(tmpdir, caplog):
 
     assert info_record is not None
     assert "operator: bob" in info_record
+
+
+def test_cli_warc_by_cdx_over_http(tmpdir, caplog):
+    assert_cli_warc_by_cdx("https://data.commoncrawl.org", tmpdir, caplog)
+
+
+def test_cli_warc_by_cdx_over_s3(tmpdir, caplog):
+    assert_cli_warc_by_cdx("s3://commoncrawl", tmpdir, caplog)
+
 
 
 def test_get_caputure_objects_from_index():

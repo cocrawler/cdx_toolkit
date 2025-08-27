@@ -1,6 +1,7 @@
 from io import BytesIO
 import json
 import logging
+import os
 from pathlib import Path
 import sys
 from typing import Iterable
@@ -8,6 +9,7 @@ from typing import Iterable
 import fsspec
 
 
+from tqdm import tqdm
 from warcio import WARCWriter
 from warcio.recordloader import ArcWarcRecord
 
@@ -51,18 +53,30 @@ def run_warcer_by_cdx(args, cmdline):
         kwargs_writer["size"] = kwargs["size"]
         del kwargs["size"]
 
+    log_every_n = 10_000
+    limit = 0 if args.limit is None else args.limit
+    prefix_path = Path(args.prefix)
+
+    # make sure the base dir exists
+    os.makedirs(prefix_path.parent, exist_ok=True)
+
     writer = cdx_toolkit.warc.get_writer(
-        args.prefix, args.subprefix, info, **kwargs_writer
+        str(prefix_path), args.subprefix, info, **kwargs_writer
     )
 
     # Prepare index paths
+    index_fs, index_fs_path = fsspec.url_to_fs(args.index_path)
+
     if args.index_glob is None:
         # Read from a single index
         index_paths = [args.index_path]
     else:
         # Fetch multiple indicies via glob
-        index_fs, index_fs_path = fsspec.url_to_fs(args.index_path)
-        index_paths = sorted(index_fs.glob(args.index_glob))
+        full_glob = index_fs_path + args.index_glob
+
+        logger.info("glob pattern from %s (%s)", full_glob, index_fs.protocol)
+
+        index_paths = sorted(index_fs.glob(full_glob))
 
         logger.info(
             "glob pattern found %i index files in %s", len(index_paths), index_fs_path
@@ -75,14 +89,20 @@ def run_warcer_by_cdx(args, cmdline):
     # Iterate over index files
     records_n = 0
     for index_path in index_paths:
-        logger.info("filtering based on index from %s", index_path)
+        logger.info("filtering based on index from %s (%s)", index_path, index_fs.protocol)
 
         # Read index completely (for the WARC resource record)
-        index = get_index_from_path(index_path)
+        index = get_index_from_path(index_path, index_fs=index_fs)
+
+        if not index:
+            # skip empty indicies
+            continue
 
         # Write index as record to WARC
         # TODO at what position should the resource records be written?
         writer.write_record(get_index_record(index, index_path))
+
+        logger.info("index resource recorded added")
 
         # The index file holds all the information to download specific objects (file, offset, length etc.)
         for obj in generate_caputure_objects_from_index(
@@ -105,22 +125,30 @@ def run_warcer_by_cdx(args, cmdline):
             writer.write_record(record)
             records_n += 1
 
-            if args.limit > 0 and records_n >= args.limit:
-                logger.info("Limit reached at %i", args.limit)
+            if (records_n % log_every_n) == 0:
+                logger.info(f"Records completed: {records_n:,} from {index_path}")
+
+            if limit > 0 and records_n >= limit:
+                logger.info("Limit reached at %i", limit)
                 break
 
-        if args.limit > 0 and records_n >= args.limit:
+        if limit > 0 and records_n >= limit:
             # stop index loop
             break
 
         logger.info("Filtering completed (index file: %s)", index_path)
 
+    writer.close()
+
     logger.info("WARC records extracted: %i", records_n)
 
 
-def get_index_from_path(index_path: str | Path) -> str:
+def get_index_from_path(index_path: str | Path, index_fs: None | fsspec.AbstractFileSystem = None) -> str:
     """Fetch (and decompress) index content as string from local or remote path."""
-    index_fs, index_fs_path = fsspec.url_to_fs(index_path)
+    if index_fs is None:
+        index_fs, index_fs_path = fsspec.url_to_fs(index_path)
+    else:
+        index_fs_path = index_path
 
     compression = "gzip" if index_fs_path.endswith(".gz") else None
 
@@ -143,10 +171,15 @@ def get_index_record(
 
 
 def generate_caputure_objects_from_index(
-    index: str, warc_download_prefix=None, limit: int = 0
+    index: str, warc_download_prefix=None, limit: int = 0, progress_bar: bool = True
 ) -> Iterable[cdx_toolkit.CaptureObject]:
     """Read CDX index and generate CaptureObject objects."""
-    for i, line in enumerate(index.splitlines(), 1):
+    index_lines = index.splitlines()
+
+    # if progress_bar:
+    #     index_lines = tqdm(index_lines, desc="Extracting from WARC", total=len(index_lines))
+
+    for i, line in enumerate(tqdm(index_lines, desc="Extracting from WARC", total=len(index_lines)), 1):
         cols = line.split(" ", maxsplit=2)
 
         if len(cols) == 3:

@@ -5,6 +5,7 @@ import datetime
 import logging
 import sys
 
+import fsspec
 from warcio import WARCWriter
 from warcio.recordloader import ArcWarcRecordLoader
 from warcio.bufferedreaders import DecompressingBufferedReader
@@ -131,10 +132,19 @@ def fetch_warc_record(capture, warc_download_prefix):
     length = int(capture['length'])
 
     warc_url = warc_download_prefix + '/' + filename
-    headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
 
-    resp = myrequests_get(warc_url, headers=headers)
-    record_bytes = resp.content
+    if warc_url.startswith("s3:"):
+        # fetch from S3
+        with fsspec.open(warc_url, 'rb') as f:
+            f.seek(offset)
+            record_bytes = f.read(length)
+    else:
+        # fetch over HTTP
+        headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
+
+        resp = myrequests_get(warc_url, headers=headers)
+        record_bytes = resp.content
+
     stream = DecompressingBufferedReader(BytesIO(record_bytes))
     record = ArcWarcRecordLoader().parse_record_stream(stream)
 
@@ -152,6 +162,9 @@ def fetch_warc_record(capture, warc_download_prefix):
 
 
 class CDXToolkitWARCWriter:
+    """Writer for WARC files. 
+    
+    The fsspec package is used for writting to local or remote file system, e.g., S3."""
     def __init__(self, prefix, subprefix, info, size=1000000000, gzip=True, warc_version=None):
         self.prefix = prefix
         self.subprefix = subprefix
@@ -161,6 +174,9 @@ class CDXToolkitWARCWriter:
         self.warc_version = warc_version
         self.segment = 0
         self.writer = None
+        self.file_handler = None
+        self.file_system, self.file_system_prefix = fsspec.url_to_fs(self.prefix)
+        self._file_context = None
 
     def write_record(self, *args, **kwargs):
         if self.writer is None:
@@ -175,21 +191,21 @@ class CDXToolkitWARCWriter:
 
         self.writer.write_record(*args, **kwargs)
 
-        fsize = os.fstat(self.fd.fileno()).st_size
-        if fsize > self.size:
-            self.fd.close()
+        # Compare file size of current segment with max. file size
+        if self.file_handler and self.file_handler.tell() > self.size:
+            self._close_current_file()
             self.writer = None
             self.segment += 1
 
     def _unique_warc_filename(self):
         while True:
-            name = self.prefix + '-'
+            name = self.file_system_prefix + '-'
             if self.subprefix is not None:
                 name += self.subprefix + '-'
             name += '{:06d}'.format(self.segment) + '.extracted.warc'
             if self.gzip:
                 name += '.gz'
-            if os.path.exists(name):
+            if self.file_system.exists(name):
                 self.segment += 1
             else:
                 break
@@ -197,11 +213,23 @@ class CDXToolkitWARCWriter:
 
     def _start_new_warc(self):
         self.filename = self._unique_warc_filename()
-        self.fd = open(self.filename, 'wb')
+        self._file_context = self.file_system.open(self.filename, 'wb')
+        self.file_handler = self._file_context.__enter__()
         LOGGER.info('opening new warc file %s', self.filename)
-        self.writer = WARCWriter(self.fd, gzip=self.gzip, warc_version=self.warc_version)
+        self.writer = WARCWriter(self.file_handler, gzip=self.gzip, warc_version=self.warc_version)
         warcinfo = self.writer.create_warcinfo_record(self.filename, self.info)
         self.writer.write_record(warcinfo)
+
+    def _close_current_file(self):
+        # Close the handler of the current file (needed for fsspec abstraction)
+        if self._file_context is not None:
+            self._file_context.__exit__(None, None, None)
+            self._file_context = None
+            self.file_handler = None
+
+    def close(self):
+        # Close the WARC writer (this must be called at the end)
+        self._close_current_file()
 
 
 def get_writer(prefix, subprefix, info, **kwargs):

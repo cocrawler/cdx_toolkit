@@ -5,6 +5,7 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
+
 def get_version():
     return cdx_toolkit.__version__
 

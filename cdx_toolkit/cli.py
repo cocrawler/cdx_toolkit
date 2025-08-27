@@ -187,6 +187,7 @@ def warcer(cmd, cmdline):
             LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
         writer.write_record(record)
 
+    writer.close()
 
 
 def sizer(cmd, cmdline):
