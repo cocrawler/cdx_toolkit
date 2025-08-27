@@ -33,6 +33,7 @@ def run_warcer_by_cdx(args, cmdline):
     """
     cdx, kwargs = setup(args)
 
+    write_index_as_record = args.write_index_as_record
     ispartof = args.prefix
     if args.subprefix:
         ispartof += "-" + args.subprefix
@@ -55,10 +56,11 @@ def run_warcer_by_cdx(args, cmdline):
 
     log_every_n = 10_000
     limit = 0 if args.limit is None else args.limit
-    prefix_path = Path(args.prefix)
-
+    prefix_path = str(args.prefix)
+    prefix_fs, prefix_fs_path =  fsspec.url_to_fs(prefix_path)
+    
     # make sure the base dir exists
-    os.makedirs(prefix_path.parent, exist_ok=True)
+    prefix_fs.makedirs(prefix_fs._parent(prefix_fs_path), exist_ok=True)
 
     writer = cdx_toolkit.warc.get_writer(
         str(prefix_path), args.subprefix, info, **kwargs_writer
@@ -89,7 +91,7 @@ def run_warcer_by_cdx(args, cmdline):
     # Iterate over index files
     records_n = 0
     for index_path in index_paths:
-        logger.info("filtering based on index from %s (%s)", index_path, index_fs.protocol)
+        logger.info("filtering based on CDX from %s (%s)", index_path, index_fs.protocol)
 
         # Read index completely (for the WARC resource record)
         index = get_index_from_path(index_path, index_fs=index_fs)
@@ -100,9 +102,11 @@ def run_warcer_by_cdx(args, cmdline):
 
         # Write index as record to WARC
         # TODO at what position should the resource records be written?
-        writer.write_record(get_index_record(index, index_path))
+        if write_index_as_record:
+            logger.info("Writing CDX as resource record to WARC ... ")
+            writer.write_record(get_index_record(index, index_path))
 
-        logger.info("index resource recorded added")
+            logger.info("CDX resource recorded added")
 
         # The index file holds all the information to download specific objects (file, offset, length etc.)
         for obj in generate_caputure_objects_from_index(
@@ -145,6 +149,7 @@ def run_warcer_by_cdx(args, cmdline):
 
 def get_index_from_path(index_path: str | Path, index_fs: None | fsspec.AbstractFileSystem = None) -> str:
     """Fetch (and decompress) index content as string from local or remote path."""
+    logger.info("Fetching index from %s ...", index_path)
     if index_fs is None:
         index_fs, index_fs_path = fsspec.url_to_fs(index_path)
     else:

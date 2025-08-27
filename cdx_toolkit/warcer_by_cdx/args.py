@@ -41,5 +41,10 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         action="store",
         help="prefix for downloading content, automatically set for CC",
     )
+    parser.add_argument(
+        "--write-index-as-record",
+        action="store_true",
+        help="If enable, the CDX index is written as resource record to the WARC file",
+    )
 
     return parser

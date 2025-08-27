@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+
+import fsspec
 from cdx_toolkit.cli import main
 from cdx_toolkit.warcer_by_cdx import (
     generate_caputure_objects_from_index,
@@ -8,28 +10,31 @@ from cdx_toolkit.warcer_by_cdx import (
 import pytest
 from warcio.archiveiterator import ArchiveIterator
 
+from conftest import requires_aws_s3
+
 
 fixture_path = Path(__file__).parent / "data/warc_by_cdx"
 
 
-def assert_cli_warc_by_cdx(warc_download_prefix, tmpdir, caplog):
+def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog):
     # test cli and check output
     index_path = fixture_path / "filtered_CC-MAIN-2024-30_cdx-00187.gz"
 
     main(
-        args=f"""-v --cc --limit 10  warc_by_cdx {str(index_path)} --prefix {str(tmpdir)}/TEST_warc_by_index --creator foo --operator bob --warc-download-prefix {warc_download_prefix}""".split()
+        args=f"""-v --cc --limit 10  warc_by_cdx {str(index_path)} --write-index-as-record --prefix {str(base_prefix)}/TEST_warc_by_index --creator foo --operator bob --warc-download-prefix {warc_download_prefix}""".split()
     )
 
     # Check log
     assert "Limit reached" in caplog.text
 
     # Validate extracted WARC
-    warc_path = os.path.join(tmpdir, "TEST_warc_by_index-000000.extracted.warc.gz")
+    warc_filename = "TEST_warc_by_index-000000.extracted.warc.gz"
+    warc_path = base_prefix + "/" + warc_filename
     resource_record = None
     info_record = None
     response_records = []
 
-    with open(warc_path, 'rb') as stream:
+    with fsspec.open(warc_path, 'rb') as stream:
         for record in ArchiveIterator(stream):
             if record.rec_type == 'warcinfo':
                 info_record = record.content_stream().read().decode("utf-8")
@@ -49,11 +54,15 @@ def assert_cli_warc_by_cdx(warc_download_prefix, tmpdir, caplog):
 
 
 def test_cli_warc_by_cdx_over_http(tmpdir, caplog):
-    assert_cli_warc_by_cdx("https://data.commoncrawl.org", tmpdir, caplog)
+    assert_cli_warc_by_cdx("https://data.commoncrawl.org", base_prefix=tmpdir, caplog=caplog)
 
-
+@requires_aws_s3
 def test_cli_warc_by_cdx_over_s3(tmpdir, caplog):
-    assert_cli_warc_by_cdx("s3://commoncrawl", tmpdir, caplog)
+    assert_cli_warc_by_cdx("s3://commoncrawl", base_prefix=tmpdir, caplog=caplog)
+
+@requires_aws_s3
+def test_cli_warc_by_cdx_over_s3_to_s3(tmpdir, caplog):
+    assert_cli_warc_by_cdx("s3://commoncrawl", base_prefix="s3://commoncrawl-dev/cdx_toolkit/ci/test-outputs" + str(tmpdir), caplog=caplog)
 
 
 
