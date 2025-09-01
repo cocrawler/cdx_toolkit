@@ -3,9 +3,11 @@ from pathlib import Path
 
 import fsspec
 from cdx_toolkit.cli import main
-from cdx_toolkit.warcer_by_cdx import (
+from cdx_toolkit.warcer_by_cdx.cdx_utils import (
+    get_index_as_string_from_path,
+)
+from cdx_toolkit.warcer_by_cdx.fsspec_warcer import (
     generate_caputure_objects_from_index,
-    get_index_from_path,
 )
 import pytest
 from warcio.archiveiterator import ArchiveIterator
@@ -75,7 +77,7 @@ def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel(tmpdir, caplog):
 def test_get_caputure_objects_from_index():
     index_path = fixture_path / "filtered_CC-MAIN-2024-30_cdx-00187.gz"
 
-    for obj in generate_caputure_objects_from_index(get_index_from_path(index_path)):
+    for obj in generate_caputure_objects_from_index(get_index_as_string_from_path(index_path).splitlines()):
         break
 
     assert obj.data["length"] == "9754"
@@ -101,10 +103,10 @@ def test_generate_caputure_objects_invalid_cdx_line():
 def test_generate_caputure_objects_with_limit():
     # Test limit functionality in get_caputure_objects_from_index
     index_path = fixture_path / "filtered_CC-MAIN-2024-30_cdx-00187.gz"
-    index_content = get_index_from_path(index_path)
+    index_content = get_index_as_string_from_path(index_path)
     
     # Count objects with limit=2
-    objects = list(generate_caputure_objects_from_index(index_content, limit=2))
+    objects = list(generate_caputure_objects_from_index(index_content.splitlines(), limit=2))
     
     # Should stop after 2 objects
     assert len(objects) == 2

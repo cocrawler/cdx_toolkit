@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 packages = find_packages(include=['cdx_toolkit*'])
 
 # remember: keep requires synchronized with requirements.txt
-requires = ['requests', 'warcio', 'fsspec[s3]', 'surt', 'tqdm']
+requires = ['requests', 'warcio', 'fsspec[s3]', 'aioboto3', 'surt', 'tqdm']
 
 test_requirements = ['pytest', 'pytest-cov', 'boto3']
 

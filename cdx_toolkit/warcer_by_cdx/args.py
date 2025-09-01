@@ -52,4 +52,7 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         default=1,
         help="Number of parallel workers for fetchin WARC records (default: 1, sequential processing)",
     )
+    parser.add_argument(
+        "--implementation", type=str, default="fsspec", help="implementation (fsspec, aioboto3)"
+    )
     return parser
