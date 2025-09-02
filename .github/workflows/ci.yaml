@@ -25,6 +25,9 @@ jobs:
             EXTRA: true
             env:
               LOGLEVEL=DEBUG
+          - python-version: '3.8'
+            os: ubuntu-22.04  # oldest version on github actions
+            EXTRA: true
 
     steps:
       - name: checkout
