@@ -97,7 +97,7 @@ async def filter_warc_by_cdx_via_aioboto3_async(
     session = aioboto3.Session()
 
     async with session.client("s3", config=boto_cfg) as s3:
-        # Stage 1
+        # Fetch file paths and ranges (offset, length) from index files
         logger.info(
             "Starting lister, %d fetchers, %d consumers", num_fetchers, num_consumers
         )
@@ -111,7 +111,7 @@ async def filter_warc_by_cdx_via_aioboto3_async(
             )
         )
 
-        # Stage 2
+        # Read WARC records based on file paths and ranges
         fetchers = [
             asyncio.create_task(
                 fetcher(
@@ -127,19 +127,13 @@ async def filter_warc_by_cdx_via_aioboto3_async(
             for i in range(num_fetchers)
         ]
 
-        # Stage 3
+        # Write WARC records
         consumers = [
             asyncio.create_task(
                 consumer(
                     consumer_id=i,
                     item_queue=item_queue,
                     s3=s3,
-                    # shard_name_prefix=shard_name_prefix,
-                    # args.shard_extension,
-                    # args.dest_prefix,
-                    # args.dest_bucket,
-                    # args.content_type,
-                    # min_part_size=,
                     prefix_path=prefix_path,
                     max_attempts=max_attempts,
                     base_backoff_seconds=base_backoff_seconds,
