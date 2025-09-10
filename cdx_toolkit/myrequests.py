@@ -54,7 +54,15 @@ def update_next_fetch(hostname, next_fetch):
     retry_info[hostname]['next_fetch'] = next_fetch
 
 
-def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
+def myrequests_get(
+    url, 
+    params=None, 
+    headers=None, 
+    cdx=False, 
+    allow404=False, 
+    raise_error_after_n_errors: int = 1, 
+    raise_warning_after_n_errors: int = 10,
+    ):
     t = time.time()
 
     hostname = urlparse(url).hostname
@@ -90,8 +98,26 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
     while retry:
         try:
             LOGGER.debug('getting %s %r', url, params)
+            print("send get to ", url, params)
             resp = requests.get(url, params=params, headers=headers,
                                 timeout=(30., 30.), allow_redirects=False)
+            #####
+            # store requests input/output for test mocks
+            print("response received")
+            import json
+            with open("./request_mock_data.jsonl", "a") as f:
+                f.write(json.dumps({
+                    "method": "GET",
+                    "url": url, 
+                    "request_params": params, 
+                    "request_headers": headers, 
+                    "response_status_code": resp.status_code,
+                    "response_headers": resp.headers,
+                    "response_text": resp.text,
+                }) + "\n")
+            print("mock saved")
+            #####
+                
             if cdx and resp.status_code in {400, 404}:
                 # 400: ia html error page -- probably page= is too big -- not an error
                 # 404: pywb {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
@@ -132,10 +158,10 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
                 if dns_fatal(url):
                     raise ValueError('invalid hostname in url '+url) from None
 
-            if connect_errors > 100:
+            if connect_errors > raise_error_after_n_errors:
                 LOGGER.error(string)
                 raise ValueError(string)
-            if connect_errors > 10:
+            if connect_errors > raise_warning_after_n_errors:
                 LOGGER.warning(string)
             LOGGER.info('retrying after {:.2f}s for '.format(retry_max_sec)+str(e))
             time.sleep(retry_max_sec)  # notice the extra-long sleep

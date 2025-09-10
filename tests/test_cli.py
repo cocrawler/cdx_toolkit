@@ -41,7 +41,9 @@ def test_basics(capsys):
         # this might be commoncrawl.org./ or commoncrawl.org/
         assert 'commoncrawl.org' in line
 
+def test_basics_2(capsys):
     args = '--crawl 2 --limit 10 iter commoncrawl.org/*'.split()
+    print("args", args)
     main(args=args)
     out, err = capsys.readouterr()
 
