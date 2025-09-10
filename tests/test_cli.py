@@ -87,82 +87,228 @@ def multi_helper(t, capsys, caplog):
         assert len(caplog.records) > outputs['debug'], cmdline
 
 
-def test_multi_cc1(capsys, caplog):
-    tests = [
-        [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'linefgrep': 'commoncrawl.org'}],
-        [{'service': '--cc', 'mods': '--limit 11', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 11, 'linefgrep': 'commoncrawl.org'}],
-        [{'service': '--crawl 1', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/thisurlneverdidexist'},
-         {'count': 0}],  # runs slowly if we don't limit crawl to 1
-        [{'service': '--cc', 'mods': '--cc-mirror https://index.commoncrawl.org/ --limit 11', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 11, 'linefgrep': 'commoncrawl.org'}],
-        [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --all-fields'},
-         {'count': 10, 'linefgrep': 'digest '}],
-        [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --fields=digest,length,offset --csv'},
-         {'count': 11, 'csv': True}],
-        [{'service': '--cc', 'mods': '--limit 10 --filter=status:200', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'linefgrep': 'status 200'}],
-        [{'service': '--cc', 'mods': '--limit 10 --filter=!status:200 --filter=!status:404', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'linefgrepv': 'status 200'}],
-        [{'service': '--cc', 'mods': '--limit 10 --to=2017', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'linefgrep': 'timestamp 2017'}],
-        [{'service': '--cc', 'mods': '--limit 10 --from=2017 --to=2017', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'linefgrep': 'timestamp 2017'}],
-    ]
-
-    for t in tests:
-        multi_helper(t, capsys, caplog)
-        if slow_ci():
-            break
+@pytest.mark.parametrize(
+    "testdata",
+    [
+        # this is the test case before slow_ci -> break
+        pytest.param(
+            [
+                {
+                    "service": "--cc",
+                    "mods": "--limit 10",
+                    "cmd": "iter",
+                    "rest": "commoncrawl.org/*",
+                },
+                {"count": 10, "linefgrep": "commoncrawl.org"},
+            ],
+            id="limit 10",  
+        ),
+    ],
+)
+def test_multi_cc1(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
 
 
-def test_multi_cc2(capsys, caplog):
-    tests = [
-        [{'service': '--cc', 'mods': '--limit 3 --get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
-        [{'service': '--cc', 'mods': '--limit 3 --get --filter status:200 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 3, 'linefgrep': 'timestamp 20170'}],  # data-dependent, and kinda broken
-        [{'service': '--cc', 'mods': '--get --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/never-existed'},
-         {'count': 0}],
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@pytest.mark.parametrize(
+    "testdata",
+    [
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 11",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 11, "linefgrep": "commoncrawl.org"},
+        ],
+        [
+            {
+                "service": "--crawl 1",
+                "mods": "--limit 10",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/thisurlneverdidexist",
+            },
+            {"count": 0},
+        ],  # runs slowly if we don't limit crawl to 1
+        [
+            {
+                "service": "--cc",
+                "mods": "--cc-mirror https://index.commoncrawl.org/ --limit 11",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 11, "linefgrep": "commoncrawl.org"},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/* --all-fields",
+            },
+            {"count": 10, "linefgrep": "digest "},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/* --fields=digest,length,offset --csv",
+            },
+            {"count": 11, "csv": True},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10 --filter=status:200",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 10, "linefgrep": "status 200"},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10 --filter=!status:200 --filter=!status:404",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 10, "linefgrepv": "status 200"},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10 --to=2017",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 10, "linefgrep": "timestamp 2017"},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10 --from=2017 --to=2017",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 10, "linefgrep": "timestamp 2017"},
+        ],
+    ],
+)
+def test_multi_cc1_slow(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
 
-        [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --csv'},
-         {'count': 11, 'csv': True}],
-        [{'service': '--cc', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --jsonl'},
-         {'count': 10, 'jsonl': True}],
-        [{'service': '--cc', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'debug': 5}],
-    ]
 
-    for t in tests:
-        multi_helper(t, capsys, caplog)
-        if slow_ci():
-            break
+@pytest.mark.parametrize(
+    "testdata",
+    [
+        # this is the test case before slow_ci -> break
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 3 --get --closest=20170615",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 3, "linefgrep": "timestamp 20170"},
+        ],  # data-dependent, and kinda broken
+    ],
+)
+def test_multi_cc2(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
 
 
-def test_multi_ia(capsys, caplog):
-    tests = [
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@pytest.mark.parametrize(
+    "testdata",
+    [
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 3 --get --filter status:200 --closest=20170615",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 3, "linefgrep": "timestamp 20170"},
+        ],  # data-dependent, and kinda broken
+        [
+            {
+                "service": "--cc",
+                "mods": "--get --closest=20170615",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/never-existed",
+            },
+            {"count": 0},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/* --csv",
+            },
+            {"count": 11, "csv": True},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "--limit 10",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/* --jsonl",
+            },
+            {"count": 10, "jsonl": True},
+        ],
+        [
+            {
+                "service": "--cc",
+                "mods": "-v -v --limit 10",
+                "cmd": "iter",
+                "rest": "commoncrawl.org/*",
+            },
+            {"count": 10, "debug": 5},
+        ],
+    ],
+)
+def test_multi_cc2_slow(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
+
+
+@pytest.mark.parametrize(
+    "testdata",
+    [
         [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
-        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/thisurlneverdidexist'},
-         {'count': 0}],
-        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --all-fields'},
-         {'count': 10, 'linefgrep': 'mime ', 'linefgrepv': 'original '}],  # both of these are renamed fields
-        [{'service': '--ia', 'mods': '--get --limit 4 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 4, 'linefgrep': 'timestamp '}],  # returns 2008 ?! bug probably on my end
-        [{'service': '--ia', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
-         {'count': 10, 'debug': 5}],
+        # Disabled: minimize IA for ratelimit purposes
+        # [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/thisurlneverdidexist'},
+        #  {'count': 0}],
+        # [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/* --all-fields'},
+        #  {'count': 10, 'linefgrep': 'mime ', 'linefgrepv': 'original '}],  # both of these are renamed fields
+        # [{'service': '--ia', 'mods': '--get --limit 4 --closest=20170615', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+        #  {'count': 4, 'linefgrep': 'timestamp '}],  # returns 2008 ?! bug probably on my end
+        # [{'service': '--ia', 'mods': '-v -v --limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
+        #  {'count': 10, 'debug': 5}]
     ]
+)
+def test_multi_ia(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
 
-    for t in tests:
-        multi_helper(t, capsys, caplog)
-        break  # XXX minimize IA for ratelimit purposes
-
-
-def test_multi_misc_not_ia(capsys, caplog):
-    tests = [
+@pytest.mark.parametrize(
+    "testdata",
+    [
+        # this is the test case before slow_ci -> break
         [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'exception': ValueError}],
+    ]
+)
+def test_multi_misc_not_ia(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
+
+
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@pytest.mark.parametrize(
+    "testdata",
+    [
         [{'service': '-v -v --source https://example.com/404', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'exception': ValueError}],
 
@@ -179,28 +325,27 @@ def test_multi_misc_not_ia(capsys, caplog):
         [{'service': '', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'exception': ValueError}],
     ]
-
-    for t in tests:
-        multi_helper(t, capsys, caplog)
-        if slow_ci():
-            break
+)
+def test_multi_misc_not_ia_slow(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
 
 
-def test_multi_misc_ia(capsys, caplog):
-    tests = [
+@pytest.mark.parametrize(
+    "testdata",
+    [
         [{'service': '--source https://web.archive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},
          {'count': 10, 'linefgrep': 'commoncrawl.org'}],
-        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
-         {'count': 1, 'is_int': True}],
-        [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
-         {'count': 2}],
-        [{'service': '--ia', 'mods': '--from 20180101 --to 20180110 --limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org'},
-         {'count': 2}],
+        # Disabled: minimize IA for ratelimit reasons
+        # [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': 'commoncrawl.org/*'},
+        #  {'count': 1, 'is_int': True}],
+        # [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
+        #  {'count': 2}],
+        # [{'service': '--ia', 'mods': '--from 20180101 --to 20180110 --limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org'},
+        #  {'count': 2}],
     ]
-
-    for t in tests:
-        multi_helper(t, capsys, caplog)
-        break  # XXX minimize IA for ratelimit reasons
+)
+def test_multi_misc_ia(testdata, capsys, caplog):
+    multi_helper(testdata, capsys, caplog)
 
 
 def test_warc(tmpdir, caplog):

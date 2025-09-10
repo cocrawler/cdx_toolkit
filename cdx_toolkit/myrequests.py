@@ -125,7 +125,10 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
             connect_errors += 1
             string = '{} failures for url {} {!r}: {}'.format(connect_errors, url, params, str(e))
 
-            if 'Name or service not known' in string:
+            # Check for DNS errors with different operating systems
+            if (('Name or service not known' in string)  # linux
+                or ('nodename nor servname provided, or not known' in string)  # macos
+                or ('getaddrinfo failed' in string)):  # windows
                 if dns_fatal(url):
                     raise ValueError('invalid hostname in url '+url) from None
 

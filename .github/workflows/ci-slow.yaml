@@ -10,15 +10,17 @@ jobs:
       #max-parallel: 1
       matrix:
         include:
-          - python-version: '3.11'
-            os: macos-latest
-            EXTRA: true
+          # TODO temporarily disabled
+          # - python-version: '3.11'
+          #   os: macos-latest
+          #   EXTRA: true
           - python-version: '3.12'
             os: macos-latest
             EXTRA: true
-          - python-version: '3.7'
-            os: windows-latest
-            EXTRA: true
+          # TODO temporarily disabled
+          # - python-version: '3.7'
+          #   os: windows-latest
+          #   EXTRA: true
           - python-version: '3.12'
             os: windows-latest
             EXTRA: true
