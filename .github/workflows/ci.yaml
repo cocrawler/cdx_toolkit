@@ -18,21 +18,22 @@ jobs:
       max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
         python-version: [
-          # '3.7', '3.8', '3.9', '3.10', '3.11', # TODO temporarily disabled
+          # '3.7', 
+          '3.8', '3.9', '3.10', '3.11', # TODO temporarily disabled
           '3.12'
           ]
         os: [ubuntu-latest]
-        EXTRA: [false]  # used to force includes to get included
-        include:
-          - python-version: '3.12'
-            os: ubuntu-latest
-            EXTRA: true
-            env:
-              LOGLEVEL=DEBUG
-          # TODO temporarily disabled
-          # - python-version: '3.7'
-          #   os: ubuntu-20.04  # oldest version on github actions
-          #   EXTRA: true
+        # EXTRA: [false]  # used to force includes to get included
+        # include:
+        #   - python-version: '3.12'
+        #     os: ubuntu-latest
+        #     EXTRA: true
+        #     env:
+        #       LOGLEVEL=DEBUG
+        #   # TODO temporarily disabled
+        #   # - python-version: '3.7'
+        #   #   os: ubuntu-20.04  # oldest version on github actions
+        #   #   EXTRA: true
 
     steps:
       - name: checkout
