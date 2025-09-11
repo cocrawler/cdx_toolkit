@@ -98,25 +98,8 @@ def myrequests_get(
     while retry:
         try:
             LOGGER.debug('getting %s %r', url, params)
-            print("send get to ", url, params)
             resp = requests.get(url, params=params, headers=headers,
                                 timeout=(30., 30.), allow_redirects=False)
-            #####
-            # store requests input/output for test mocks
-            print("response received")
-            import json
-            with open("./request_mock_data.jsonl", "a") as f:
-                f.write(json.dumps({
-                    "method": "GET",
-                    "url": url, 
-                    "request_params": params, 
-                    "request_headers": headers, 
-                    "response_status_code": resp.status_code,
-                    "response_headers": resp.headers,
-                    "response_text": resp.text,
-                }) + "\n")
-            print("mock saved")
-            #####
                 
             if cdx and resp.status_code in {400, 404}:
                 # 400: ia html error page -- probably page= is too big -- not an error

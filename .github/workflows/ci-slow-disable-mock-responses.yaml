@@ -1,0 +1,50 @@
+# This CI runs test with disabled mocked responses, i.e., all unit send requests to remote servers (CC, IA, ...) leading potential rate limiting.
+name: CI-slow-disable-mock-response
+
+
+on: workflow_dispatch
+
+jobs:
+  unit-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      #max-parallel: 1
+      matrix:
+        include:
+          # TODO temporarily disabled
+          # - python-version: '3.11'
+          #   os: macos-latest
+          #   EXTRA: true
+          - python-version: '3.12'
+            os: macos-latest
+            EXTRA: true
+          # TODO temporarily disabled
+          # - python-version: '3.7'
+          #   os: windows-latest
+          #   EXTRA: true
+          - python-version: '3.12'
+            os: windows-latest
+            EXTRA: true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install setuptools on python 3.12+
+        if: ${{ matrix.python-version >= '3.12' }}
+        run: |
+          pip install setuptools
+
+      - name: Install cdx_toolkit
+        run: pip install .[test]
+
+      - name: Run tests
+        run: |
+          make test_coverage
+        env:
+          DISABLE_MOCK_RESPONSES: '1'
