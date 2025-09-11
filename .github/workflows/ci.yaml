@@ -23,17 +23,16 @@ jobs:
           ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
-        # TODO temporarily disabled
-        # include:
-        #   - python-version: '3.12'
-        #     os: ubuntu-latest
-        #     EXTRA: true
-        #     env:
-        #       LOGLEVEL=DEBUG
-        #   # TODO temporarily disabled
-        #   # - python-version: '3.7'
-        #   #   os: ubuntu-20.04  # oldest version on github actions
-        #   #   EXTRA: true
+        include:
+          - python-version: '3.12'
+            os: ubuntu-latest
+            EXTRA: true
+            env:
+              LOGLEVEL=DEBUG
+          # TODO temporarily disabled
+          # - python-version: '3.7'
+          #   os: ubuntu-20.04  # oldest version on github actions
+          #   EXTRA: true
 
     steps:
       - name: checkout
@@ -55,7 +54,7 @@ jobs:
       - name: Run tests
         run: |
           make test_coverage
-        env:
+        env:  # TODO added
           LOGLEVEL=DEBUG
 
       - name: Upload coverage to Codecov
