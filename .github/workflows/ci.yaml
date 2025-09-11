@@ -55,7 +55,7 @@ jobs:
         run: |
           make test_coverage
         env:  # TODO added
-          LOGLEVEL=DEBUG
+          LOGLEVEL: DEBUG
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
