@@ -17,13 +17,23 @@ def flexible_param_matcher(expected_params):
         expected.pop('from', None)
         
         # Cast all values to strings for consistent comparison
-        actual_params = {k: str(v) for k, v in actual_params.items()}
-        expected = {k: str(v) for k, v in expected.items()}
+        # Handle list values specially - if expected is a list with one item, match against the string value
+        actual_params_normalized = {}
+        expected_normalized = {}
         
-        if actual_params == expected:
+        for k, v in actual_params.items():
+            actual_params_normalized[k] = str(v)
+            
+        for k, v in expected.items():
+            if isinstance(v, list) and len(v) == 1:
+                expected_normalized[k] = str(v[0])
+            else:
+                expected_normalized[k] = str(v)
+        
+        if actual_params_normalized == expected_normalized:
             return True, "Params match (ignoring 'from' parameter)"
         else:
-            return False, f"Params don't match: {actual_params} != {expected}"
+            return False, f"Params don't match: {actual_params_normalized} != {expected_normalized}"
     return match
 
 def mock_response_from_jsonl(mock_data_name, mock_data_dir: str | None = None):
