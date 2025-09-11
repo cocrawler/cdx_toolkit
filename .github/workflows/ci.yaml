@@ -13,7 +13,8 @@ jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      # fail-fast: false  # TODO changed
+      fail-fast: true
       max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
         python-version: [
@@ -22,16 +23,17 @@ jobs:
           ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
-        include:
-          - python-version: '3.12'
-            os: ubuntu-latest
-            EXTRA: true
-            env:
-              LOGLEVEL=DEBUG
-          # TODO temporarily disabled
-          # - python-version: '3.7'
-          #   os: ubuntu-20.04  # oldest version on github actions
-          #   EXTRA: true
+        # TODO temporarily disabled
+        # include:
+        #   - python-version: '3.12'
+        #     os: ubuntu-latest
+        #     EXTRA: true
+        #     env:
+        #       LOGLEVEL=DEBUG
+        #   # TODO temporarily disabled
+        #   # - python-version: '3.7'
+        #   #   os: ubuntu-20.04  # oldest version on github actions
+        #   #   EXTRA: true
 
     steps:
       - name: checkout
@@ -53,6 +55,8 @@ jobs:
       - name: Run tests
         run: |
           make test_coverage
+        env:
+          LOGLEVEL=DEBUG
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

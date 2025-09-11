@@ -10,7 +10,7 @@ def flexible_param_matcher(expected_params):
     """Custom matcher that ignores dynamic 'from' parameter timestamps and casts all values to strings"""
     def match(request):
         actual_params = dict(request.params or {})
-        expected = dict(expected_params)
+        expected = dict(expected_params or {})
         
         # Remove 'from' parameter for comparison as it's dynamically generated
         actual_params.pop('from', None)
@@ -42,6 +42,7 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: str | None = None):
             "response_text": resp.text,
         }) + "\n")
     ```
+    Make sure to empty the cache before collecting mock data (~/.cache/cdx_toolkit/).
 
     The mock data can then be stored as fixture file in "tests/data/mock_responses/<test module>/<test func>.jsonl".    
     """
@@ -77,6 +78,9 @@ def conditional_mock_responses(func):
     
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        # Load mock data for index calls
+        mock_response_from_jsonl("cc_collinfo")
+
         # Auto-load mock data based on function name
         mock_response_from_jsonl(func.__name__, func.__module__.split(".")[-1])
         return func(*args, **kwargs)
