@@ -348,7 +348,6 @@ def test_multi_ia(capsys, caplog):
     multi_helper(testdata, capsys, caplog)
 
 
-@conditional_mock_responses
 def test_multi_misc_not_ia(capsys, caplog):
     # this is the test case before slow_ci -> break
     testdata = [{'service': '-v -v --source https://web.arc4567hive.org/cdx/search/cdx', 'mods': '--limit 10', 'cmd': 'iter', 'rest': 'commoncrawl.org/*'},

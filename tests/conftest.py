@@ -22,9 +22,13 @@ def flexible_param_matcher(expected_params):
         expected_normalized = {}
         
         for k, v in actual_params.items():
-            actual_params_normalized[k] = str(v)
+            if v is not None:
+                actual_params_normalized[k] = str(v)
             
         for k, v in expected.items():
+            # Skip parameters with None values - they represent optional parameters
+            if v is None or str(v) == 'None':
+                continue
             if isinstance(v, list) and len(v) == 1:
                 expected_normalized[k] = str(v[0])
             else:
