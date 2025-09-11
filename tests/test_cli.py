@@ -29,7 +29,7 @@ def slow_ci():
     v = sys.version_info
     if os.environ.get('GITHUB_ACTION') and v.major == 3 and v.minor != 12:
         LOGGER.error('limiting pytest because GITHUB_ACTION and py != 3.12')
-        return False
+        return True
     LOGGER.error('full pytest')
 
 
@@ -417,43 +417,67 @@ def test_multi_misc_ia(capsys, caplog):
     multi_helper(testdata, capsys, caplog)
 
 
-def test_warc(tmpdir, caplog):
+def warc_prefix_test_helper(tmpdir, prefix: str):
     # crash testing only, so far
-
     base = ' --limit 1 warc commoncrawl.org/*'
 
-    prefixes = (  # note limit 2 below
-        '-v -v --cc',  # only case run by slow_cli
-        '--ia',
-        '--cc --cc-mirror https://index.commoncrawl.org/',
-        '--source https://web.archive.org/cdx/search/cdx --wb https://web.archive.org/web',
-    )
-    suffixes = (
-        '--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar',
-        '--prefix EMPTY --size 1 --url-fgrep bar',
-        '--prefix EMPTY --size 1 --url-fgrepv common'
-    )
+    with tmpdir.as_cwd():
+        cmdline = prefix + base
+        if 'cc' in cmdline:
+            cmdline = cmdline.replace(' 1', ' 2')
+        print(cmdline, file=sys.stderr)
+        args = cmdline.split()
+        main(args=args)
+
+
+def test_warc_prefix_1(tmpdir):
+    warc_prefix_test_helper(tmpdir, '-v -v --cc')
+
+
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+def test_warc_prefix_2(tmpdir):
+    warc_prefix_test_helper(tmpdir, '--ia')
+
+
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+def test_warc_prefix_3(tmpdir):
+    warc_prefix_test_helper(tmpdir, '--cc --cc-mirror https://index.commoncrawl.org/')
+
+
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+def test_warc_prefix_4(tmpdir):
+    warc_prefix_test_helper(tmpdir, '--source https://web.archive.org/cdx/search/cdx --wb https://web.archive.org/web')
+
+
+def warc_suffix_test_helper(tmpdir, suffix: str):
+    # crash testing only, so far
+    base = ' --limit 1 warc commoncrawl.org/*'
+    prefix = '-v -v --cc'
 
     with tmpdir.as_cwd():
-        for p in prefixes:
-            cmdline = p + base
-            if 'cc' in cmdline:
-                cmdline = cmdline.replace(' 1', ' 2')
-            print(cmdline, file=sys.stderr)
-            args = cmdline.split()
-            main(args=args)
-            if slow_ci():
-                break
+        cmdline = prefix + base + ' ' + suffix
+        print(cmdline, file=sys.stderr)
+        args = cmdline.split()
+        main(args=args)
 
-        for s in suffixes:
-            cmdline = prefixes[0] + base + ' ' + s
-            print(cmdline, file=sys.stderr)
-            args = cmdline.split()
-            main(args=args)
-            if slow_ci():
-                break
 
-        assert True
+def test_warc_suffix_1(tmpdir):
+    warc_suffix_test_helper(tmpdir, '--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar')
+
+
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+def test_warc_suffix_2(tmpdir):
+    warc_suffix_test_helper(tmpdir, '--prefix EMPTY --size 1 --url-fgrep bar')
+
+
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+def test_warc_suffix_3(tmpdir):
+    warc_suffix_test_helper(tmpdir, '--prefix EMPTY --size 1 --url-fgrepv common')
+
+
+@pytest.mark.skipif(slow_ci(), reason="Slow CI")
+def test_warc_suffix_4(tmpdir):
+    warc_suffix_test_helper(tmpdir, '--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar')
 
 
 def one_ia_corner(tmpdir, cmdline):

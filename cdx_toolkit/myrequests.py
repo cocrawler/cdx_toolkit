@@ -100,15 +100,15 @@ def myrequests_get(
             LOGGER.debug('getting %s %r', url, params)
             resp = requests.get(url, params=params, headers=headers,
                                 timeout=(30., 30.), allow_redirects=False)
-            # import json
-            # with open("./request_mock_data.jsonl", "a") as f:
-            #     f.write(json.dumps({
-            #         "method": "GET",
-            #         "url": url, 
-            #         "request_params": params, 
-            #         "response_status_code": resp.status_code,
-            #         "response_text": resp.text,
-            #     }) + "\n")
+            import json
+            with open("./request_mock_data.jsonl", "a") as f:
+                f.write(json.dumps({
+                    "method": "GET",
+                    "url": url, 
+                    "request_params": params, 
+                    "response_status_code": resp.status_code,
+                    "response_text": resp.text,
+                }) + "\n")
             if cdx and resp.status_code in {400, 404}:
                 # 400: ia html error page -- probably page= is too big -- not an error
                 # 404: pywb {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
