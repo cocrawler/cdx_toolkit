@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import functools
 import responses
+import gzip
+import base64
 
 TEST_DATA_BASE_PATH = Path(__file__).parent / "data"
 
@@ -72,12 +74,19 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: str | None = None):
         for line in f:
             if line:  # skip empty lines
                 mock_data = json.loads(line)
+
+                if mock_data["url"].endswith(".gz"):
+                    # decode base64 string to gzipped bytes
+                    body =  base64.b64decode(mock_data["response_text"].encode('utf-8'))
+                else:
+                    body = mock_data["response_text"]
+
                 responses.add(
                     mock_data["method"],
                     mock_data["url"],
                     status=mock_data["response_status_code"],
                     match=[flexible_param_matcher(mock_data["request_params"])],
-                    body=mock_data["response_text"],
+                    body=body,
                 )
 
 

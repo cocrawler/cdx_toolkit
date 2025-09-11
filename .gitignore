@@ -4,3 +4,4 @@ __pycache__
 cdx_toolkit.egg-info
 .coverage
 .eggs/
+tmp/

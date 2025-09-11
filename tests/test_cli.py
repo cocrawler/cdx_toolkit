@@ -430,21 +430,25 @@ def warc_prefix_test_helper(tmpdir, prefix: str):
         main(args=args)
 
 
+@conditional_mock_responses
 def test_warc_prefix_1(tmpdir):
     warc_prefix_test_helper(tmpdir, '-v -v --cc')
 
 
 @pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@conditional_mock_responses
 def test_warc_prefix_2(tmpdir):
     warc_prefix_test_helper(tmpdir, '--ia')
 
 
 @pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@conditional_mock_responses
 def test_warc_prefix_3(tmpdir):
     warc_prefix_test_helper(tmpdir, '--cc --cc-mirror https://index.commoncrawl.org/')
 
 
 @pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@conditional_mock_responses
 def test_warc_prefix_4(tmpdir):
     warc_prefix_test_helper(tmpdir, '--source https://web.archive.org/cdx/search/cdx --wb https://web.archive.org/web')
 
@@ -461,21 +465,25 @@ def warc_suffix_test_helper(tmpdir, suffix: str):
         main(args=args)
 
 
+@conditional_mock_responses
 def test_warc_suffix_1(tmpdir):
     warc_suffix_test_helper(tmpdir, '--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar')
 
 
 @pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@conditional_mock_responses
 def test_warc_suffix_2(tmpdir):
     warc_suffix_test_helper(tmpdir, '--prefix EMPTY --size 1 --url-fgrep bar')
 
 
 @pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@conditional_mock_responses
 def test_warc_suffix_3(tmpdir):
     warc_suffix_test_helper(tmpdir, '--prefix EMPTY --size 1 --url-fgrepv common')
 
 
 @pytest.mark.skipif(slow_ci(), reason="Slow CI")
+@conditional_mock_responses
 def test_warc_suffix_4(tmpdir):
     warc_suffix_test_helper(tmpdir, '--prefix FOO --subprefix BAR --size 1 --creator creator --operator bob --url-fgrep common --url-fgrepv bar')
 

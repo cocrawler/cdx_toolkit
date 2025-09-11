@@ -101,14 +101,32 @@ def myrequests_get(
             resp = requests.get(url, params=params, headers=headers,
                                 timeout=(30., 30.), allow_redirects=False)
             import json
-            with open("./request_mock_data.jsonl", "a") as f:
-                f.write(json.dumps({
-                    "method": "GET",
-                    "url": url, 
-                    "request_params": params, 
-                    "response_status_code": resp.status_code,
-                    "response_text": resp.text,
-                }) + "\n")
+            import os
+            import base64
+            from pathlib import Path
+
+            if "PYTEST_CURRENT_TEST" in os.environ:
+                # Format: "path/to/test_file.py::TestClass::test_method (setup)"
+                test_info = os.environ["PYTEST_CURRENT_TEST"]
+                test_name = test_info.split("::")[-1].split()[0]
+                base_path = Path(__file__).parent.parent / "tmp/request_mock_data"
+
+                os.makedirs(base_path, exist_ok=True)
+                with open(base_path / f"{test_name}.jsonl", "a") as f:
+                    
+                    if url.endswith(".gz"):
+                        # encode bytes as base64 string
+                        response_text = base64.b64encode(resp.content).decode('utf-8')
+                    else: 
+                        response_text = resp.text
+                    
+                    f.write(json.dumps({
+                        "method": "GET",
+                        "url": url, 
+                        "request_params": params, 
+                        "response_status_code": resp.status_code,
+                        "response_text": response_text,
+                    }) + "\n")
             if cdx and resp.status_code in {400, 404}:
                 # 400: ia html error page -- probably page= is too big -- not an error
                 # 404: pywb {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
