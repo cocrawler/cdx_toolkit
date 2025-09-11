@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import functools
+from typing import Optional
 import responses
 import gzip
 import base64
@@ -42,7 +43,7 @@ def flexible_param_matcher(expected_params):
             return False, f"Params don't match: {actual_params_normalized} != {expected_normalized}"
     return match
 
-def mock_response_from_jsonl(mock_data_name, mock_data_dir: str | None = None):
+def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None):
     """Load mock response data from JSONL file. Response match based on URL and request params.
     
     To collect mock data, add this code snippet to the `myrequests.py` after the requests.get call:
