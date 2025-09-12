@@ -23,8 +23,19 @@ jobs:
           '3.12'
           ]
         os: [ubuntu-latest]
-        # EXTRA: [false]  # used to force includes to get included
-        # include:
+        EXTRA: [false]  # used to force includes to get included
+        include:
+          - python-version: '3.8'
+            os: ubuntu-22.04  # oldest version on github actions
+            EXTRA: true
+          
+          - python-version: '3.12'
+            os: macos-latest
+            EXTRA: true
+          
+          - python-version: '3.12'
+            os: windows-latest
+            EXTRA: true
         #   - python-version: '3.12'
         #     os: ubuntu-latest
         #     EXTRA: true
