@@ -8,7 +8,7 @@ import pytest
 
 from cdx_toolkit.cli import main
 
-from .conftest import conditional_mock_responses
+from tests.conftest import conditional_mock_responses
 
 
 LOGGER = logging.getLogger(__name__)
