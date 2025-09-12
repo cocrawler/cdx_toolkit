@@ -44,6 +44,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Get Runner IP
+        run: |
+          echo "Runner IP: $(curl -s https://ipinfo.io/ip)"
+          
       - name: Install setuptools on python 3.12+
         if: ${{ matrix.python-version >= '3.12' }}
         run: |
