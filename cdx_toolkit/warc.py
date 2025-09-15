@@ -42,19 +42,28 @@ def fake_wb_warc(url, wb_url, resp, capture):
         url = capture['url']
         timestamp = capture['timestamp']
         if status_code == 200 and capture['status'] == '-':
-            LOGGER.warning('revisit record vivified by wayback for %s %s',
-                           url, timestamp)
+            LOGGER.warning(
+                "revisit record vivified by wayback for %s %s", url, timestamp
+            )
         elif status_code == 200 and capture['status'].startswith('3'):
-            LOGGER.warning('redirect capture came back 200, same-surt same-timestamp capture? %s %s',
-                           url, timestamp)
+            LOGGER.warning(
+                "redirect capture came back 200, same-surt same-timestamp capture? %s %s",
+                url,
+                timestamp,
+            )
         elif status_code == 302 and capture['status'].startswith('3'):
             # this is OK, wayback always sends a temporary redir
             status_code = int(capture['status'])
             if status_code != resp.status_code and status_code in http_status_text:
                 status_reason = http_status_text[status_code]
         else:  # pragma: no cover
-            LOGGER.warning('surprised that status code is now=%d orig=%s %s %s',
-                           status_code, capture['status'], url, timestamp)
+            LOGGER.warning(
+                "surprised that status code is now=%d orig=%s %s %s",
+                status_code,
+                capture["status"],
+                url,
+                timestamp,
+            )
 
     http_headers = []
     http_date = None
@@ -89,10 +98,13 @@ def fake_wb_warc(url, wb_url, resp, capture):
     content_bytes = resp.content
 
     writer = WARCWriter(None)  # needs warc_version here?
-    return writer.create_warc_record(url, 'response',
-                                     payload=BytesIO(content_bytes),
-                                     http_headers=http_headers,
-                                     warc_headers_dict=warc_headers_dict)
+    return writer.create_warc_record(
+        url,
+        "response",
+        payload=BytesIO(content_bytes),
+        http_headers=http_headers,
+        warc_headers_dict=warc_headers_dict,
+    )
 
 
 def fetch_wb_warc(capture, wb, modifier='id_'):
