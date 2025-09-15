@@ -103,6 +103,7 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None
                     status=mock_data["response_status_code"],
                     match=[flexible_param_matcher(mock_data["request_params"])],
                     body=body,
+                    headers=mock_data.get("response_headers", None),
                 )
 
 
@@ -112,9 +113,10 @@ def conditional_mock_responses(func):
     The mock data is automatically loaded from JSONL file from the tests/data directory and dependinng on the test module and test function.
     """
 
-    if os.environ.get("DISABLE_MOCK_RESPONSES"):
-        # If this flag is detected, all mocking is disabled
-        return func
+    # If the flag DISABLE_MOCK_RESPONSES is not detected, response mocking remains enabled
+    if not os.environ.get("DISABLE_MOCK_RESPONSES"):
+        # Add responses.activate
+        func = add_mock_responses(func)
 
     if os.environ.get("SAVE_MOCK_RESPONSES"):
         # Mock data is saved by capturing output from requests.get
@@ -123,9 +125,8 @@ def conditional_mock_responses(func):
             with patch('requests.get', side_effect=_custom_behavior_with_original(requests.get)):
                 return func(*args, **kwargs)
         return wrapper
-
-    # Add responses.activate
-    return add_mock_responses(func)
+    
+    return func
 
 
 def save_response_as_mock_data(test_info: str, request_url: str, request_params: Dict, resp, output_base_dir: str):
@@ -153,6 +154,7 @@ def save_response_as_mock_data(test_info: str, request_url: str, request_params:
             "request_params": request_params, 
             "response_status_code": resp.status_code,
             "response_text": response_text,
+            "response_headers": dict(resp.headers),
         }) + "\n")
 
 
@@ -189,7 +191,7 @@ def add_mock_responses(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Load mock data for index calls (same for many test functions)
-        mock_response_from_jsonl("cc_collinfo")
+        mock_response_from_jsonl("test_get_cc_endpoints", "test_cc")
 
         # Auto-load mock data based on function name
         mock_response_from_jsonl(func.__name__, func.__module__.split(".")[-1])
