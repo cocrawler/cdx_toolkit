@@ -97,13 +97,19 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None
                 else:
                     body = mock_data["response_text"]
 
+                headers = mock_data.get("response_headers", {})
+
+                # Remove encoding header
+                if "Content-Encoding" in headers:
+                    del headers["Content-Encoding"]
+
                 responses.add(
                     mock_data["method"],
                     mock_data["url"],
                     status=mock_data["response_status_code"],
                     match=[flexible_param_matcher(mock_data["request_params"])],
                     body=body,
-                    headers=mock_data.get("response_headers", None),
+                    headers=headers,
                 )
 
 
