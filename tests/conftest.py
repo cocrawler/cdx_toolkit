@@ -56,14 +56,24 @@ def flexible_param_matcher(expected_params):
 def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None):
     """Load mock response data from JSONL file. Response match based on URL and request params.
 
-    To collect mock data, set the enviornment variable when running the tests:
+    By default, all remote requests are mocked. To change this behaviour and actually call remote APIs 
+    (if you run this from a whitelisted IP address), the following environment variable can be set:
+    
     ```bash
-    # set environment variable
+    export DISABLE_MOCK_RESPONSES=1
+    ```
+
+    If the remote APIs change, new mock data can be semi-automatically collected by setting another 
+    environment variable, running corresponding unit tests, and overwriting existing mock data in `tests/data/mock_responses`:
+
+    ```bash
+    # set environment variable (DISABLE_MOCK_RESPONSES should not be set)
     export SAVE_MOCK_RESPONSES=./tmp/mock_responses
     
-    # run the test for what mock data should be saved to $SAVE_MOCK_RESPONSES
-    pytest tests/test_cli.py::test_basic
+    # run the test for what mock data should be saved to $SAVE_MOCK_RESPONSES/<test_file>/<test_func>.jsonl
+    pytest tests/test_cli.py::test_basics
     ```
+    
     Make sure to empty the cache before collecting mock data (~/.cache/cdx_toolkit/).
 
     The mock data can then be stored as fixture file in "tests/data/mock_responses/<test module>/<test func>.jsonl".

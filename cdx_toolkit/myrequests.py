@@ -60,8 +60,9 @@ def myrequests_get(
     headers=None, 
     cdx=False, 
     allow404=False, 
-    raise_error_after_n_errors: int = 1, 
+    raise_error_after_n_errors: int = 100, 
     raise_warning_after_n_errors: int = 10,
+    retry_max_sec: int = 60,
     ):
     t = time.time()
 
@@ -92,7 +93,6 @@ def myrequests_get(
 
     retry = True
     retry_sec = 2 * minimum_interval
-    retry_max_sec = 60
     retries = 0
     connect_errors = 0
     while retry:
