@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from io import BytesIO
-from typing import Iterable
+from typing import Iterable, Optional, Union
 
 import fsspec
 import logging
@@ -14,7 +14,10 @@ from warcio.recordloader import ArcWarcRecord
 logger = logging.getLogger(__name__)
 
 
-def get_index_as_string_from_path(index_path: str | Path, index_fs: None | fsspec.AbstractFileSystem = None) -> str:
+def get_index_as_string_from_path(
+        index_path: Union[str, Path], 
+        index_fs: Optional[fsspec.AbstractFileSystem] = None
+    ) -> str:
     """Fetch (and decompress) index content as string from local or remote path."""
     logger.info('Fetching index from %s ...', index_path)
     if index_fs is None:

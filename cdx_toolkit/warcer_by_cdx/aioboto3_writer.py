@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from cdx_toolkit.warcer_by_cdx.aioboto3_utils import (
     mpu_abort,
@@ -18,7 +18,7 @@ class ShardWriter:
         self,
         shard_key: str,
         dest_bucket: str,
-        content_type: str | None,
+        content_type: Optional[str],
         min_part_size: int,
         max_attempts: int,
         base_backoff_seconds: float,
@@ -29,7 +29,7 @@ class ShardWriter:
         self.min_part_size = min_part_size
         self.max_attempts = max_attempts
         self.base_backoff_seconds = base_backoff_seconds
-        self.upload_id: str | None = None
+        self.upload_id: Optional[str] = None
         self.part_number = 1
         self.parts: List[Dict] = []
         self.buffer = bytearray()
@@ -63,8 +63,6 @@ class ShardWriter:
             self.part_number += 1
 
     async def write(self, s3, data: bytes):
-        # self.buffer.extend(transform(data))
-        # TODO write proper WARC record?
         self.buffer.extend(data)
         await self._flush_full_parts(s3)
 

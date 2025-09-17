@@ -2,8 +2,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-
-import logging
+from typing import Dict, List, Optional
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
@@ -135,7 +134,7 @@ async def mpu_create(
     bucket: str,
     key: str,
     *,
-    content_type: str | None,
+    content_type: Optional[str],
     max_attempts: int,
     base_backoff_seconds: float,
 ):
@@ -181,7 +180,7 @@ async def mpu_complete(
     bucket: str,
     key: str,
     upload_id: str,
-    parts: list[dict],
+    parts: List[Dict],
     max_attempts: int,
     base_backoff_seconds: float,
 ):

@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 import cdx_toolkit
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,13 +17,13 @@ def filter_warc_by_cdx_via_fsspec(
     index_paths: List[str],
     prefix_path: str,
     writer_info: Dict,
-    writer_subprefix: str | None = None,
+    writer_subprefix: Optional[str] = None,
     write_index_as_record: bool = False,
     limit: int = 0,
     log_every_n: int = 1000,
-    warc_download_prefix: str | None = None,
+    warc_download_prefix: Optional[str] = None,
     n_parallel: int = 1,
-    writer_kwargs: Dict | None = None,
+    writer_kwargs: Optional[Dict] = None,
 ) -> int:
     writer = cdx_toolkit.warc.get_writer(
         prefix_path,

@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Union
 import logging
 from abc import ABC, abstractmethod
 
@@ -9,7 +9,7 @@ class Matcher(ABC):
     """Base class for all matching approaches."""
 
     @abstractmethod
-    def __init__(self, prefixes: Tuple[str] | List[str]):
+    def __init__(self, prefixes: Union[Tuple[str], List[str]]):
         """Initialize the matcher with a list of prefixes."""
         pass
 
@@ -19,7 +19,7 @@ class Matcher(ABC):
         pass
 
     @staticmethod
-    def validate_prefixes(prefixes: Tuple[str] | List[str]) -> Tuple[str]:
+    def validate_prefixes(prefixes: Union[Tuple[str], List[str]]) -> Tuple[str]:
         valid_prefixes = []
 
         for prefix in prefixes:
@@ -46,7 +46,7 @@ class TrieNode:
 class TrieMatcher(Matcher):
     """Trie-based matching approach."""
 
-    def __init__(self, prefixes: Tuple[str] | List[str]):
+    def __init__(self, prefixes: Union[Tuple[str], List[str]]):
         logger.info(f'Building trie matcher based on {len(prefixes):,} inputs')
         self.root = self._build_trie(self.validate_prefixes(prefixes))
 
@@ -77,7 +77,7 @@ class TrieMatcher(Matcher):
 class TupleMatcher(Matcher):
     """Tuple-based matching approach using the built-in method `str.startswith`."""
 
-    def __init__(self, prefixes: Tuple[str] | List[str]):
+    def __init__(self, prefixes: Union[Tuple[str], List[str]]):
         logger.info(f'Building Tuple matcher based on {len(prefixes):,} inputs')
         self.prefixes_Tuple = self.validate_prefixes(prefixes)
 

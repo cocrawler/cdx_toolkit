@@ -1,7 +1,7 @@
 import asyncio
 from io import BytesIO
 import logging
-from typing import List
+from typing import List, Optional, Dict
 
 import aioboto3
 from botocore.config import Config
@@ -27,14 +27,14 @@ logger = logging.getLogger(__name__)
 def filter_warc_by_cdx_via_aioboto3(
     index_paths: List[str],
     prefix_path: str,
-    writer_info: dict,
-    writer_subprefix: str | None = None,
+    writer_info: Dict,
+    writer_subprefix: Optional[str] = None,
     write_index_as_record: bool = False,
     limit: int = 0,
     log_every_n: int = 1000,
-    warc_download_prefix: str | None = None,
+    warc_download_prefix: Optional[str] = None,
     n_parallel: int = 1,
-    writer_kwargs: dict | None = None,
+    writer_kwargs: Optional[Dict] = None,
 ) -> int:
     try:
         return asyncio.run(
@@ -60,14 +60,14 @@ def filter_warc_by_cdx_via_aioboto3(
 async def filter_warc_by_cdx_via_aioboto3_async(
     index_paths: List[str],
     prefix_path: str,
-    writer_info: dict,
-    writer_subprefix: str | None = None,
+    writer_info: Dict,
+    writer_subprefix: Optional[str] = None,
     write_index_as_record: bool = False,
     limit: int = 0,
     log_every_n: int = 1000,
-    warc_download_prefix: str | None = None,
+    warc_download_prefix: Optional[str] = None,
     n_parallel: int = 1,
-    writer_kwargs: dict | None = None,
+    writer_kwargs: Optional[Dict] = None,
     max_attempts: int = 5,
     key_queue_size: int = 1000,
     item_queue_size: int = 200,
@@ -280,19 +280,13 @@ async def consumer(
     consumer_id: int,
     item_queue: asyncio.Queue,
     s3,
-    # shard_name_prefix: str,
-    # shard_extension: str,
-    # dest_prefix: str,
-    # dest_bucket: str,
-    # content_type: str | None,
-    # min_part_size: int,
     max_attempts: int,
     base_backoff_seconds: float,
     prefix_path: str,
-    writer_info: dict,
-    writer_subprefix: str | None = None,
+    writer_info: Dict,
+    writer_subprefix: Optional[str] = None,
     write_index_as_record: bool = False,
-    writer_kwargs: dict | None = None,
+    writer_kwargs: Optional[Dict] = None,
     warc_version: str = '1.0',
     log_every_n: int = 1000,
     gzip: bool = False,

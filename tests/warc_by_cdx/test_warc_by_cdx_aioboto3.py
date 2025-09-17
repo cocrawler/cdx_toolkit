@@ -1,6 +1,6 @@
 from io import BytesIO
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import fsspec
 from cdx_toolkit.cli import main
@@ -13,7 +13,7 @@ from warcio import WARCWriter
 fixture_path = Path(__file__).parent.parent / 'data/warc_by_cdx'
 
 
-def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args: None | List[str] = None):
+def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args: Optional[List[str]] = None):
     # test cli and check output
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
     if extra_args is None:

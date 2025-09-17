@@ -1,7 +1,7 @@
 import logging
 import sys
 import time
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 import fsspec
 
@@ -109,7 +109,7 @@ def run_warcer_by_cdx(args, cmdline):
     logger.info(f'Script execution time: {execution_time:.3f} seconds')
 
 
-def get_index_paths(index_path: str, index_glob: str | None = None) -> List[str]:
+def get_index_paths(index_path: str, index_glob: Optional[str] = None) -> List[str]:
     if index_glob is None:
         # Read from a single index
         index_paths = [index_path]
