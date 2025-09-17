@@ -1,11 +1,10 @@
 import pytest
-from pathlib import Path
 
 from cdx_toolkit.cli import main
 from cdx_toolkit.filter_cdx import resolve_paths, validate_resolved_paths
-from tests.conftest import requires_aws_s3
+from tests.conftest import requires_aws_s3, TEST_DATA_PATH
 
-fixture_path = Path(__file__).parent.parent / 'data/filter_cdx'
+fixture_path = TEST_DATA_PATH / 'filter_cdx'
 
 
 @requires_aws_s3

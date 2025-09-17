@@ -38,9 +38,14 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         help='prefix for downloading content, automatically set for CC',
     )
     parser.add_argument(
-        '--write-index-as-record',
-        action='store_true',
-        help='If enable, the CDX index is written as resource record to the WARC file',
+        '--write-paths-as-resource-records',  # --write-index-as-record
+        nargs="*",
+        help='Paths to multiple files. File content is written to as a resource record to each the WARC file',
+    )
+    parser.add_argument(
+        '--write-paths-as-resource-records-metadata',
+        nargs="*",
+        help='Paths to multiple metadata files (JSON) for resource records from `--write-paths-as-resource-records`',
     )
     parser.add_argument(
         '--parallel',

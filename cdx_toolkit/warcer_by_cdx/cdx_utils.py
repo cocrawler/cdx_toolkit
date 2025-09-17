@@ -67,16 +67,16 @@ def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int]:
     return (warc_url, offset, length)
 
 
-def read_cdx_index_from_s3(s3_path: str, warc_download_prefix: str) -> Iterable[Tuple[str, int, int]]:
+def iter_cdx_index_from_path(index_path: str, warc_download_prefix: str) -> Iterable[Tuple[str, int, int]]:
     """
-    Read CDX records from a gzipped S3 file.
+    Iterate CDX records from a file path (gzipped; local or remote).
     """
     # if not s3_path.startswith("s3://"):
     #     raise ValueError(f"Invalid S3 path: {s3_path}")
 
-    logger.info('Reading CDX from %s', s3_path)
+    logger.info('Reading CDX from %s', index_path)
 
-    with fsspec.open(s3_path, 'rt', compression='gzip' if s3_path.endswith('.gz') else None) as f:
+    with fsspec.open(index_path, 'rt', compression='gzip' if index_path.endswith('.gz') else None) as f:
         for line in f:
             try:
                 yield read_cdx_line(line, warc_download_prefix)
@@ -85,4 +85,4 @@ def read_cdx_index_from_s3(s3_path: str, warc_download_prefix: str) -> Iterable[
                 logger.error('Invalid CDX line: %s', line)
                 continue
 
-    logger.info(f'CDX completed from {s3_path}')
+    logger.info(f'CDX completed from {index_path}')

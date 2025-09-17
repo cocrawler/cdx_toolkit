@@ -1,6 +1,9 @@
+from pathlib import Path
 import pytest
 import boto3
 from botocore.exceptions import NoCredentialsError, ClientError
+
+TEST_DATA_PATH = Path(__file__).parent / "data"
 
 
 def check_aws_s3_access():

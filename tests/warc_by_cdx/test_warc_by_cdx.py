@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from typing import List, Optional
 
 import fsspec
@@ -13,15 +12,16 @@ from cdx_toolkit.warcer_by_cdx.fsspec_warcer import (
 import pytest
 from warcio.archiveiterator import ArchiveIterator
 
-from tests.conftest import requires_aws_s3
+from tests.conftest import requires_aws_s3, TEST_DATA_PATH
 
 
-fixture_path = Path(__file__).parent.parent / 'data/warc_by_cdx'
+fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
 
 
 def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args: Optional[List[str]] = None):
     # test cli and check output
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
+    resource_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
 
     if extra_args is None:
         extra_args = []
@@ -32,8 +32,9 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args
             '--cc',
             '--limit=10',
             'warc_by_cdx',
-            f'{str(index_path)}',
-            '--write-index-as-record',
+            str(index_path),
+            '--write-paths-as-resource-records',
+            str(resource_record_path),
             f'--prefix={str(base_prefix)}/TEST_warc_by_index',
             '--creator=foo',
             '--operator=bob',
@@ -48,9 +49,12 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args
     # Validate extracted WARC
     warc_filename = 'TEST_warc_by_index-000000.extracted.warc.gz'
     warc_path = str(base_prefix) + '/' + warc_filename
-    resource_record = None
+
     info_record = None
     response_records = []
+
+    resource_record = None
+    resource_record_content = None
 
     with fsspec.open(warc_path, 'rb') as stream:
         for record in ArchiveIterator(stream):
@@ -62,13 +66,17 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args
 
             if record.rec_type == 'resource':
                 resource_record = record
+                resource_record_content = record.content_stream().read().decode('utf-8')
 
     assert len(response_records) == 10
-    assert resource_record is not None
-    assert resource_record.length == 568010
 
-    assert info_record is not None
-    assert 'operator: bob' in info_record
+    assert resource_record is not None
+    assert resource_record.length == 294, 'Invalid resource record'
+    assert resource_record_content[:10] == 'example.co', 'Invalid resource record'
+    assert resource_record_content[-20:-1] == 'hr.fr/produit/t-837', 'Invalid resource record'
+
+    assert info_record is not None, 'Invalid info record'
+    assert 'operator: bob' in info_record, 'Invalid info record'
 
 
 def test_cli_warc_by_cdx_over_http(tmpdir, caplog):
@@ -216,3 +224,29 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
     assert info_record is not None
     assert 'creator:' not in info_record
     assert 'operator:' not in info_record
+
+
+def test_resource_records_paths_mismatch():
+    # Test if mismatch of number of paths for resource records and their metdata is raised.
+    with pytest.raises(ValueError) as exc_info:
+        main(
+            args=[
+                '-v',
+                '--cc',
+                'warc_by_cdx',
+                'foo/bar',
+                '--write-paths-as-resource-records',
+                'resource1',
+                'resource2',
+                '--write-paths-as-resource-records-metadata',
+                'metadata2',
+            ]
+        )
+    assert exc_info.match('Number of paths to resource records')
+
+
+def test_metadata_paths_without_resource_records_paths():
+    # Test if error of missing resource records paths is raised.
+    with pytest.raises(ValueError) as exc_info:
+        main(args=['-v', '--cc', 'warc_by_cdx', 'foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2'])
+    assert exc_info.match('Metadata paths are set but')

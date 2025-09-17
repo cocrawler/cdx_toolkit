@@ -17,8 +17,9 @@ from cdx_toolkit.warcer_by_cdx.aioboto3_utils import (
 )
 from cdx_toolkit.warcer_by_cdx.aioboto3_writer import ShardWriter
 from cdx_toolkit.warcer_by_cdx.cdx_utils import (
-    read_cdx_index_from_s3,
+    iter_cdx_index_from_path,
 )
+from cdx_toolkit.warcer_by_cdx.warc_utils import get_bytes_from_warc_record, get_resource_record_from_path
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,8 @@ def filter_warc_by_cdx_via_aioboto3(
     prefix_path: str,
     writer_info: Dict,
     writer_subprefix: Optional[str] = None,
-    write_index_as_record: bool = False,
+    write_paths_as_resource_records: Optional[List[str]] = None,
+    write_paths_as_resource_records_metadata: Optional[List[str]] = None,
     limit: int = 0,
     log_every_n: int = 1000,
     warc_download_prefix: Optional[str] = None,
@@ -43,7 +45,8 @@ def filter_warc_by_cdx_via_aioboto3(
                 prefix_path=prefix_path,
                 writer_info=writer_info,
                 writer_subprefix=writer_subprefix,
-                write_index_as_record=write_index_as_record,
+                write_paths_as_resource_records=write_paths_as_resource_records,
+                write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
                 limit=limit,
                 log_every_n=log_every_n,
                 warc_download_prefix=warc_download_prefix,
@@ -62,7 +65,8 @@ async def filter_warc_by_cdx_via_aioboto3_async(
     prefix_path: str,
     writer_info: Dict,
     writer_subprefix: Optional[str] = None,
-    write_index_as_record: bool = False,
+    write_paths_as_resource_records: Optional[List[str]] = None,
+    write_paths_as_resource_records_metadata: Optional[List[str]] = None,
     limit: int = 0,
     log_every_n: int = 1000,
     warc_download_prefix: Optional[str] = None,
@@ -72,6 +76,7 @@ async def filter_warc_by_cdx_via_aioboto3_async(
     key_queue_size: int = 1000,
     item_queue_size: int = 200,
     base_backoff_seconds=0.5,
+    s3_region_name: str = 'us-east-1',
 ) -> int:
     n_records = 0
     fetcher_to_consumer_ratio = 6
@@ -82,14 +87,11 @@ async def filter_warc_by_cdx_via_aioboto3_async(
     item_queue: asyncio.Queue = asyncio.Queue(maxsize=item_queue_size)
 
     boto_cfg = Config(
-        region_name='us-east-1',
+        region_name=s3_region_name,
         retries={'max_attempts': max(2, max_attempts), 'mode': 'standard'},
         connect_timeout=10,
         read_timeout=120,
     )
-
-    if write_index_as_record:
-        raise NotImplementedError
 
     session = aioboto3.Session()
 
@@ -97,7 +99,7 @@ async def filter_warc_by_cdx_via_aioboto3_async(
         # Fetch file paths and ranges (offset, length) from index files
         logger.info('Starting lister, %d fetchers, %d consumers', num_fetchers, num_consumers)
         lister_task = asyncio.create_task(
-            lister_from_index(
+            get_range_jobs_from_index_paths(
                 key_queue=key_queue,
                 index_paths=index_paths,
                 warc_download_prefix=warc_download_prefix,
@@ -109,7 +111,7 @@ async def filter_warc_by_cdx_via_aioboto3_async(
         # Read WARC records based on file paths and ranges
         fetchers = [
             asyncio.create_task(
-                fetcher(
+                fetch_warc_ranges(
                     fetcher_id=i,
                     key_queue=key_queue,
                     item_queue=item_queue,
@@ -125,14 +127,15 @@ async def filter_warc_by_cdx_via_aioboto3_async(
         # Write WARC records
         consumers = [
             asyncio.create_task(
-                consumer(
+                write_warc(
                     consumer_id=i,
                     item_queue=item_queue,
                     s3=s3,
                     prefix_path=prefix_path,
                     max_attempts=max_attempts,
                     base_backoff_seconds=base_backoff_seconds,
-                    write_index_as_record=write_index_as_record,
+                    write_paths_as_resource_records=write_paths_as_resource_records,
+                    write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
                     writer_info=writer_info,
                     writer_subprefix=writer_subprefix,
                     writer_kwargs=writer_kwargs,
@@ -161,14 +164,14 @@ async def filter_warc_by_cdx_via_aioboto3_async(
     return n_records
 
 
-async def lister_from_index(
+async def get_range_jobs_from_index_paths(
     key_queue: asyncio.Queue,
     index_paths: List[str],
     warc_download_prefix: str,
     num_fetchers: int,
     limit: int = 0,
 ):
-    """Stage 1: stream the index, parse lines -> RangeJob -> key_queue."""
+    """Stage 1: stream the CDX paths, parse lines -> RangeJob (WARC files and offets) -> key_queue."""
 
     logger.info('Range index limit: %i', limit)
     count = 0
@@ -181,7 +184,7 @@ async def lister_from_index(
         for index_path in index_paths:
             # Fetch range queries from index
             try:
-                for warc_url, offset, length in read_cdx_index_from_s3(
+                for warc_url, offset, length in iter_cdx_index_from_path(
                     index_path, warc_download_prefix=warc_download_prefix
                 ):
                     # Convert the CDX record back to a RangeJob
@@ -208,7 +211,7 @@ async def lister_from_index(
     logger.info('Lister enqueued %d jobs from %s', count, index_path)
 
 
-async def fetcher(
+async def fetch_warc_ranges(
     fetcher_id: int,
     key_queue: asyncio.Queue,
     item_queue: asyncio.Queue,
@@ -276,7 +279,70 @@ async def fetcher(
             key_queue.task_done()
 
 
-async def consumer(
+def generate_warc_filename(
+    dest_prefix: str,
+    consumer_id: int,
+    sequence: int,
+    writer_subprefix: Optional[str] = None,
+    gzip: bool = False,
+) -> str:
+    file_name = dest_prefix + '-'
+    if writer_subprefix is not None:
+        file_name += writer_subprefix + '-'
+    file_name += '{:06d}-{:03d}'.format(consumer_id, sequence) + '.extracted.warc'
+    if gzip:
+        file_name += '.gz'
+
+    return file_name
+
+
+async def create_new_writer_with_header(
+    s3,
+    consumer_id: int,
+    sequence: int,
+    dest_bucket: str,
+    dest_prefix: str,
+    max_attempts: int,
+    base_backoff_seconds: float,
+    min_part_size: int,
+    writer_info: Dict,
+    warc_version: str = '1.0',
+    writer_subprefix: Optional[str] = None,
+    gzip: bool = False,
+    content_type: Optional[str] = None,
+):
+    filename = generate_warc_filename(
+        dest_prefix=dest_prefix,
+        consumer_id=consumer_id,
+        sequence=sequence,
+        writer_subprefix=writer_subprefix,
+        gzip=gzip,
+    )
+
+    new_writer = ShardWriter(
+        filename,
+        dest_bucket,
+        content_type,
+        min_part_size,
+        max_attempts,
+        base_backoff_seconds,
+    )
+
+    # Initialize writer
+    await new_writer.start(s3)
+
+    # Write WARC header
+    buffer = BytesIO()
+    warc_writer = WARCWriter(buffer, gzip=gzip, warc_version=warc_version)
+    warcinfo = warc_writer.create_warcinfo_record(filename, writer_info)
+    warc_writer.write_record(warcinfo)
+    header_data = buffer.getvalue()
+    await new_writer.write(s3, header_data)
+
+    return new_writer, len(header_data)
+
+
+async def write_warc(
     consumer_id: int,
     item_queue: asyncio.Queue,
     s3,
@@ -285,49 +351,67 @@ async def consumer(
     prefix_path: str,
     writer_info: Dict,
     writer_subprefix: Optional[str] = None,
-    write_index_as_record: bool = False,
+    write_paths_as_resource_records: Optional[List[str]] = None,
+    write_paths_as_resource_records_metadata: Optional[List[str]] = None,
     writer_kwargs: Optional[Dict] = None,
     warc_version: str = '1.0',
     log_every_n: int = 1000,
     gzip: bool = False,
+    content_type=None,
+    min_part_size: int = 5 * 1024 * 1024,  # 5 MiB (for upload)
+    max_file_size: Optional[int] = 1 * 1024 * 1024 * 1024,  # 1 GiB (for WARC outputs)
 ):
-    """Stage 3: each consumer owns ONE shard MPU and appends ranges to it."""
+    """Stage 3: Write WARC. Each consumer owns ONE shard MPU and appends ranges to it."""
 
     dest_bucket, dest_prefix = parse_s3_uri(prefix_path)
 
-    min_part_size = 5 * 1024 * 1024  # 5 MiB
-    content_type = None
+    # File rotation tracking
+    current_file_sequence = 1
+    current_file_size = 0
 
-    file_name = dest_prefix + '-'
-    if writer_subprefix is not None:
-        file_name += writer_subprefix + '-'
-    file_name += '{:06d}'.format(consumer_id) + '.extracted.warc'
-
-    if gzip:
-        file_name += '.gz'
-
-    writer = ShardWriter(
-        file_name,
-        dest_bucket,
-        content_type,
-        min_part_size,
-        max_attempts,
-        base_backoff_seconds,
+    # Initialize first writer with header
+    writer, header_size = await create_new_writer_with_header(
+        s3,
+        consumer_id=consumer_id,
+        sequence=current_file_sequence,
+        dest_bucket=dest_bucket,
+        dest_prefix=dest_prefix,
+        max_attempts=max_attempts,
+        base_backoff_seconds=base_backoff_seconds,
+        writer_info=writer_info,
+        warc_version=warc_version,
+        writer_subprefix=writer_subprefix,
+        gzip=gzip,
+        content_type=content_type,
+        min_part_size=min_part_size,
     )
+    current_file_size = header_size
+
     tracker = ThroughputTracker()
     tracker.start()
     counter = 0
 
-    # Initialize writer
-    await writer.start(s3)
+    # Write WARC resource records
+    if write_paths_as_resource_records:
+        logger.info(f'Writing {len(write_paths_as_resource_records)} resource records to WARC ... ')
 
-    # Write WARC header
-    buffer = BytesIO()
-    warc_writer = WARCWriter(buffer, gzip=gzip, warc_version=warc_version)
-    warcinfo = warc_writer.create_warcinfo_record(file_name, writer_info)
-    warc_writer.write_record(warcinfo)
+        # Resource records are written at the beginning the WARC file.
+        for i, resource_record_path in enumerate(write_paths_as_resource_records):
+            logger.info(f'Writing resource record from {resource_record_path} ...')
+            resource_record = get_resource_record_from_path(
+                file_path=resource_record_path,
+                metadata_path=(
+                    write_paths_as_resource_records_metadata[i] if write_paths_as_resource_records_metadata else None
+                ),
+            )
+            record_data = get_bytes_from_warc_record(resource_record, warc_version=warc_version, gzip=gzip)
 
-    await writer.write(s3, buffer.getvalue())
+            await writer.write(s3, record_data)
+
+            # Keep track but do not rotate resource records
+            current_file_size += len(record_data)
+
+        logger.info(f'Resource records added: {len(write_paths_as_resource_records)}')
 
     try:
         while True:
@@ -348,7 +432,33 @@ async def consumer(
                 else:
                     should_stop = False
                     assert isinstance(item, RangePayload)
+
+                    # Check if we need to rotate files due to size limit
+                    if max_file_size and current_file_size + len(item.data) > max_file_size:
+                        await writer.close(s3)
+                        current_file_sequence += 1
+
+                        writer, header_size = await create_new_writer_with_header(
+                            s3,
+                            consumer_id=consumer_id,
+                            sequence=current_file_sequence,
+                            dest_bucket=dest_bucket,
+                            dest_prefix=dest_prefix,
+                            max_attempts=max_attempts,
+                            base_backoff_seconds=base_backoff_seconds,
+                            writer_info=writer_info,
+                            warc_version=warc_version,
+                            writer_subprefix=writer_subprefix,
+                            gzip=gzip,
+                            content_type=content_type,
+                            min_part_size=min_part_size,
+                        )
+
+                        current_file_size = header_size
+                        logger.info(f'Rotated to new WARC file sequence {current_file_sequence} due to size limit')
+
                     await writer.write(s3, item.data)
+                    current_file_size += len(item.data)
                     tracker.add_bytes(len(item.data))
 
                     # Log progress every 10 items

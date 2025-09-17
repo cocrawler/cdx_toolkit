@@ -29,21 +29,14 @@ class ThroughputTracker:
 
     def get_stats(self) -> dict:
         elapsed = time.time() - self.start_time
-        if elapsed <= 0:
-            return {
-                'elapsed': 0,
-                'bytes_per_sec': 0,
-                'mb_per_sec': 0,
-                'requests_per_sec': 0,
-            }
 
         return {
             'elapsed': elapsed,
             'total_bytes': self.total_bytes,
             'total_requests': self.total_requests,
-            'bytes_per_sec': self.total_bytes / elapsed,
-            'mb_per_sec': (self.total_bytes / elapsed) / (1024 * 1024),
-            'requests_per_sec': self.total_requests / elapsed,
+            'bytes_per_sec': self.total_bytes / elapsed if elapsed > 0 else 0,
+            'mb_per_sec': (self.total_bytes / elapsed) / (1024 * 1024) if elapsed > 0 else 0,
+            'requests_per_sec': self.total_requests / elapsed if elapsed > 0 else 0,
         }
 
 

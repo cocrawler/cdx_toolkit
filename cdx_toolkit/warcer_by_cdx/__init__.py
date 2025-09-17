@@ -36,7 +36,16 @@ def run_warcer_by_cdx(args, cmdline):
 
     implementation: ImplementationType = args.implementation
 
-    write_index_as_record = args.write_index_as_record
+    write_paths_as_resource_records = args.write_paths_as_resource_records
+    write_paths_as_resource_records_metadata = args.write_paths_as_resource_records_metadata
+
+    if write_paths_as_resource_records and write_paths_as_resource_records_metadata:
+        if len(write_paths_as_resource_records) != len(write_paths_as_resource_records_metadata):
+            raise ValueError("Number of paths to resource records must be equal to metadata paths.")
+
+    if not write_paths_as_resource_records and write_paths_as_resource_records_metadata:
+        raise ValueError("Metadata paths are set but resource records paths are missing.")
+
     ispartof = args.prefix
     if args.subprefix:
         ispartof += '-' + args.subprefix
@@ -77,7 +86,8 @@ def run_warcer_by_cdx(args, cmdline):
             prefix_path=prefix_path,
             writer_info=info,
             writer_subprefix=args.subprefix,
-            write_index_as_record=write_index_as_record,
+            write_paths_as_resource_records=write_paths_as_resource_records,
+            write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
             limit=limit,
             log_every_n=log_every_n,
             warc_download_prefix=cdx.warc_download_prefix,
@@ -90,7 +100,8 @@ def run_warcer_by_cdx(args, cmdline):
             prefix_path=prefix_path,
             writer_info=info,
             writer_subprefix=args.subprefix,
-            write_index_as_record=write_index_as_record,
+            write_paths_as_resource_records=write_paths_as_resource_records,
+            write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
             limit=limit,
             log_every_n=log_every_n,
             warc_download_prefix=cdx.warc_download_prefix,

@@ -7,7 +7,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from warcio.recordloader import ArcWarcRecord
 
-from cdx_toolkit.warcer_by_cdx.cdx_utils import get_index_as_string_from_path, get_index_record
+from cdx_toolkit.warcer_by_cdx.cdx_utils import get_index_as_string_from_path
+from cdx_toolkit.warcer_by_cdx.warc_utils import get_resource_record_from_path
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,8 @@ def filter_warc_by_cdx_via_fsspec(
     prefix_path: str,
     writer_info: Dict,
     writer_subprefix: Optional[str] = None,
-    write_index_as_record: bool = False,
+    write_paths_as_resource_records: Optional[List[str]] = None,
+    write_paths_as_resource_records_metadata: Optional[List[str]] = None,
     limit: int = 0,
     log_every_n: int = 1000,
     warc_download_prefix: Optional[str] = None,
@@ -35,7 +37,7 @@ def filter_warc_by_cdx_via_fsspec(
     # Iterate over index files
     records_n = 0
     for index_path in index_paths:
-        logger.info('filtering based on CDX from %s', index_path)
+        logger.info('Filtering WARC based on CDX from %s', index_path)
 
         # Read index completely (for the WARC resource record)
         index = get_index_as_string_from_path(index_path)
@@ -44,13 +46,24 @@ def filter_warc_by_cdx_via_fsspec(
             # skip empty indicies
             continue
 
-        # Write index as record to WARC
-        # TODO at what position should the resource records be written?
-        if write_index_as_record:
-            logger.info('Writing CDX as resource record to WARC ... ')
-            writer.write_record(get_index_record(index, index_path))
+        # Write file content from paths as resource records to WARC
+        if write_paths_as_resource_records:
+            logger.info('Writing resource records to WARC ... ')
 
-            logger.info('CDX resource recorded added')
+            # Resource records are written at the beginning the WARC file.
+            for i, resource_record_path in enumerate(write_paths_as_resource_records):
+                logger.info(f'Writing resource record from {resource_record_path} ...')
+                resource_record = get_resource_record_from_path(
+                    file_path=resource_record_path,
+                    metadata_path=(
+                        write_paths_as_resource_records_metadata[i]
+                        if write_paths_as_resource_records_metadata
+                        else None
+                    ),
+                )
+                writer.write_record(resource_record)
+            
+            logger.info(f'Resource records added: {len(write_paths_as_resource_records)}')
 
         # The index file holds all the information to download specific objects (file, offset, length etc.)
         index_lines = index.splitlines()
