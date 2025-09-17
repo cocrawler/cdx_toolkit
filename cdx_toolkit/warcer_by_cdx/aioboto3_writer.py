@@ -1,4 +1,5 @@
 import logging
+from typing import List, Dict
 
 from cdx_toolkit.warcer_by_cdx.aioboto3_utils import (
     mpu_abort,
@@ -30,7 +31,7 @@ class ShardWriter:
         self.base_backoff_seconds = base_backoff_seconds
         self.upload_id: str | None = None
         self.part_number = 1
-        self.parts: list[dict] = []
+        self.parts: List[Dict] = []
         self.buffer = bytearray()
 
     async def start(self, s3):
@@ -42,7 +43,7 @@ class ShardWriter:
             max_attempts=self.max_attempts,
             base_backoff_seconds=self.base_backoff_seconds,
         )
-        logger.info("Started MPU for %s (UploadId=%s)", self.shard_key, self.upload_id)
+        logger.info('Started MPU for %s (UploadId=%s)', self.shard_key, self.upload_id)
 
     async def _flush_full_parts(self, s3):
         while len(self.buffer) >= self.min_part_size:
@@ -58,7 +59,7 @@ class ShardWriter:
                 self.max_attempts,
                 self.base_backoff_seconds,
             )
-            self.parts.append({"PartNumber": self.part_number, "ETag": etag})
+            self.parts.append({'PartNumber': self.part_number, 'ETag': etag})
             self.part_number += 1
 
     async def write(self, s3, data: bytes):
@@ -80,7 +81,7 @@ class ShardWriter:
                     self.max_attempts,
                     self.base_backoff_seconds,
                 )
-                self.parts.append({"PartNumber": self.part_number, "ETag": etag})
+                self.parts.append({'PartNumber': self.part_number, 'ETag': etag})
                 self.part_number += 1
                 self.buffer.clear()
 
@@ -94,13 +95,9 @@ class ShardWriter:
                     self.max_attempts,
                     self.base_backoff_seconds,
                 )
-            logger.info(
-                "Completed MPU for %s with %d parts.", self.shard_key, len(self.parts)
-            )
+            logger.info('Completed MPU for %s with %d parts.', self.shard_key, len(self.parts))
         except Exception:
-            logger.exception(
-                "Completing MPU failed for %s; attempting abort.", self.shard_key
-            )
+            logger.exception('Completing MPU failed for %s; attempting abort.', self.shard_key)
             if self.upload_id:
                 await mpu_abort(s3, self.dest_bucket, self.shard_key, self.upload_id)
             raise

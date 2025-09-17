@@ -1,15 +1,12 @@
-name: CI
+name: CI (only feature)
 
-on: workflow_dispatch
-# Disabled for this feature
-# on:
-#   # runtime is erratic and up to an hour
-#   push:
-#     branches:
-#     - main
-#   pull_request:
-#     branches:
-#     - main
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
 
 jobs:
   unit-tests:
@@ -18,7 +15,7 @@ jobs:
       fail-fast: false
       max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
         include:
@@ -27,8 +24,8 @@ jobs:
             EXTRA: true
             env:
               LOGLEVEL=DEBUG
-          - python-version: '3.7'
-            os: ubuntu-20.04  # oldest version on github actions
+          - python-version: '3.8'
+            os: ubuntu-22.04  # oldest version on github actions
             EXTRA: true
 
     steps:
@@ -48,9 +45,10 @@ jobs:
       - name: Install cdx_toolkit
         run: pip install .[test]
 
-      - name: Run tests
+      - name: Run tests (feature only)
         run: |
-          make test_coverage
+          PYTHONPATH=. py.test -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/warc_by_cdx tests/unit -v -v
+          coverage report
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
