@@ -3,6 +3,7 @@ import logging
 import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+from os import urandom
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
@@ -61,11 +62,11 @@ class RangePayload:
 
 
 def _backoff(attempt: int, base_backoff_seconds: float) -> float:
+    """Time to sleep based on number of attempts"""
     base = base_backoff_seconds * (2 ** (attempt - 1))
-    # jitter ±20%
-    import os as _os
 
-    return max(0.05, base * (0.8 + 0.4 * _os.urandom(1)[0] / 255))
+    # Add random jitter between 80-120% of base delay
+    return max(0.05, base * (0.8 + 0.4 * urandom(1)[0] / 255))
 
 
 def parse_s3_uri(uri: str) -> tuple[str, str]:

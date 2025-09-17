@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from io import BytesIO
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional, Tuple, Union
 
 import fsspec
 import logging
@@ -43,7 +43,7 @@ def get_index_record(index: str, index_path: str, encoding: str = 'utf-8') -> Ar
     )
 
 
-def read_cdx_line(line: str, warc_download_prefix: str) -> tuple[str, int, int]:
+def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int]:
     cols = line.split(' ', maxsplit=2)
 
     if len(cols) == 3:
@@ -67,7 +67,7 @@ def read_cdx_line(line: str, warc_download_prefix: str) -> tuple[str, int, int]:
     return (warc_url, offset, length)
 
 
-def read_cdx_index_from_s3(s3_path: str, warc_download_prefix: str) -> Iterable[tuple[str, int, int]]:
+def read_cdx_index_from_s3(s3_path: str, warc_download_prefix: str) -> Iterable[Tuple[str, int, int]]:
     """
     Read CDX records from a gzipped S3 file.
     """
