@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from os import urandom
 
 from botocore.exceptions import ClientError, EndpointConnectionError
@@ -69,7 +69,7 @@ def _backoff(attempt: int, base_backoff_seconds: float) -> float:
     return max(0.05, base * (0.8 + 0.4 * urandom(1)[0] / 255))
 
 
-def parse_s3_uri(uri: str) -> tuple[str, str]:
+def parse_s3_uri(uri: str) -> Tuple[str, str]:
     if not uri.startswith('s3://'):
         raise ValueError(f'Not an S3 URI: {uri}')
     rest = uri[5:]
