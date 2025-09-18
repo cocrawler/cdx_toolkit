@@ -29,6 +29,29 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
+      - name: Debug OIDC setup
+        run: |
+          echo "=== GitHub Context ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Run ID: ${{ github.run_id }}"
+          
+          echo "=== OIDC Token Request ==="
+          echo "Token URL: $ACTIONS_ID_TOKEN_REQUEST_URL"
+          
+          echo "=== Attempting to get OIDC token ==="
+          OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com")
+          echo "Token response: $OIDC_TOKEN"
+
+      - name: Configure AWS credentials from OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
+          aws-region: us-east-1
+          role-session-name: GitHubActions-${{ github.run_id }}
+
       - name: Configure AWS credentials from OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
