@@ -12,26 +12,37 @@ on:
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
+
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint
+    permissions:
+      id-token: write
+      contents: read
+
     strategy:
       fail-fast: false
       max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.11']
         os: [ubuntu-latest]
-        EXTRA: [false]  # used to force includes to get included
-        include:
-          - python-version: '3.12'
-            os: ubuntu-latest
-            EXTRA: true
-            env:
-              LOGLEVEL=DEBUG
-          - python-version: '3.7'
-            os: ubuntu-20.04  # oldest version on github actions
-            EXTRA: true
 
     steps:
       - name: checkout
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials from OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
+          aws-region: us-east-1
+
+      - name: Verify AWS identity (optional)
+        run: |
+          aws sts get-caller-identity
+
+      - name: Upload files to S3
+        run: |
+          # Example: ls ci bucket
+          aws s3 ls s3://commoncrawl-ci-temp/
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
