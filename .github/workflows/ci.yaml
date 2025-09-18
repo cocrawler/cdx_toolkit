@@ -9,6 +9,11 @@ on:
     branches:
     - main
 
+permissions:  # Add this at the workflow level
+  id-token: write
+  contents: read
+  pull-requests: read  # Add this for PR events
+
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
@@ -35,22 +40,21 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Ref: ${{ github.ref }}"
           echo "Event: ${{ github.event_name }}"
-          echo "Run ID: ${{ github.run_id }}"
           
-          echo "=== OIDC Token Request ==="
-          echo "Token URL: $ACTIONS_ID_TOKEN_REQUEST_URL"
+          echo "=== Environment Variables ==="
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL: $ACTIONS_ID_TOKEN_REQUEST_URL"
+          echo "ACTIONS_ID_TOKEN_REQUEST_TOKEN: $ACTIONS_ID_TOKEN_REQUEST_TOKEN"
           
-          echo "=== Attempting to get OIDC token ==="
-          OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com")
-          echo "Token response: $OIDC_TOKEN"
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "ERROR: ACTIONS_ID_TOKEN_REQUEST_URL is not set!"
+            echo "This means GitHub Actions doesn't have permission to generate OIDC tokens"
+          fi
 
       - name: Configure AWS credentials from OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
           aws-region: us-east-1
-          role-session-name: GitHubActions-${{ github.run_id }}
 
       - name: Configure AWS credentials from OIDC
         uses: aws-actions/configure-aws-credentials@v4
