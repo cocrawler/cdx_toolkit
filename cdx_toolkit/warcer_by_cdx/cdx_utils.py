@@ -1,23 +1,18 @@
 import json
 from pathlib import Path
 
-from io import BytesIO
 from typing import Iterable, Optional, Tuple, Union
 
 import fsspec
 import logging
-
-from warcio import WARCWriter
-from warcio.recordloader import ArcWarcRecord
 
 
 logger = logging.getLogger(__name__)
 
 
 def get_index_as_string_from_path(
-        index_path: Union[str, Path], 
-        index_fs: Optional[fsspec.AbstractFileSystem] = None
-    ) -> str:
+    index_path: Union[str, Path], index_fs: Optional[fsspec.AbstractFileSystem] = None
+) -> str:
     """Fetch (and decompress) index content as string from local or remote path."""
     logger.info('Fetching index from %s ...', index_path)
     if index_fs is None:
@@ -35,10 +30,9 @@ def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int]:
     cols = line.split(' ', maxsplit=2)
 
     if len(cols) == 3:
-        # TODO can there be a different format?
-        # surt, timestamp, json_data = cols
+        # NOTE: We assume the following format (CC-CDX format): <surt> <timestamp> <json_data>
         #
-        # CC seems to not follow the specification from https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+        # IA follows a different CDX specification from https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
         # > The default first line of a CDX file is:
         # > CDX A b e a m s c k r V v D d g M n
         data = json.loads(cols[2])
@@ -59,9 +53,6 @@ def iter_cdx_index_from_path(index_path: str, warc_download_prefix: str) -> Iter
     """
     Iterate CDX records from a file path (gzipped; local or remote).
     """
-    # if not s3_path.startswith("s3://"):
-    #     raise ValueError(f"Invalid S3 path: {s3_path}")
-
     logger.info('Reading CDX from %s', index_path)
 
     with fsspec.open(index_path, 'rt', compression='gzip' if index_path.endswith('.gz') else None) as f:
