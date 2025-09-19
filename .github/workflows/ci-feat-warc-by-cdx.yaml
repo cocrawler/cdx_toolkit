@@ -61,6 +61,7 @@ jobs:
         run: |
           if [[ "${{ matrix.python-version }}" < "3.9" ]]; then
             echo "CDXT_DISABLE_S3_TESTS=1" >> $GITHUB_ENV
+          fi
           
       - name: Run tests (feature only)
         run: |
