@@ -3,7 +3,7 @@ import fsspec
 import pytest
 import cdx_toolkit
 
-from tests.conftest import requires_aws_s3
+from tests.conftest import TEST_S3_BUCKET, requires_aws_s3
 
 from warcio import WARCWriter
 from warcio.archiveiterator import ArchiveIterator
@@ -72,7 +72,7 @@ def test_write_to_local(prefix, gzip, tmpdir):
 @pytest.mark.parametrize(
     'prefix',
     [
-        pytest.param('s3://commoncrawl-dev/cdx_toolkit/ci/test-outputs', id='S3 prefix'),
+        pytest.param(f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs', id='S3 prefix'),
     ],
 )
 def test_write_to_s3(prefix, tmpdir):
