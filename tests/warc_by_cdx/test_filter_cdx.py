@@ -1,7 +1,10 @@
 import pytest
 
+from unittest.mock import patch
+
 from cdx_toolkit.cli import main
-from cdx_toolkit.filter_cdx import resolve_paths, validate_resolved_paths
+from cdx_toolkit.filter_cdx import _process_single_file, resolve_paths, validate_resolved_paths, filter_cdx
+from cdx_toolkit.filter_cdx.matcher import TupleMatcher
 from tests.conftest import requires_aws_s3, TEST_DATA_PATH
 
 fixture_path = TEST_DATA_PATH / 'filter_cdx'
@@ -23,7 +26,7 @@ def test_cli_filter_cdx_with_surts(tmpdir, caplog):
             f'{str(whitelist_path)}',
             f'{tmpdir}',
             '--filter-type=surt',
-            f'--input-glob={index_glob}'
+            f'--input-glob={index_glob}',
         ]
     )
 
@@ -46,7 +49,7 @@ def test_cli_filter_cdx_with_urls(tmpdir, caplog):
             f'{str(whitelist_path)}',
             f'{tmpdir}',
             '--filter-type=url',
-            f'--input-glob={index_glob}'
+            f'--input-glob={index_glob}',
         ]
     )
 
@@ -99,7 +102,7 @@ def test_filter_cdx_nonexistent_surt_file_exits(tmpdir, caplog):
                 f'{index_path}',
                 f'{nonexistent_surt_file}',
                 f'{tmpdir}',
-                f'--input-glob={index_glob}'
+                f'--input-glob={index_glob}',
             ]
         )
 
@@ -150,15 +153,73 @@ def test_cli_filter_cdx_with_parallel_processing(tmpdir, caplog):
             f'{tmpdir}',
             '--filter-type=surt',
             f'--input-glob={index_glob}',
-            '--parallel=2'
+            '--parallel=2',
         ]
     )
 
     # Check that multiple files were processed in parallel
     assert 'Found' in caplog.text and 'files matching pattern' in caplog.text
-    assert 'File statistics for' in caplog.text
-    assert 'Total statistics:' in caplog.text
+    assert 'File statistics' in caplog.text
+    assert 'Filter statistics' in caplog.text
 
     # Should have processed multiple files (pattern matches 2 files: cdx-00187.gz and cdx-00188.gz)
-    file_stats_count = caplog.text.count('File statistics for')
+    file_stats_count = caplog.text.count('File statistics')
     assert file_stats_count == 2, 'Should process exactly 2 files with the glob pattern'
+
+
+def test_process_single_file(tmpdir):
+    input_path = TEST_DATA_PATH / 'warc_by_cdx/filtered_CC-MAIN-2024-30_cdx-00187.gz'
+    matcher = TupleMatcher(prefixes=['fr,'])
+
+    lines_n, included_n = _process_single_file(
+        input_path=input_path,
+        output_path=tmpdir + '/filter_cdx',
+        matcher=matcher,
+        log_every_n=10,
+        limit=100,
+    )
+
+    assert included_n == 100
+    assert lines_n == 100
+
+
+def test_process_single_file_empty(tmpdir):
+    input_path = tmpdir + '/input'
+    with open(input_path, 'w') as f:
+        f.write('')
+
+    lines_n, included_n = _process_single_file(
+        input_path=input_path,
+        output_path=tmpdir + '/output',
+        matcher=None,
+    )
+    assert lines_n == 0
+    assert included_n == 0
+
+
+def test_filter_cdx_error_handling(tmpdir, caplog):
+    """Test filter_cdx function error handling when exceptions occur during processing."""
+
+    def mock_process_single_file(*args, **kwargs):
+        raise ValueError()
+
+    # Create test input and output paths
+    input_paths = [str(tmpdir / 'input1.cdx'), str(tmpdir / 'input2.cdx')]
+    output_paths = [str(tmpdir / 'output1.cdx'), str(tmpdir / 'output2.cdx')]
+
+    # Replace the _process_single_file function with our mock
+    with patch('cdx_toolkit.filter_cdx._process_single_file', side_effect=mock_process_single_file):
+        # Test the error handling
+        total_lines, total_included, total_errors = filter_cdx(
+            matcher=None,
+            input_paths=input_paths,
+            output_paths=output_paths,
+        )
+
+        # Verify error handling results
+        assert total_errors == 2, f'Should have 1 error from the failed file, got {total_errors}'
+        assert total_lines == 0, 'Should have lines from the successful file'
+        assert total_included == 0, 'Should have included lines from the successful file'
+
+        # Check that error was logged correctly
+        assert 'generated an exception' in caplog.text

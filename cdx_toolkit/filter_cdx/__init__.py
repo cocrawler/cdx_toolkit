@@ -4,11 +4,12 @@ import time
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
+from typing import List, Tuple
 
 import fsspec
 from surt import surt
 
-from cdx_toolkit.filter_cdx.matcher import TupleMatcher, TrieMatcher
+from cdx_toolkit.filter_cdx.matcher import Matcher, TupleMatcher, TrieMatcher
 
 
 logger = logging.getLogger(__name__)
@@ -62,71 +63,77 @@ def run_filter_cdx(args, cmdline: str):
         'trie': TrieMatcher,
         'tuple': TupleMatcher,
     }
-
-    matcher = matcher_classes[args.matching_approach](include_surt_prefixes)
-
+    limit = 0 if args.limit is None else args.limit
     logger.info(f'Loaded {len(include_surt_prefixes):,} filter entries using {args.matching_approach} approach')
 
-    # Process files in parallel or sequentially
-    n_parallel = args.parallel
-    limit = 0 if args.limit is None else args.limit
-    total_lines_n = 0
-    total_included_n = 0
-    total_errors_n = 0
-
-    if n_parallel > 1:
-        # Parallel processing
-        logger.info('Parallel processes: %i', n_parallel)
-        with ProcessPoolExecutor(max_workers=n_parallel) as executor:
-            # Create partial function with common arguments
-            process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
-
-            # Submit all jobs
-            future_to_paths = {
-                executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
-                for input_path, output_path in zip(input_paths, output_paths)
-            }
-
-            # Collect results
-            for future in as_completed(future_to_paths):
-                input_path, output_path = future_to_paths[future]
-                try:
-                    lines_n, included_n = future.result()
-                    logger.info(
-                        f'File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n / lines_n:.4f}'
-                    )
-                    total_lines_n += lines_n
-                    total_included_n += included_n
-
-                except Exception as exc:
-                    logger.error(f'File {input_path} generated an exception: {exc}')
-                    total_errors_n += 1
-    else:
-        # Sequential processing
-        logger.info('Sequential processing')
-        for input_path, output_path in zip(input_paths, output_paths):
-            try:
-                lines_n, included_n = _process_single_file(input_path, output_path, matcher, limit)
-                logger.info(
-                    f'File statistics for {input_path}: included_n={included_n}; lines_n={lines_n}; ratio={included_n / lines_n:.4f}'
-                )
-                total_lines_n += lines_n
-                total_included_n += included_n
-
-            except Exception as exc:
-                logger.error(f'File {input_path} generated an exception: {exc}')
-                total_errors_n += 1
-    logger.info(
-        f'Total statistics: included_n={total_included_n}; lines_n={total_lines_n}; ratio={total_included_n / total_lines_n:.4f}'
+    # Process files in parallel
+    total_lines_n, total_included_n, total_errors_n = filter_cdx(
+        matcher=matcher_classes[args.matching_approach](include_surt_prefixes),
+        input_paths=input_paths,
+        output_paths=output_paths,
+        limit=limit,
+        n_parallel=max(1, args.parallel),
     )
-    if total_errors_n > 0:
-        logger.error('Processing errors: %i', total_errors_n)
+
+    logger.info(
+        f'Filter statistics: {total_included_n} / {total_lines_n} lines ({total_included_n / total_lines_n:.4f})'
+    )
+    logger.info(
+        f'Errors: {total_errors_n}'
+    )
+
+    if limit > 0 and total_included_n >= 0:
+        logger.info(f"Limit reached at {limit}")
 
     # End timing and log execution time
     end_time = time.time()
     execution_time = end_time - start_time
 
     logger.info(f'Script execution time: {execution_time:.3f} seconds')
+
+
+def filter_cdx(
+    matcher: Matcher,
+    input_paths: List[str],
+    output_paths: List[str],
+    n_parallel: int = 1,
+    limit: int = 0,
+    total_lines_n: int = 0,
+    total_included_n: int = 0,
+    total_errors_n: int = 0,
+) -> Tuple[int, int, int]:
+    """Filter CDX files from input paths using a matcher to output paths."""
+
+    # Parallel processing
+    logger.info('Filtering with %i processes in parallel (limit: %i)', n_parallel, limit)
+
+    with ProcessPoolExecutor(max_workers=n_parallel) as executor:
+        # Create partial function with common arguments
+        process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
+
+        # Submit all jobs
+        future_to_paths = {
+            executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
+            for input_path, output_path in zip(input_paths, output_paths)
+        }
+
+        # Collect results
+        for future in as_completed(future_to_paths):
+            input_path, output_path = future_to_paths[future]
+            try:
+                lines_n, included_n = future.result()
+                logger.info(
+                    f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}'
+                )
+
+                total_lines_n += lines_n
+                total_included_n += included_n
+
+            except Exception as exc:
+                logger.error(f'File {input_path} generated an exception: {exc}')
+                total_errors_n += 1
+
+    return total_lines_n, total_included_n, total_errors_n
 
 
 def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):

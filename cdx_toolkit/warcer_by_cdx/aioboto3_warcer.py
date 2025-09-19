@@ -177,33 +177,29 @@ async def get_range_jobs_from_index_paths(
     logger.info('Range index limit: %i', limit)
     count = 0
 
-    if not index_paths:
-        logger.error('No index paths provided!')
+    # Iterate over index files
+    for index_path in index_paths:
+        # Fetch range queries from index
+        try:
+            for warc_url, offset, length in iter_cdx_index_from_path(
+                index_path, warc_download_prefix=warc_download_prefix
+            ):
+                # Convert the CDX record back to a RangeJob
+                bucket, key = parse_s3_uri(warc_url)
+                job = RangeJob(bucket=bucket, key=key, offset=offset, length=length)
+                await key_queue.put(job)
+                count += 1
 
-    else:
-        # Iterate over index files
-        for index_path in index_paths:
-            # Fetch range queries from index
-            try:
-                for warc_url, offset, length in iter_cdx_index_from_path(
-                    index_path, warc_download_prefix=warc_download_prefix
-                ):
-                    # Convert the CDX record back to a RangeJob
-                    bucket, key = parse_s3_uri(warc_url)
-                    job = RangeJob(bucket=bucket, key=key, offset=offset, length=length)
-                    await key_queue.put(job)
-                    count += 1
+                if limit > 0 and count >= limit:
+                    logger.warning('Index limit reached at %i', count)
+                    break
 
-                    if limit > 0 and count >= limit:
-                        logger.warning('Index limit reached at %i', count)
-                        break
+        except Exception as e:
+            logger.error('Failed to read CDX index from %s: %s', index_path, e)
 
-            except Exception as e:
-                logger.error('Failed to read CDX index from %s: %s', index_path, e)
-
-            if limit > 0 and count >= limit:
-                logger.warning('Limit reached at %i', count)
-                break
+        if limit > 0 and count >= limit:
+            logger.warning('Limit reached at %i', count)
+            break
 
     # signal fetchers to stop
     for _ in range(num_fetchers):
