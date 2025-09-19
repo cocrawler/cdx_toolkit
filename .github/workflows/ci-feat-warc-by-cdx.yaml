@@ -38,12 +38,6 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials from OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
-          aws-region: us-east-1
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
@@ -57,6 +51,12 @@ jobs:
       - name: Install cdx_toolkit
         run: pip install .[test]
 
+      - name: Configure AWS credentials from OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
+          aws-region: us-east-1
+          
       - name: Run tests (feature only)
         run: |
           PYTHONPATH=. py.test -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/warc_by_cdx tests/unit -v -v
