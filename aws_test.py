@@ -20,9 +20,7 @@ def check_aws_s3_access():
         print('No credentials found by boto3')
         
     s3_client = boto3.client('s3')
-    # Try to list buckets as a simple check
-    s3_client.list_buckets()
-
+    # Try to list bucket as a simple check
     s3_client.list_objects_v2(Bucket=TEST_S3_BUCKET, MaxKeys=1)
 
     return True
