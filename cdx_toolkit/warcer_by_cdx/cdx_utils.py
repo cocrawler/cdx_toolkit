@@ -31,18 +31,6 @@ def get_index_as_string_from_path(
         return f.read()
 
 
-def get_index_record(index: str, index_path: str, encoding: str = 'utf-8') -> ArcWarcRecord:
-    """Build WARC resource record for index."""
-    return WARCWriter(None).create_warc_record(
-        uri=index_path,  # TODO this could be a local / internal path
-        record_type='resource',
-        payload=BytesIO(index.encode(encoding)),
-        http_headers=None,
-        warc_content_type='application/cdx',
-        warc_headers_dict=None,  # TODO should we add some other metadata headers?
-    )
-
-
 def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int]:
     cols = line.split(' ', maxsplit=2)
 

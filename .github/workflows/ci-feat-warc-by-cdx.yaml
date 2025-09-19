@@ -8,6 +8,12 @@ on:
     branches:
     - main
 
+# These permissions are needed to interact with AWS S3 via GitHub's OIDC Token endpoint
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
@@ -31,6 +37,12 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials from OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
+          aws-region: us-east-1
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5

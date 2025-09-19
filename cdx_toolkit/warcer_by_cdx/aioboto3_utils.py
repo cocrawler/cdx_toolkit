@@ -7,7 +7,6 @@ from os import urandom
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
-_STOP = object()
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +41,7 @@ class ThroughputTracker:
 
 @dataclass(frozen=True)
 class RangeJob:
+    """Defines a S3 range read request."""
     bucket: str
     key: str
     offset: int
@@ -50,6 +50,7 @@ class RangeJob:
 
 @dataclass(frozen=True)
 class RangePayload:
+    """Bytes output from S3 range read."""
     job: RangeJob
     data: bytes
 
@@ -63,6 +64,7 @@ def _backoff(attempt: int, base_backoff_seconds: float) -> float:
 
 
 def parse_s3_uri(uri: str) -> Tuple[str, str]:
+    """Parse a S3 URI and return bucket and prefix."""
     if not uri.startswith('s3://'):
         raise ValueError(f'Not an S3 URI: {uri}')
     rest = uri[5:]
@@ -94,16 +96,6 @@ async def with_retries(coro_factory, *, op_name: str, max_attempts: int, base_ba
     raise last_exc
 
 
-async def get_object_stream(s3, bucket: str, key: str, max_attempts: int, base_backoff_seconds: float):
-    resp = await with_retries(
-        lambda: s3.get_object(Bucket=bucket, Key=key),
-        op_name=f'get_object {bucket}/{key}',
-        max_attempts=max_attempts,
-        base_backoff_seconds=base_backoff_seconds,
-    )
-    return resp['Body']
-
-
 async def ranged_get_bytes(
     s3,
     bucket: str,
@@ -113,6 +105,7 @@ async def ranged_get_bytes(
     max_attempts: int,
     base_backoff_seconds: float,
 ) -> bytes:
+    """Ranged get request to S3 with retries and backoff."""
     end = offset + length - 1  # inclusive
     resp = await with_retries(
         lambda: s3.get_object(Bucket=bucket, Key=key, Range=f'bytes={offset}-{end}'),
@@ -128,13 +121,11 @@ async def mpu_create(
     bucket: str,
     key: str,
     *,
-    content_type: Optional[str],
     max_attempts: int,
     base_backoff_seconds: float,
 ):
+    """Create multi part upload to S3."""
     kwargs = {'Bucket': bucket, 'Key': key}
-    if content_type:
-        kwargs['ContentType'] = content_type
     resp = await with_retries(
         lambda: s3.create_multipart_upload(**kwargs),
         op_name=f'create_multipart_upload {bucket}/{key}',
@@ -154,6 +145,7 @@ async def mpu_upload_part(
     max_attempts: int,
     base_backoff_seconds: float,
 ) -> str:
+    """Upload a part of a multi-part upload to S3."""
     resp = await with_retries(
         lambda: s3.upload_part(
             Bucket=bucket,
@@ -178,6 +170,7 @@ async def mpu_complete(
     max_attempts: int,
     base_backoff_seconds: float,
 ):
+    """Send complete for multi-part upload."""
     await with_retries(
         lambda: s3.complete_multipart_upload(
             Bucket=bucket, Key=key, UploadId=upload_id, MultipartUpload={'Parts': parts}
@@ -189,6 +182,7 @@ async def mpu_complete(
 
 
 async def mpu_abort(s3, bucket: str, key: str, upload_id: str):
+    """Abort mult-part upload."""
     try:
         await s3.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
     except Exception:

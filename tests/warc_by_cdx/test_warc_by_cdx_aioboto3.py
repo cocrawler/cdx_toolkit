@@ -7,11 +7,11 @@ import fsspec
 from cdx_toolkit.cli import main
 from warcio.archiveiterator import ArchiveIterator
 
-from tests.conftest import requires_aws_s3, TEST_DATA_PATH
+from tests.conftest import TEST_S3_BUCKET, requires_aws_s3, TEST_DATA_PATH
 
 from warcio import WARCWriter
-from cdx_toolkit.warcer_by_cdx.aioboto3_warcer import get_range_jobs_from_index_paths, write_warc
-from cdx_toolkit.warcer_by_cdx.aioboto3_utils import RangePayload, _STOP
+from cdx_toolkit.warcer_by_cdx.aioboto3_warcer import get_range_jobs_from_index_paths, write_warc, _STOP
+from cdx_toolkit.warcer_by_cdx.aioboto3_utils import RangePayload
 
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
 
@@ -88,7 +88,7 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args
 def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel_aioboto3(tmpdir, caplog):
     assert_cli_warc_by_cdx(
         's3://commoncrawl',
-        base_prefix='s3://commoncrawl-dev/cdx_toolkit/ci/test-outputs' + str(tmpdir),
+        base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + str(tmpdir),
         caplog=caplog,
         extra_args=[
             '--parallel=3',
@@ -128,7 +128,7 @@ def test_write_warc_with_file_rotation(tmpdir):
         # Setup test data
         index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
         warc_download_prefix = 's3://commoncrawl'
-        prefix_path = f's3://commoncrawl-dev/cdx_toolkit/ci/test-outputs{tmpdir}/file_rotation_test'
+        prefix_path = f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs{tmpdir}/file_rotation_test'
 
         # Use small file size to force rotation (100 KB)
         max_file_size = 100 * 1024  # 100 KB
@@ -200,7 +200,7 @@ def test_write_warc_with_file_rotation(tmpdir):
             )
 
             # Verify that multiple WARC files were created
-            dest_bucket = 'commoncrawl-dev'
+            dest_bucket = TEST_S3_BUCKET
             dest_prefix = f'cdx_toolkit/ci/test-outputs{tmpdir}/file_rotation_test'
 
             # List objects to find all created WARC files

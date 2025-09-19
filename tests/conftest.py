@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
 import pytest
 import boto3
 from botocore.exceptions import NoCredentialsError, ClientError
 
 TEST_DATA_PATH = Path(__file__).parent / "data"
+TEST_S3_BUCKET = os.environ.get("CDXT_TEST_S3_BUCKET", "commoncrawl-ci-temp")
 
 
 def check_aws_s3_access():

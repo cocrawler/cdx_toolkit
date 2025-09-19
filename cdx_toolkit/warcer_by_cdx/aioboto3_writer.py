@@ -39,7 +39,6 @@ class ShardWriter:
             s3,
             self.dest_bucket,
             self.shard_key,
-            content_type=self.content_type,
             max_attempts=self.max_attempts,
             base_backoff_seconds=self.base_backoff_seconds,
         )

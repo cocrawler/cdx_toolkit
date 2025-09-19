@@ -27,10 +27,10 @@ def get_resource_record_from_path(
     """Build WARC resource record for file path and metdata path.
     
     The metadata file must be a valid JSON and can have the following fields:
-    - warc_content_type
-    - uri
-    - http_headers
-    - warc_headers_dict
+    - warc_content_type: str
+    - uri: str
+    - http_headers: dict
+    - warc_headers_dict: str
 
     If uri is not provided as metadata, the file_path is used.
     If warc_content_type is not provided as metadata, the type is guessed.

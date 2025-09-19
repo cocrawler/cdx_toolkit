@@ -8,7 +8,6 @@ from botocore.config import Config
 from warcio import WARCWriter
 
 from cdx_toolkit.warcer_by_cdx.aioboto3_utils import (
-    _STOP,
     RangeJob,
     RangePayload,
     ThroughputTracker,
@@ -21,6 +20,8 @@ from cdx_toolkit.warcer_by_cdx.cdx_utils import (
 )
 from cdx_toolkit.warcer_by_cdx.warc_utils import get_bytes_from_warc_record, get_resource_record_from_path
 
+
+_STOP = object()
 
 logger = logging.getLogger(__name__)
 
