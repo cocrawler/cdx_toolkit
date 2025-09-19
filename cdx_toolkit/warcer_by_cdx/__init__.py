@@ -95,6 +95,10 @@ def run_warcer_by_cdx(args, cmdline):
             writer_kwargs=writer_kwargs,
         )
     elif implementation == 'aioboto3':
+        if sys.version_info.major < 3 or (sys.version_info.major >= 3 and sys.version_info.minor < 9):
+            logger.error('The `aioboto3` implementation requires Python version >= 3.9')
+            sys.exit(1)
+
         records_n = filter_warc_by_cdx_via_aioboto3(
             index_paths=index_paths,
             prefix_path=prefix_path,

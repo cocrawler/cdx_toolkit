@@ -56,6 +56,11 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
           aws-region: us-east-1
+
+      - name: Disable S3 unit tests for Python < 3.9
+        run: |
+          if [[ "${{ matrix.python-version }}" < "3.9" ]]; then
+            echo "CDXT_DISABLE_S3_TESTS=1" >> $GITHUB_ENV
           
       - name: Run tests (feature only)
         run: |
