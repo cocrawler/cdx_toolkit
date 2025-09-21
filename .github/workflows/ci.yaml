@@ -1,7 +1,7 @@
 name: CI
 
 on:
-  # runtime is erratic and up to an hour
+  # runtime is ~ 25mins using mocked API requests
   push:
     branches:
     - main
@@ -13,20 +13,25 @@ jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: true
       max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
-        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        python-version: [
+          '3.8', '3.9', '3.10', '3.11', '3.12'
+          ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
         include:
-          - python-version: '3.12'
-            os: ubuntu-latest
+          - python-version: '3.8'
+            os: ubuntu-22.04  # oldest version on github actions
             EXTRA: true
-            env:
-              LOGLEVEL=DEBUG
-          - python-version: '3.7'
-            os: ubuntu-20.04  # oldest version on github actions
+          
+          - python-version: '3.12'
+            os: macos-latest
+            EXTRA: true
+          
+          - python-version: '3.12'
+            os: windows-latest
             EXTRA: true
 
     steps:
@@ -38,6 +43,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Get Runner IP
+        run: |
+          echo "Runner IP: $(curl -s https://ipinfo.io/ip)"
+          
       - name: Install setuptools on python 3.12+
         if: ${{ matrix.python-version >= '3.12' }}
         run: |
