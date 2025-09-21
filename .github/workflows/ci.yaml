@@ -14,7 +14,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
-      max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
         python-version: [
           '3.8', '3.9', '3.10', '3.11', '3.12'
