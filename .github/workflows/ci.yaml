@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  # runtime is ~ 25mins using mocked API requests
   push:
     branches:
     - main
@@ -14,22 +13,24 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
-      max-parallel: 1  # avoids ever triggering a rate limit
       matrix:
         python-version: [
           '3.8', '3.9', '3.10', '3.11', '3.12'
-          ]
+        ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
         include:
           - python-version: '3.8'
             os: ubuntu-22.04  # oldest version on github actions
             EXTRA: true
-          
+          - python-version: '3.12'
+            os: ubuntu-latest
+            env:
+              LOGLEVEL=DEBUG
+            EXTRA: true
           - python-version: '3.12'
             os: macos-latest
             EXTRA: true
-          
           - python-version: '3.12'
             os: windows-latest
             EXTRA: true
@@ -46,8 +47,9 @@ jobs:
       - name: Get Runner IP
         run: |
           echo "Runner IP: $(curl -s https://ipinfo.io/ip)"
-          
+
       - name: Install setuptools on python 3.12+
+        # apparently this is a quirk of Github action runners?
         if: ${{ matrix.python-version >= '3.12' }}
         run: |
           pip install setuptools
