@@ -15,7 +15,7 @@ jobs:
       fail-fast: true
       matrix:
         python-version: [
-          '3.8', '3.9', '3.10', '3.11', '3.12'
+          '3.8', '3.9', '3.10', '3.11', '3.12', '3.13'
         ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
@@ -23,15 +23,15 @@ jobs:
           - python-version: '3.8'
             os: ubuntu-22.04  # oldest version on github actions
             EXTRA: true
-          - python-version: '3.12'
+          - python-version: '3.13'
             os: ubuntu-latest
             env:
               LOGLEVEL=DEBUG
             EXTRA: true
-          - python-version: '3.12'
+          - python-version: '3.13'
             os: macos-latest
             EXTRA: true
-          - python-version: '3.12'
+          - python-version: '3.13'
             os: windows-latest
             EXTRA: true
 
