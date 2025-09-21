@@ -1,7 +1,6 @@
 name: CI
 
 on:
-  # runtime is ~ 25mins using mocked API requests
   push:
     branches:
     - main
