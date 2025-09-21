@@ -27,7 +27,8 @@ jobs:
             EXTRA: true
           - python-version: '3.12'
             os: ubuntu-latest
-            DEBUG=TRUE
+            env:
+              LOGLEVEL=DEBUG
             EXTRA: true
           - python-version: '3.12'
             os: macos-latest
