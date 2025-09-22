@@ -54,7 +54,16 @@ def update_next_fetch(hostname, next_fetch):
     retry_info[hostname]['next_fetch'] = next_fetch
 
 
-def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
+def myrequests_get(
+    url, 
+    params=None, 
+    headers=None, 
+    cdx=False, 
+    allow404=False, 
+    raise_error_after_n_errors: int = 100, 
+    raise_warning_after_n_errors: int = 10,
+    retry_max_sec: int = 60,
+    ):
     t = time.time()
 
     hostname = urlparse(url).hostname
@@ -84,7 +93,6 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
 
     retry = True
     retry_sec = 2 * minimum_interval
-    retry_max_sec = 60
     retries = 0
     connect_errors = 0
     while retry:
@@ -125,14 +133,17 @@ def myrequests_get(url, params=None, headers=None, cdx=False, allow404=False):
             connect_errors += 1
             string = '{} failures for url {} {!r}: {}'.format(connect_errors, url, params, str(e))
 
-            if 'Name or service not known' in string:
+            # Check for DNS errors with different operating systems
+            if (('Name or service not known' in string)  # linux
+                or ('nodename nor servname provided, or not known' in string)  # macos
+                or ('getaddrinfo failed' in string)):  # windows
                 if dns_fatal(url):
                     raise ValueError('invalid hostname in url '+url) from None
 
-            if connect_errors > 100:
+            if connect_errors > raise_error_after_n_errors:
                 LOGGER.error(string)
                 raise ValueError(string)
-            if connect_errors > 10:
+            if connect_errors > raise_warning_after_n_errors:
                 LOGGER.warning(string)
             LOGGER.info('retrying after {:.2f}s for '.format(retry_max_sec)+str(e))
             time.sleep(retry_max_sec)  # notice the extra-long sleep
