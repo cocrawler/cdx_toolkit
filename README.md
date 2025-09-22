@@ -273,6 +273,11 @@ instead of a partial one.
 
 cdx_toolkit has reached the beta-testing stage of development.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing 
+and running tests.
+
 ## License
 
 Copyright 2018-2020 Greg Lindahl and others
