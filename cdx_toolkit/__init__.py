@@ -6,9 +6,9 @@ import warnings
 
 try:
     from importlib.metadata import version, PackageNotFoundError
-except ImportError:
+except ImportError:   # pragma: no cover
     # Python < 3.8 compatibility
-    from importlib_metadata import version, PackageNotFoundError
+    from importlib_metadata import version, PackageNotFoundError  # pragma: no cover
 
 __version__ = 'installed-from-git'
 
