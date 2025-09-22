@@ -1,8 +1,11 @@
+import os
 import unittest.mock as mock
 import pytest
 
 import cdx_toolkit.commoncrawl
 from cdx_toolkit.timeutils import timestamp_to_time
+
+from tests.conftest import conditional_mock_responses
 
 # useful for debugging:
 import logging
@@ -224,3 +227,18 @@ def test_customize_index_list_closest():
 def test_filter_cc_endpoints():
     # gets covered by testing customize_list_index
     pass
+
+
+@conditional_mock_responses
+def test_get_cc_endpoints():
+    cc_mirror = 'https://index.commoncrawl.org/'
+    cache, filename = cdx_toolkit.commoncrawl.get_cache_names(cc_mirror)
+    cache_path = cache + filename
+
+    # make sure cache does not exist
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+
+    index_list = cdx_toolkit.commoncrawl.get_cc_endpoints(cc_mirror)
+
+    assert len(index_list) >= 115

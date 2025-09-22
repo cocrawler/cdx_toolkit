@@ -2,8 +2,10 @@ import pytest
 import six
 
 import cdx_toolkit
+from tests.conftest import conditional_mock_responses
 
 
+@conditional_mock_responses
 def test_capture_object():
     cdx_cc = cdx_toolkit.CDXFetcher(source='cc')
     #XXX cdx_ia = cdx_toolkit.CDXFetcher(source='ia')
