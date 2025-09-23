@@ -18,7 +18,7 @@ aioboto3_warc_filename = 'TEST_warc_by_index-000000-001.extracted.warc.gz'  # du
 def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel_aioboto3(tmpdir, caplog):
     assert_cli_warc_by_cdx(
         's3://commoncrawl',
-        base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + str(tmpdir),
+        base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + str(tmpdir).replace('\\', '/'),
         caplog=caplog,
         extra_args=[
             '--parallel=3',

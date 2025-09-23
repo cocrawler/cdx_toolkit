@@ -162,12 +162,16 @@ def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):
         if '://' in output_base_path:
             output_file_paths.append(output_base_path + '/' + rel_path)
         else:
-            output_file_paths.append(os.path.join(output_base_path, rel_path))
+            # Normalize path separators for local filesystem
+            normalized_rel_path = rel_path.replace('/', os.sep)
+            output_file_paths.append(os.path.join(output_base_path, normalized_rel_path))
 
         if '://' in input_base_path:
             input_file_paths.append(input_base_path + '/' + rel_path)
         else:
-            input_file_paths.append(os.path.join(input_base_path, rel_path))
+            # Normalize path separators for local filesystem
+            normalized_rel_path = rel_path.replace('/', os.sep)
+            input_file_paths.append(os.path.join(input_base_path, normalized_rel_path))
 
     return input_file_paths, output_file_paths
 
