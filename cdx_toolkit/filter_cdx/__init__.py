@@ -75,8 +75,10 @@ def run_filter_cdx(args, cmdline: str):
         n_parallel=max(1, args.parallel),
     )
 
+    # Calculate ratio safely to avoid division by zero
+    ratio = total_included_n / total_lines_n if total_lines_n > 0 else 0.0
     logger.info(
-        f'Filter statistics: {total_included_n} / {total_lines_n} lines ({total_included_n / total_lines_n:.4f})'
+        f'Filter statistics: {total_included_n} / {total_lines_n} lines ({ratio:.4f})'
     )
     logger.info(
         f'Errors: {total_errors_n}'
@@ -153,11 +155,19 @@ def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):
     input_file_paths = []
     for input_path in input_fs_file_paths:
         # Get relative path from input_base_path without last slash
-        rel_path = input_path[len(input_fs_base_path) + 1 :]
+        rel_path = input_path[len(input_fs_base_path)+1:]
 
         # Create corresponding full input and output path
-        output_file_paths.append(os.path.join(output_base_path, rel_path))
-        input_file_paths.append(os.path.join(input_base_path, rel_path))
+        # Use forward slashes for URL paths (S3, HTTP, etc.) to ensure cross-platform compatibility
+        if '://' in output_base_path:
+            output_file_paths.append(output_base_path + '/' + rel_path)
+        else:
+            output_file_paths.append(os.path.join(output_base_path, rel_path))
+
+        if '://' in input_base_path:
+            input_file_paths.append(input_base_path + '/' + rel_path)
+        else:
+            input_file_paths.append(os.path.join(input_base_path, rel_path))
 
     return input_file_paths, output_file_paths
 

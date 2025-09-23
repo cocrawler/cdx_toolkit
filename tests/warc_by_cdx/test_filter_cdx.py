@@ -90,7 +90,8 @@ def test_resolve_cdx_paths_from_cc_s3_to_another_s3():
 def test_filter_cdx_nonexistent_surt_file_exits(tmpdir, caplog):
     index_path = 's3://commoncrawl/cc-index/collections'
     index_glob = '/CC-MAIN-2024-30/indexes/cdx-00187.gz'
-    nonexistent_surt_file = str(tmpdir / 'nonexistent_surts.txt')
+    nonexistent_surt_file_name = 'nonexistent_surts.txt'
+    nonexistent_surt_file = str(tmpdir / nonexistent_surt_file_name)
 
     # Test that the command exits when SURT file doesn't exist
     with pytest.raises(SystemExit) as exc_info:
@@ -107,7 +108,8 @@ def test_filter_cdx_nonexistent_surt_file_exits(tmpdir, caplog):
         )
 
     assert exc_info.value.code == 1
-    assert f'Filter file not found: {nonexistent_surt_file}' in caplog.text
+    assert 'Filter file not found: ' in caplog.text
+    assert nonexistent_surt_file_name in caplog.text
 
 
 def test_resolve_paths_no_files_found_exits(tmpdir, caplog):

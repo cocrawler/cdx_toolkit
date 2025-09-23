@@ -5,6 +5,7 @@ from tests.conftest import TEST_DATA_PATH
 
 import tempfile
 import gzip
+import os
 from unittest.mock import patch
 
 
@@ -43,9 +44,12 @@ another_bad_line
 org,valid)/ 20240103140000 {"url": "http://valid.org/", "filename": "test3.warc.gz", "offset": "900", "length": "200"}
 """.strip()
 
-    with tempfile.NamedTemporaryFile(suffix='.cdx.gz') as tmp_file:
+    fd, tmp_file_path = tempfile.mkstemp(suffix='.cdx.gz')
+    try:
+        os.close(fd)  # Close the file descriptor
+
         # Write gzipped CDX content
-        with gzip.open(tmp_file.name, 'wt') as f:
+        with gzip.open(tmp_file_path, 'wt') as f:
             f.write(test_cdx_content)
 
         # Mock read_cdx_line to raise exception for invalid lines
@@ -58,7 +62,7 @@ org,valid)/ 20240103140000 {"url": "http://valid.org/", "filename": "test3.warc.
 
         with patch('cdx_toolkit.warcer_by_cdx.cdx_utils.read_cdx_line', side_effect=mock_read_cdx_line):
             # Collect results from iterator
-            results = list(iter_cdx_index_from_path(tmp_file.name, 'http://warc-prefix'))
+            results = list(iter_cdx_index_from_path(tmp_file_path, 'http://warc-prefix'))
 
             # Should have 3 valid results despite 2 invalid lines being skipped
             assert len(results) == 3
@@ -67,3 +71,5 @@ org,valid)/ 20240103140000 {"url": "http://valid.org/", "filename": "test3.warc.
             assert results[0] == ('http://warc-prefix/test.warc.gz', 100, 500)
             assert results[1] == ('http://warc-prefix/test2.warc.gz', 600, 300)
             assert results[2] == ('http://warc-prefix/test3.warc.gz', 900, 200)
+    finally:
+        os.unlink(tmp_file_path)
