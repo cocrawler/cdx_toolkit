@@ -18,7 +18,13 @@ from tests.conftest import TEST_S3_BUCKET, requires_aws_s3, TEST_DATA_PATH
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
 
 
-def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args: Optional[List[str]] = None):
+def assert_cli_warc_by_cdx(
+    warc_download_prefix,
+    base_prefix,
+    caplog,
+    extra_args: Optional[List[str]] = None,
+    warc_filename: str = 'TEST_warc_by_index-000000.extracted.warc.gz',
+):
     # test cli and check output
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
     resource_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
@@ -52,6 +58,7 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args
 
     info_record = None
     response_records = []
+    response_contents = []
 
     resource_record = None
     resource_record_content = None
@@ -63,20 +70,35 @@ def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args
 
             if record.rec_type == 'response':
                 response_records.append(record)
+                response_contents.append(record.content_stream().read().decode('utf-8', errors='ignore'))
 
             if record.rec_type == 'resource':
                 resource_record = record
                 resource_record_content = record.content_stream().read().decode('utf-8')
 
-    assert len(response_records) == 10
-
-    assert resource_record is not None
-    assert resource_record.length == 294, 'Invalid resource record'
-    assert resource_record_content[:10] == 'example.co', 'Invalid resource record'
-    assert resource_record_content[-20:-1] == 'hr.fr/produit/t-837', 'Invalid resource record'
+    assert len(response_records) == 10, 'Invalid record count'
 
     assert info_record is not None, 'Invalid info record'
     assert 'operator: bob' in info_record, 'Invalid info record'
+
+    assert 'Catalogue en ligne Mission de France' in response_contents[0], 'Invalid response content'
+    assert 'dojo/dijit/themes/tundra/tundra' in response_contents[9], 'Invalid response content'
+
+    assert resource_record is not None, 'Resource record not set'
+
+    assert resource_record_content[:10] == 'example.co', 'Invalid resource record'
+
+    # Disabled due to OS-specific line endings
+    # assert resource_record_content[-20:-1] == 'hr.fr/produit/t-837', 'Invalid resource record'
+
+    # Calculate expected length based on the actual source file on current OS
+    with open(resource_record_path, 'rb') as f:
+        expected_length = len(f.read())
+
+    assert resource_record.length == expected_length, (
+        f'Invalid resource record length {resource_record.length}, expected {expected_length} '
+        f'(computed from {resource_record_path} on current OS)'
+    )
 
 
 def test_cli_warc_by_cdx_over_http(tmpdir, caplog):
@@ -97,7 +119,9 @@ def test_cli_warc_by_cdx_over_s3(tmpdir, caplog):
 @requires_aws_s3
 def test_cli_warc_by_cdx_over_s3_to_s3(tmpdir, caplog):
     assert_cli_warc_by_cdx(
-        's3://commoncrawl', base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + str(tmpdir), caplog=caplog
+        's3://commoncrawl',
+        base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + str(tmpdir),
+        caplog=caplog,
     )
 
 

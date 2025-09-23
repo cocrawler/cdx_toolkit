@@ -1,99 +1,17 @@
 import asyncio
 from io import BytesIO
-from typing import List, Optional
 
 import aioboto3
-import fsspec
-from cdx_toolkit.cli import main
-from warcio.archiveiterator import ArchiveIterator
 
 from tests.conftest import TEST_S3_BUCKET, requires_aws_s3, TEST_DATA_PATH
 
 from warcio import WARCWriter
 from cdx_toolkit.warcer_by_cdx.aioboto3_warcer import get_range_jobs_from_index_paths, write_warc, _STOP
 from cdx_toolkit.warcer_by_cdx.aioboto3_utils import RangePayload
+from tests.warc_by_cdx.test_warc_by_cdx import assert_cli_warc_by_cdx
 
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
-
-
-def assert_cli_warc_by_cdx(warc_download_prefix, base_prefix, caplog, extra_args: Optional[List[str]] = None):
-    # test cli and check output
-    index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
-    resource_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
-
-    if extra_args is None:
-        extra_args = []
-
-    main(
-        args=[
-            '-v',
-            '--cc',
-            '--limit=10',
-            'warc_by_cdx',
-            str(index_path),
-            '--write-paths-as-resource-records',
-            str(resource_record_path),
-            f'--prefix={str(base_prefix)}/TEST_warc_by_index',
-            '--creator=foo',
-            '--operator=bob',
-            f'--warc-download-prefix={warc_download_prefix}',
-        ]
-        + extra_args,
-    )
-
-    # Check log
-    assert 'Limit reached' in caplog.text
-
-    # Validate extracted WARC
-    warc_filename = 'TEST_warc_by_index-000000-001.extracted.warc.gz'
-    warc_path = str(base_prefix) + '/' + warc_filename
-
-    info_record = None
-    response_records = []
-    response_contents = []
-
-    resource_record = None
-    resource_record_content = None
-
-    with fsspec.open(warc_path, 'rb') as stream:
-        for record in ArchiveIterator(stream):
-            if record.rec_type == 'warcinfo':
-                info_record = record.content_stream().read().decode('utf-8')
-
-            if record.rec_type == 'response':
-                response_records.append(record)
-                response_contents.append(record.content_stream().read().decode('utf-8', errors='ignore'))
-
-            if record.rec_type == 'resource':
-                resource_record = record
-                resource_record_content = record.content_stream().read().decode('utf-8')
-
-    assert len(response_records) == 10, 'Invalid record count'
-    # assert resource_record is not None
-    # assert resource_record.length == 568010
-
-    assert 'Catalogue en ligne Mission de France' in response_contents[0], 'Invalid response content'
-    assert 'dojo/dijit/themes/tundra/tundra' in response_contents[9], 'Invalid response content'
-
-    assert info_record is not None, 'Invalid info record'
-    assert 'operator: bob' in info_record, 'Invalid info record'
-
-    assert resource_record is not None
-
-    assert resource_record_content[:10] == 'example.co', 'Invalid resource record'
-
-    # Disabled due to OS-specific line endings
-    # assert resource_record_content[-20:-1] == 'hr.fr/produit/t-837', 'Invalid resource record'
-
-    # Calculate expected length based on the actual source file on current OS
-    resource_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
-    with open(resource_record_path, 'rb') as f:
-        expected_length = len(f.read())
-
-    assert resource_record.length == expected_length, (
-        f'Invalid resource record length {resource_record.length}, expected {expected_length} '
-        f'(computed from {resource_record_path} on current OS)'
-    )
+aioboto3_warc_filename = 'TEST_warc_by_index-000000-001.extracted.warc.gz'  # due to parallel writer
 
 
 @requires_aws_s3
@@ -106,6 +24,7 @@ def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel_aioboto3(tmpdir, caplog):
             '--parallel=3',
             '--implementation=aioboto3',
         ],
+        warc_filename=aioboto3_warc_filename,
     )
 
 
