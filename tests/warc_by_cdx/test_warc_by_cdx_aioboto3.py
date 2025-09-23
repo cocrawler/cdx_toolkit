@@ -17,7 +17,7 @@ aioboto3_warc_filename = 'TEST_warc_by_index-000000-001.extracted.warc.gz'  # du
 @requires_aws_s3
 def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel_aioboto3(tmpdir, caplog):
     # Make sure s3 dir is valid even on Windows
-    s3_tmpdir = str(tmpdir).replace('\\', '/').replace(":", "")
+    s3_tmpdir = str(tmpdir).replace('\\', '/').replace(':', '')
 
     assert_cli_warc_by_cdx(
         's3://commoncrawl',
