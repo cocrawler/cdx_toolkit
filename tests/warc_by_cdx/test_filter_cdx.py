@@ -1,3 +1,4 @@
+import os
 import pytest
 
 from unittest.mock import patch
@@ -67,7 +68,9 @@ def test_resolve_cdx_paths_from_cc_s3_to_local(tmpdir):
     assert len(input_files) == len(output_files), 'Input and output count must be the same'
     assert len(input_files) == 300, 'Invalid input count'
     assert input_files[0] == base_path + '/CC-MAIN-2016-30/indexes/cdx-00000.gz', 'Invalid input file'
-    assert output_files[0] == tmpdir + '/CC-MAIN-2016-30/indexes/cdx-00000.gz', 'Invalid output file'
+    assert output_files[0] == tmpdir + '/CC-MAIN-2016-30/indexes/cdx-00000.gz'.replace('/', os.sep), (
+        'Invalid output file'
+    )
     assert input_files[-1] == base_path + '/CC-MAIN-2016-30/indexes/cdx-00299.gz'
 
 
