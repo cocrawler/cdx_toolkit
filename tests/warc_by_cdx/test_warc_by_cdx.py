@@ -29,6 +29,8 @@ def assert_cli_warc_by_cdx(
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
     resource_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
 
+    base_prefix = str(base_prefix)
+
     if extra_args is None:
         extra_args = []
 
@@ -41,7 +43,7 @@ def assert_cli_warc_by_cdx(
             str(index_path),
             '--write-paths-as-resource-records',
             str(resource_record_path),
-            f'--prefix={str(base_prefix)}/TEST_warc_by_index',
+            f'--prefix={base_prefix}/TEST_warc_by_index',
             '--creator=foo',
             '--operator=bob',
             f'--warc-download-prefix={warc_download_prefix}',
@@ -53,8 +55,10 @@ def assert_cli_warc_by_cdx(
     assert 'Limit reached' in caplog.text
 
     # Validate extracted WARC
-    warc_filename = 'TEST_warc_by_index-000000.extracted.warc.gz'
-    warc_path = str(base_prefix) + '/' + warc_filename
+    if 's3:' in base_prefix:
+        warc_path = base_prefix + '/' + warc_filename
+    else:
+        warc_path = os.path.join(base_prefix, warc_filename)
 
     info_record = None
     response_records = []
