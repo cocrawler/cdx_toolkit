@@ -8,14 +8,26 @@ on:
     branches:
     - main
 
+# These permissions are needed to interact with AWS S3 via GitHub's OIDC Token endpoint
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
+        # The full test-suite is only run with os=ubuntu and py=3.12
         python-version: [
-          '3.8', '3.9', '3.10', '3.11', '3.12', '3.13'
+          '3.8', 
+          '3.9', 
+          '3.10', 
+          '3.11', 
+          '3.12', 
+          '3.13'
         ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
@@ -56,6 +68,19 @@ jobs:
 
       - name: Install cdx_toolkit
         run: pip install .[test]
+
+      - name: Configure AWS credentials from OIDC (disabled for forks)
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'        
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
+          aws-region: us-east-1
+
+      - name: Disable S3 unit tests for Python < 3.9
+        run: |
+          if [[ "${{ matrix.python-version }}" < "3.9" ]]; then
+            echo "CDXT_DISABLE_S3_TESTS=1" >> $GITHUB_ENV
+          fi
 
       - name: Run tests
         run: |
