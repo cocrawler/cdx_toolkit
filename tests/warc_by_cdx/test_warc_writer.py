@@ -69,27 +69,17 @@ def test_write_to_local(prefix, gzip, tmpdir):
 
 
 @requires_aws_s3
-@pytest.mark.parametrize(
-    'prefix',
-    [
-        pytest.param(f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs', id='S3 prefix'),
-    ],
-)
-def test_write_to_s3(prefix, tmpdir):
+def test_write_to_s3(s3_tmpdir):
     info = {
         'software': 'pypi_cdx_toolkit/test',
         'description': 'test',
         'format': 'WARC file version 1.0',
     }
     encoding = 'utf-8'
-    full_prefix = prefix + str(tmpdir)  # append tmp dir on S3
-    fs, fs_prefix_path = fsspec.url_to_fs(full_prefix)
 
-    # remove all existing paths from S3 dir
-    if fs.exists(prefix):
-        fs.rm(prefix, recursive=True)
+    fs, fs_prefix_path = fsspec.url_to_fs(s3_tmpdir)
 
-    writer = cdx_toolkit.warc.get_writer(full_prefix, None, info)
+    writer = cdx_toolkit.warc.get_writer(s3_tmpdir, None, info)
 
     # single record
     input_resource_record_text = 'foo bar text'

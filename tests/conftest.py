@@ -10,6 +10,7 @@ from typing import Dict, Optional
 import requests
 import responses
 import base64
+import uuid
 
 from unittest.mock import patch
 
@@ -39,6 +40,32 @@ def requires_aws_s3(func):
             not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'
         )(func)
     )
+
+
+@pytest.fixture
+def s3_tmpdir():
+    """S3 equivalent of tmpdir - provides a temporary S3 path and handles cleanup."""
+    bucket_name = TEST_S3_BUCKET
+
+    # Generate unique prefix using UUID to avoid collisions
+    temp_prefix = f'cdx_toolkit/ci/tmpdirs/{uuid.uuid4().hex}'
+
+    # Yield the S3 path
+    yield f's3://{bucket_name}/{temp_prefix}'
+
+    # Cleanup: delete all objects with this prefix
+    s3_client = boto3.client('s3')
+    try:
+        # List all objects with the temp prefix
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=temp_prefix)
+
+        if 'Contents' in response:
+            # Delete all objects
+            objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
+            s3_client.delete_objects(Bucket=bucket_name, Delete={'Objects': objects_to_delete})
+    except ClientError:
+        # Ignore cleanup errors - test objects will eventually expire
+        pass
 
 
 def flexible_param_matcher(expected_params):

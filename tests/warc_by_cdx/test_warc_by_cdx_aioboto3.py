@@ -3,11 +3,11 @@ from io import BytesIO
 
 import aioboto3
 
-from tests.conftest import TEST_S3_BUCKET, requires_aws_s3, TEST_DATA_PATH
+from tests.conftest import requires_aws_s3, TEST_DATA_PATH
 
 from warcio import WARCWriter
 from cdx_toolkit.warcer_by_cdx.aioboto3_warcer import get_range_jobs_from_index_paths, write_warc, _STOP
-from cdx_toolkit.warcer_by_cdx.aioboto3_utils import RangePayload
+from cdx_toolkit.warcer_by_cdx.aioboto3_utils import RangePayload, parse_s3_uri
 from tests.warc_by_cdx.test_warc_by_cdx import assert_cli_warc_by_cdx
 
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
@@ -15,13 +15,10 @@ aioboto3_warc_filename = 'TEST_warc_by_index-000000-001.extracted.warc.gz'  # du
 
 
 @requires_aws_s3
-def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel_aioboto3(tmpdir, caplog):
-    # Make sure s3 dir is valid even on Windows
-    s3_tmpdir = str(tmpdir).replace('\\', '/').replace(':', '')
-
+def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel_aioboto3(s3_tmpdir, caplog):
     assert_cli_warc_by_cdx(
         's3://commoncrawl',
-        base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + s3_tmpdir,
+        base_prefix=s3_tmpdir,
         caplog=caplog,
         extra_args=[
             '--parallel=3',
@@ -55,14 +52,14 @@ def test_warc_info():
 
 
 @requires_aws_s3
-def test_write_warc_with_file_rotation(tmpdir):
+def test_write_warc_with_file_rotation(s3_tmpdir):
     """Test write_warc function with file size rotation"""
 
     async def run_test():
         # Setup test data
         index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
         warc_download_prefix = 's3://commoncrawl'
-        prefix_path = f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs{tmpdir}/file_rotation_test'
+        output_prefix_path = f'{s3_tmpdir}/file_rotation_test'
 
         # Use small file size to force rotation (100 KB)
         max_file_size = 100 * 1024  # 100 KB
@@ -127,15 +124,14 @@ def test_write_warc_with_file_rotation(tmpdir):
                 s3=s3,
                 max_attempts=3,
                 base_backoff_seconds=0.5,
-                prefix_path=prefix_path,
+                prefix_path=output_prefix_path,
                 writer_info=writer_info,
                 max_file_size=max_file_size,
                 gzip=True,
             )
 
             # Verify that multiple WARC files were created
-            dest_bucket = TEST_S3_BUCKET
-            dest_prefix = f'cdx_toolkit/ci/test-outputs{tmpdir}/file_rotation_test'
+            dest_bucket, dest_prefix = parse_s3_uri(output_prefix_path)
 
             # List objects to find all created WARC files
             response = await s3.list_objects_v2(Bucket=dest_bucket, Prefix=dest_prefix)

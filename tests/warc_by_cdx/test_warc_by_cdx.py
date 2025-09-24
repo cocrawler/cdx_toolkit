@@ -12,7 +12,7 @@ from cdx_toolkit.warcer_by_cdx.fsspec_warcer import (
 import pytest
 from warcio.archiveiterator import ArchiveIterator
 
-from tests.conftest import TEST_S3_BUCKET, requires_aws_s3, TEST_DATA_PATH
+from tests.conftest import requires_aws_s3, TEST_DATA_PATH
 
 
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
@@ -121,19 +121,19 @@ def test_cli_warc_by_cdx_over_s3(tmpdir, caplog):
 
 
 @requires_aws_s3
-def test_cli_warc_by_cdx_over_s3_to_s3(tmpdir, caplog):
+def test_cli_warc_by_cdx_over_s3_to_s3(s3_tmpdir, caplog):
     assert_cli_warc_by_cdx(
         's3://commoncrawl',
-        base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + str(tmpdir),
+        base_prefix=s3_tmpdir,
         caplog=caplog,
     )
 
 
 @requires_aws_s3
-def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel(tmpdir, caplog):
+def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel(s3_tmpdir, caplog):
     assert_cli_warc_by_cdx(
         's3://commoncrawl',
-        base_prefix=f's3://{TEST_S3_BUCKET}/cdx_toolkit/ci/test-outputs' + str(tmpdir),
+        base_prefix=s3_tmpdir,
         caplog=caplog,
         extra_args=['--parallel=3'],
     )
