@@ -256,6 +256,112 @@ get the most recent N captures: --limit and limit= will return the
 oldest N captures. With the 'mixed' ordering, a large enough limit=
 will get close to returning the most recent N captures.
 
+## Filtering CDX files
+
+The command line cdxt can be used to filter CDX files based on a given
+whitelist of URLs or SURTs. In particular, the filtering process
+extracts all CDX entries that match with at least one entry in the 
+whitelist. All other CDX entries are discarded. 
+
+For matching, all URLs are converted into SURTs. A match occurs
+when a given SURT from the CDX file starts with one of the prefixes
+defined in the SURTS of whitelist.
+
+The CDX filter can read and write files from local and remote file 
+systems, like S3 buckets. Multiple input files can be defined
+using a glob pattern.
+
+```
+$ cdx filter_cdx <input_cdx_path> <whitelist_path> \
+    --filter-type <url or surt> \
+    [--input-glob <glob pattern like "*_cdx-*.gz"]
+```
+
+For example, you can filter CDX from Common Crawl as follows:
+
+```
+$ cdxt -v filter_cdx \
+    s3://commoncrawl/cc-index/collections \
+    /local/path/to/my-url-whitelist.txt \
+    s3://my-s3-bucket/filtered-cdxs --filter-type url \
+    --input-glob "/CC-MAIN-2024-30/indexes/*.gz" --overwrite
+```
+
+The whitelist file looks like this (one entry per line):
+
+```
+example.com
+github.com/cococrawler
+```
+
+Filtering throughput depends on your machine. For reference,
+on an AWS EC2 c5n.xlarge instance filtering all 300 CDX files 
+from CC-MAIN-2024-30 takes ~1.4 hours with 100k URLs in the whitelist. 
+
+## WARC extraction using CDX files
+
+You can extract parts of WARC files using the cdxt command line script.
+The WARC extraction can read CDX files from local and remote file 
+systems, like S3 buckets. Multiple CDX files can be defined
+using a glob pattern. For downloading WARC parts from HTTP or S3, you can 
+define the download prefix, e.g., `s3://commoncrawl` for S3 download.
+
+```
+$ cdxt -v --cc  warc_by_cdx \
+    <path_to_cdx> [--cdx-glob <glob pattern, e.g., "*.gz">] \
+    --prefix <output prefix> \
+    --warc-download-prefix=<warc download prefix, e.g., s3://commoncrawl> \
+    --creator <name and contact of creator> \
+    --operator <name and contact of creator> \
+    [--implementation <fsspec or aiobot3, defaults to fsspec>]
+    [--write-paths-as-resource-records <one or more paths for resource records>]
+    [--write-paths-as-resource-records-metadata <one or more paths for metadata of resource records>]
+```
+
+By default, we use a [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html) 
+implementation to write and read to local or remote file systems. 
+For better throughput for S3 read/write, we have also a specific implementation 
+using [aioboto3](https://github.com/terricain/aioboto3) that you can enable with 
+the `--implementation=aioboto3` argument. With aioboto3, we achieved ~ 80 requests / second 
+on an AWS EC2 c5n.xlarge instance.
+
+You can add one or multiple files with metadata as resource records to 
+the extracted WARC. For instance, this is useful to maintain the CDX filter 
+inputs, e.g., the whitelist list. To do this, you need to provide the 
+corresponding file paths as arguments `--write-paths-as-resource-records=s3:///my-s3-bucket/path/to/my-url-whitelist.txt`
+and `--write-paths-as-resource-records-metadata=s3:///my-s3-bucket/path/to/metadata.json`. 
+The metadata file is optional and can have the following optional fields:
+
+```json
+{
+    "warc_content_type": "str",
+    "uri": "str",
+    "http_headers": {"k": "v"},
+    "warc_headers_dict": {"k": "v"}
+}
+```
+
+This in one example for a metadata JSON file:
+
+```json
+{
+    "uri": "filter_cdx.gz",
+    "warc_content_type": "application/cdx",
+}
+```
+
+The full WARC extraction command could look like this:
+
+```
+$ cdxt -v --cc  warc_by_cdx \
+    s3://my-s3-bucket/filtered-cdxs --cdx-glob "*.gz" \
+    --prefix /local/path/filtered-warcs/ \
+    --warc-download-prefix=s3://commoncrawl \
+    --creator foo --operator bob \
+    --write-paths-as-resource-records=s3:///my-s3-bucket/path/to/my-url-whitelist.txt \
+    --write-paths-as-resource-records-metadata=s3:///my-s3-bucket/path/to/metadata.json
+```
+
 ## TODO
 
 Content downloading needs help with charset issues, preferably
