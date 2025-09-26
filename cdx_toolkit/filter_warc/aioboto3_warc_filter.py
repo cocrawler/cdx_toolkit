@@ -7,18 +7,18 @@ import aioboto3
 from botocore.config import Config
 from warcio import WARCWriter
 
-from cdx_toolkit.warcer_by_cdx.aioboto3_utils import (
+from cdx_toolkit.filter_warc.aioboto3_utils import (
     RangeJob,
     RangePayload,
     ThroughputTracker,
     parse_s3_uri,
     ranged_get_bytes,
 )
-from cdx_toolkit.warcer_by_cdx.aioboto3_writer import ShardWriter
-from cdx_toolkit.warcer_by_cdx.cdx_utils import (
+from cdx_toolkit.filter_warc.aioboto3_writer import ShardWriter
+from cdx_toolkit.filter_warc.cdx_utils import (
     iter_cdx_index_from_path,
 )
-from cdx_toolkit.warcer_by_cdx.warc_utils import get_bytes_from_warc_record, get_resource_record_from_path
+from cdx_toolkit.filter_warc.warc_utils import get_bytes_from_warc_record, get_resource_record_from_path
 
 
 _STOP = object()

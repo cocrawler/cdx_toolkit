@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-from cdx_toolkit.warcer_by_cdx.aioboto3_writer import ShardWriter
+from cdx_toolkit.filter_warc.aioboto3_writer import ShardWriter
 
 
 def test_shard_writer_init():
@@ -40,7 +40,7 @@ def test_shard_writer_start():
     """Test ShardWriter start method."""
 
     async def run_test():
-        with patch('cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_create') as mock_mpu_create:
+        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_create') as mock_mpu_create:
             mock_mpu_create.return_value = 'test-upload-id'
 
             writer = ShardWriter(
@@ -98,7 +98,7 @@ def test_shard_writer_write_large_data():
     """Test ShardWriter write method with large data that triggers part uploads."""
 
     async def run_test():
-        with patch('cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_upload_part') as mock_upload_part:
+        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part:
             mock_upload_part.return_value = 'test-etag-1'
 
             writer = ShardWriter(
@@ -134,7 +134,7 @@ def test_shard_writer_flush_full_parts():
     """Test ShardWriter _flush_full_parts private method directly."""
 
     async def run_test():
-        with patch('cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_upload_part') as mock_upload_part:
+        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part:
             mock_upload_part.return_value = 'test-etag-flush'
 
             writer = ShardWriter(
@@ -170,8 +170,8 @@ def test_shard_writer_close_with_buffer():
     """Test ShardWriter close method with data remaining in buffer."""
 
     async def run_test():
-        with patch('cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
-            'cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_complete'
+        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
+            'cdx_toolkit.filter_warc.aioboto3_writer.mpu_complete'
         ) as mock_complete:
             mock_upload_part.return_value = 'final-etag'
 
@@ -225,8 +225,8 @@ def test_shard_writer_close_empty():
     """Test ShardWriter close method with no data (empty buffer, no parts)."""
 
     async def run_test():
-        with patch('cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
-            'cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_complete'
+        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
+            'cdx_toolkit.filter_warc.aioboto3_writer.mpu_complete'
         ) as mock_complete:
             writer = ShardWriter(
                 shard_key='test.warc.gz',
@@ -257,9 +257,9 @@ def test_shard_writer_close_with_exception():
     """Test ShardWriter close method with exception and abort handling."""
 
     async def run_test():
-        with patch('cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
-            'cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_complete'
-        ) as mock_complete, patch('cdx_toolkit.warcer_by_cdx.aioboto3_writer.mpu_abort') as mock_abort:
+        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
+            'cdx_toolkit.filter_warc.aioboto3_writer.mpu_complete'
+        ) as mock_complete, patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_abort') as mock_abort:
             mock_upload_part.return_value = 'error-etag'
             mock_complete.side_effect = Exception('Complete failed')
 

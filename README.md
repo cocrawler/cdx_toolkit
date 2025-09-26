@@ -308,7 +308,7 @@ define the download prefix, e.g., `s3://commoncrawl` for S3 download.
 
 ```
 $ cdxt -v --cc  warc_by_cdx \
-    <path_to_cdx> [--index-glob <glob pattern, e.g., "*.gz">] \
+    <path_to_cdx> [--cdx-glob <glob pattern, e.g., "*.gz">] \
     --prefix <output prefix> \
     --warc-download-prefix=<warc download prefix, e.g., s3://commoncrawl> \
     --creator <name and contact of creator> \
@@ -354,7 +354,7 @@ The full WARC extraction command could look like this:
 
 ```
 $ cdxt -v --cc  warc_by_cdx \
-    s3://my-s3-bucket/filtered-cdxs --index-glob "*.gz" \
+    s3://my-s3-bucket/filtered-cdxs --cdx-glob "*.gz" \
     --prefix /local/path/filtered-warcs/ \
     --warc-download-prefix=s3://commoncrawl \
     --creator foo --operator bob \

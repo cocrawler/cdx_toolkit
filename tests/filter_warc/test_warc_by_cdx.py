@@ -3,10 +3,10 @@ from typing import List, Optional
 
 import fsspec
 from cdx_toolkit.cli import main
-from cdx_toolkit.warcer_by_cdx.cdx_utils import (
+from cdx_toolkit.filter_warc.cdx_utils import (
     get_index_as_string_from_path,
 )
-from cdx_toolkit.warcer_by_cdx.fsspec_warcer import (
+from cdx_toolkit.filter_warc.fsspec_warc_filter import (
     generate_caputure_objects_from_index,
 )
 import pytest
@@ -159,7 +159,7 @@ def test_warc_by_cdx_no_index_files_found_exits(tmpdir, caplog):
                 'warc_by_cdx',
                 f'{str(tmpdir)}',
                 f'--prefix={str(tmpdir)}/TEST',
-                '--index-glob=/nonexistent-pattern-*.gz',
+                '--cdx-glob=/nonexistent-pattern-*.gz',
             ]
         )
 

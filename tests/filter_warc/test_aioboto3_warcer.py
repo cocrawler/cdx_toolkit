@@ -1,7 +1,10 @@
 import asyncio
 from unittest.mock import patch, AsyncMock
 
-from cdx_toolkit.warcer_by_cdx.aioboto3_warcer import filter_warc_by_cdx_via_aioboto3, get_range_jobs_from_index_paths
+from cdx_toolkit.filter_warc.aioboto3_warc_filter import (
+    filter_warc_by_cdx_via_aioboto3,
+    get_range_jobs_from_index_paths,
+)
 
 
 def test_filter_warc_by_cdx_via_aioboto3_keyboard_interrupt(caplog):
@@ -12,7 +15,7 @@ def test_filter_warc_by_cdx_via_aioboto3_keyboard_interrupt(caplog):
         raise KeyboardInterrupt('User interrupted')
 
     with patch(
-        'cdx_toolkit.warcer_by_cdx.aioboto3_warcer.filter_warc_by_cdx_via_aioboto3_async',
+        'cdx_toolkit.filter_warc.aioboto3_warc_filter.filter_warc_by_cdx_via_aioboto3_async',
         side_effect=mock_async_function,
     ):
         # Call the function with minimal required parameters
@@ -32,7 +35,6 @@ def test_filter_warc_by_cdx_via_aioboto3_keyboard_interrupt(caplog):
         assert warning_records[0].message == 'Interrupted by user.'
 
 
-
 def test_get_range_jobs_from_index_paths_exception_handling_with_logging(caplog):
     """Test get_range_jobs_from_index_paths logs errors when iter_cdx_index_from_path raises."""
 
@@ -50,7 +52,7 @@ def test_get_range_jobs_from_index_paths_exception_handling_with_logging(caplog)
             raise ValueError('Simulated CDX parsing error')
 
         with patch(
-            'cdx_toolkit.warcer_by_cdx.aioboto3_warcer.iter_cdx_index_from_path',
+            'cdx_toolkit.filter_warc.aioboto3_warc_filter.iter_cdx_index_from_path',
             side_effect=mock_iter_cdx_index_from_path,
         ):
             # Run the function

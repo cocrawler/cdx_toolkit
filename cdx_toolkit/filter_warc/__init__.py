@@ -7,8 +7,8 @@ import fsspec
 
 
 from cdx_toolkit.utils import get_version, setup
-from cdx_toolkit.warcer_by_cdx.aioboto3_warcer import filter_warc_by_cdx_via_aioboto3
-from cdx_toolkit.warcer_by_cdx.fsspec_warcer import filter_warc_by_cdx_via_fsspec
+from cdx_toolkit.filter_warc.aioboto3_warc_filter import filter_warc_by_cdx_via_aioboto3
+from cdx_toolkit.filter_warc.fsspec_warc_filter import filter_warc_by_cdx_via_fsspec
 
 
 logger = logging.getLogger(__name__)
@@ -75,14 +75,14 @@ def run_warcer_by_cdx(args, cmdline):
     # make sure the base dir exists
     prefix_fs.makedirs(prefix_fs._parent(prefix_fs_path), exist_ok=True)
 
-    index_paths = get_index_paths(
-        args.index_path,
-        args.index_glob,
+    cdx_paths = get_cdx_paths(
+        args.cdx_path,
+        args.cdx_glob,
     )
 
     if implementation == 'fsspec':
         records_n = filter_warc_by_cdx_via_fsspec(
-            index_paths=index_paths,
+            index_paths=cdx_paths,
             prefix_path=prefix_path,
             writer_info=info,
             writer_subprefix=args.subprefix,
@@ -100,7 +100,7 @@ def run_warcer_by_cdx(args, cmdline):
             sys.exit(1)
 
         records_n = filter_warc_by_cdx_via_aioboto3(
-            index_paths=index_paths,
+            index_paths=cdx_paths,
             prefix_path=prefix_path,
             writer_info=info,
             writer_subprefix=args.subprefix,
@@ -124,7 +124,8 @@ def run_warcer_by_cdx(args, cmdline):
     logger.info(f'Script execution time: {execution_time:.3f} seconds')
 
 
-def get_index_paths(index_path: str, index_glob: Optional[str] = None) -> List[str]:
+def get_cdx_paths(index_path: str, index_glob: Optional[str] = None) -> List[str]:
+    """Find CDX index paths using glob pattern."""
     if index_glob is None:
         # Read from a single index
         index_paths = [index_path]

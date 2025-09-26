@@ -6,12 +6,12 @@ logger = logging.getLogger(__name__)
 
 
 def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
-    parser.add_argument('index_path', help='Path to CDX index file (local or remote, e.g. S3)')
+    parser.add_argument('cdx_path', help='Path to CDX index file (local or remote, e.g. S3)')
     parser.add_argument(
-        '--index-glob',
+        '--cdx-glob',
         type=str,
         default=None,
-        help='a glob pattern for read from multiple indices',
+        help='a glob pattern for read from multiple CDX indices',
     )
     parser.add_argument('--prefix', default='TEST', help='prefix for the warc filename')
     parser.add_argument(

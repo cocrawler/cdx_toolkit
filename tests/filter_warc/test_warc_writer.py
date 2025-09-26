@@ -3,7 +3,7 @@ import fsspec
 import pytest
 import cdx_toolkit
 
-from tests.conftest import TEST_S3_BUCKET, requires_aws_s3
+from tests.conftest import requires_aws_s3
 
 from warcio import WARCWriter
 from warcio.archiveiterator import ArchiveIterator

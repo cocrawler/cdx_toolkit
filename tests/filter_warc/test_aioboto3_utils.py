@@ -4,7 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock
 
 
-from cdx_toolkit.warcer_by_cdx.aioboto3_utils import (
+from cdx_toolkit.filter_warc.aioboto3_utils import (
     _backoff,
     parse_s3_uri,
     mpu_abort,

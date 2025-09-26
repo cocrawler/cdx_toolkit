@@ -1,6 +1,6 @@
 import fsspec
 import pytest
-from cdx_toolkit.warcer_by_cdx.cdx_utils import get_index_as_string_from_path, read_cdx_line, iter_cdx_index_from_path
+from cdx_toolkit.filter_warc.cdx_utils import get_index_as_string_from_path, read_cdx_line, iter_cdx_index_from_path
 from tests.conftest import TEST_DATA_PATH
 
 import tempfile
@@ -60,7 +60,7 @@ org,valid)/ 20240103140000 {"url": "http://valid.org/", "filename": "test3.warc.
                 raise ValueError(f'Mock error for line: {line}')
             return original_read_cdx_line(line, warc_download_prefix)
 
-        with patch('cdx_toolkit.warcer_by_cdx.cdx_utils.read_cdx_line', side_effect=mock_read_cdx_line):
+        with patch('cdx_toolkit.filter_warc.cdx_utils.read_cdx_line', side_effect=mock_read_cdx_line):
             # Collect results from iterator
             results = list(iter_cdx_index_from_path(tmp_file_path, 'http://warc-prefix'))
 

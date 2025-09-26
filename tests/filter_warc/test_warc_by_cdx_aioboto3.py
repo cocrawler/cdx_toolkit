@@ -6,9 +6,9 @@ import aioboto3
 from tests.conftest import requires_aws_s3, TEST_DATA_PATH
 
 from warcio import WARCWriter
-from cdx_toolkit.warcer_by_cdx.aioboto3_warcer import get_range_jobs_from_index_paths, write_warc, _STOP
-from cdx_toolkit.warcer_by_cdx.aioboto3_utils import RangePayload, parse_s3_uri
-from tests.warc_by_cdx.test_warc_by_cdx import assert_cli_warc_by_cdx
+from cdx_toolkit.filter_warc.aioboto3_warc_filter import get_range_jobs_from_index_paths, write_warc, _STOP
+from cdx_toolkit.filter_warc.aioboto3_utils import RangePayload, parse_s3_uri
+from tests.filter_warc.test_warc_by_cdx import assert_cli_warc_by_cdx
 
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
 aioboto3_warc_filename = 'TEST_warc_by_index-000000-001.extracted.warc.gz'  # due to parallel writer

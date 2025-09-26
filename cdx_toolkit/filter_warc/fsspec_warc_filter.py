@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from warcio.recordloader import ArcWarcRecord
 
-from cdx_toolkit.warcer_by_cdx.cdx_utils import get_index_as_string_from_path
-from cdx_toolkit.warcer_by_cdx.warc_utils import get_resource_record_from_path
+from cdx_toolkit.filter_warc.cdx_utils import get_index_as_string_from_path
+from cdx_toolkit.filter_warc.warc_utils import get_resource_record_from_path
 
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ def fetch_records_from_index(
                 warc_download_prefix=warc_download_prefix,
                 limit=limit,
             )
-        )
+        )  # TODO this loads all records into memory
 
         with ThreadPoolExecutor(max_workers=n_parallel) as executor:
             # Submit all tasks
@@ -168,7 +168,9 @@ def generate_caputure_objects_from_index(
             # TODO can there be a different format?
             # surt, timestamp, json_data = cols
             #
-            # CC seems to not follow the specification from https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+            # CC seems to not follow the IIPC pecification
+            # https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+            #
             # > The default first line of a CDX file is:
             # > CDX A b e a m s c k r V v D d g M n
             data = json.loads(cols[2])
