@@ -42,6 +42,25 @@ def requires_aws_s3(func):
     )
 
 
+def check_aws_athena_access():
+    """Check if AWS Athena access is available."""
+    try:
+        client = boto3.client('athena')
+
+        # Try list databasets
+        client.list_databases(CatalogName="AwsDataCatalog")
+        return True
+    except (NoCredentialsError, ClientError):
+        return False
+
+
+def requires_aws_athena(func):
+    """Pytest decorator that skips test if AWS Athena access is not available."""
+    return pytest.mark.skipif(
+            not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'
+        )(func)
+
+
 @pytest.fixture
 def s3_tmpdir():
     """S3 equivalent of tmpdir - provides a temporary S3 path and handles cleanup."""
