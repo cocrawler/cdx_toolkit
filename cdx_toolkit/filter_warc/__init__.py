@@ -67,7 +67,7 @@ def run_warcer_by_cdx(args, cmdline):
         del kwargs['size']
 
     n_parallel = args.parallel
-    log_every_n = 5
+    log_every_n = args.log_every_n
     limit = 0 if args.limit is None else args.limit
     prefix_path = str(args.prefix)
     prefix_fs, prefix_fs_path = fsspec.url_to_fs(prefix_path)

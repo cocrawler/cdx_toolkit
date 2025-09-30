@@ -148,10 +148,10 @@ async def filter_warc_by_cdx_via_aioboto3_async(
         ]
 
         await lister_task
-        logger.info('Lister completed, waiting for fetchers to finish')
+        logger.info('Range jobs submitted, waiting for fetchers to finish')
 
         await asyncio.gather(*fetchers)
-        logger.info('All fetchers completed')
+        logger.info('All WARC fetchers completed')
 
         # Send stop signals to consumers
         for _ in range(num_consumers):
@@ -160,7 +160,7 @@ async def filter_warc_by_cdx_via_aioboto3_async(
         consumer_results = await asyncio.gather(*consumers)
         n_records = sum([result['stats']['total_requests'] for result in consumer_results])
 
-        logger.info('All consumers completed')
+        logger.info('All WARC writers completed')
 
     return n_records
 
@@ -205,7 +205,7 @@ async def get_range_jobs_from_index_paths(
     for _ in range(num_fetchers):
         await key_queue.put(_STOP)
 
-    logger.info('Lister enqueued %d jobs from %s', count, index_path)
+    logger.info('Enqueued %d jobs from %s', count, index_path)
 
 
 async def fetch_warc_ranges(
@@ -228,7 +228,7 @@ async def fetch_warc_ranges(
             if job is _STOP:
                 stats = tracker.get_stats()
                 logger.info(
-                    'Fetcher %d stopping. Stats: %.1fs, %d requests, %.1f MB, %.2f MB/s, %.2f req/s',
+                    'WARC Fetcher %d stopping. Stats: %.1fs, %d requests, %.1f MB, %.2f MB/s, %.2f req/s',
                     fetcher_id,
                     stats['elapsed'],
                     stats['total_requests'],
@@ -251,10 +251,10 @@ async def fetch_warc_ranges(
             counter += 1
 
             # Log progress every 10 items
-            if counter % log_every_n == 0:
+            if log_every_n > 0 and counter % log_every_n == 0:
                 stats = tracker.get_stats()
                 logger.info(
-                    'Fetcher %d: %d items, %.1f MB, %.2f MB/s, %.2f req/s',
+                    'WARC Fetcher %d: %d items, %.1f MB, %.2f MB/s, %.2f req/s',
                     fetcher_id,
                     counter,
                     stats['total_bytes'] / (1024 * 1024),
@@ -265,7 +265,7 @@ async def fetch_warc_ranges(
             await item_queue.put(RangePayload(job=job, data=data))
         except Exception:
             logger.exception(
-                'Fetcher %d failed on %s/%s [%d,%d]',
+                'WARC Fetcher %d failed on %s/%s [%d,%d]',
                 fetcher_id,
                 getattr(job, 'bucket', '?'),
                 getattr(job, 'key', '?'),
@@ -418,7 +418,7 @@ async def write_warc(
                 if item is _STOP:
                     stats = tracker.get_stats()
                     logger.info(
-                        'Consumer %d stopping. Stats: %.1fs, %d items, %.1f MB written, %.2f MB/s write speed',
+                        'WARC writer %d stopping. Stats: %.1fs, %d items, %.1f MB written, %.2f MB/s write speed',
                         consumer_id,
                         stats['elapsed'],
                         stats['total_requests'],
@@ -459,17 +459,17 @@ async def write_warc(
                     tracker.add_bytes(len(item.data))
 
                     # Log progress every 10 items
-                    if counter % log_every_n == 0:
+                    if log_every_n > 0 and counter % log_every_n == 0:
                         stats = tracker.get_stats()
                         logger.info(
-                            'Consumer %d: %d items, %.1f MB written, %.2f MB/s',
+                            'WARC writer %d: %d items, %.1f MB written, %.2f MB/s',
                             consumer_id,
                             counter,
                             stats['total_bytes'] / (1024 * 1024),
                             stats['mb_per_sec'],
                         )
             except Exception:
-                logger.exception('Consumer %d failed on %s', consumer_id, getattr(item, 'job', None))
+                logger.exception('WARC writer %d failed on %s', consumer_id, getattr(item, 'job', None))
                 should_stop = False
             finally:
                 item_queue.task_done()
