@@ -99,29 +99,33 @@ def filter_cdx(
     # Parallel processing
     logger.info('Filtering with %i processes in parallel (limit: %i)', n_parallel, limit)
 
-    with ProcessPoolExecutor(max_workers=n_parallel) as executor:
-        # Create partial function with common arguments
-        process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
+    try:
+        with ProcessPoolExecutor(max_workers=n_parallel) as executor:
+            # Create partial function with common arguments
+            process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
 
-        # Submit all jobs
-        future_to_paths = {
-            executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
-            for input_path, output_path in zip(input_paths, output_paths)
-        }
+            # Submit all jobs
+            future_to_paths = {
+                executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
+                for input_path, output_path in zip(input_paths, output_paths)
+            }
 
-        # Collect results
-        for future in as_completed(future_to_paths):
-            input_path, output_path = future_to_paths[future]
-            try:
-                lines_n, included_n = future.result()
-                logger.info(f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}')
+            # Collect results
+            for future in as_completed(future_to_paths):
+                input_path, output_path = future_to_paths[future]
+                try:
+                    lines_n, included_n = future.result()
+                    logger.info(f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}')
 
-                total_lines_n += lines_n
-                total_included_n += included_n
+                    total_lines_n += lines_n
+                    total_included_n += included_n
 
-            except Exception as exc:
-                logger.error(f'File {input_path} generated an exception: {exc}')
-                total_errors_n += 1
+                except Exception as exc:
+                    logger.error(f'File {input_path} generated an exception: {exc}')
+                    total_errors_n += 1
+    except KeyboardInterrupt:
+        logger.warning('Process interrupted by user (Ctrl+C)')
+        # The executor context manager will handle cleanup automatically
 
     return total_lines_n, total_included_n, total_errors_n
 
