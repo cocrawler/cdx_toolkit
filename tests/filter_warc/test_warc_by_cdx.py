@@ -3,12 +3,7 @@ from typing import List, Optional
 
 import fsspec
 from cdx_toolkit.cli import main
-from cdx_toolkit.filter_warc.cdx_utils import (
-    get_index_as_string_from_path,
-)
-from cdx_toolkit.filter_warc.fsspec_warc_filter import (
-    generate_caputure_objects_from_index,
-)
+
 import pytest
 from warcio.archiveiterator import ArchiveIterator
 
@@ -23,7 +18,8 @@ def assert_cli_warc_by_cdx(
     base_prefix,
     caplog,
     extra_args: Optional[List[str]] = None,
-    warc_filename: str = 'TEST_warc_by_index-000000.extracted.warc.gz',
+    # warc_filename: str = 'TEST_warc_by_index-000000.extracted.warc.gz',
+    warc_filename: str = 'TEST_warc_by_index-000000-001.extracted.warc.gz',  # due to parallel writer
 ):
     # test cli and check output
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
@@ -139,15 +135,6 @@ def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel(s3_tmpdir, caplog):
     )
 
 
-def test_get_caputure_objects_from_index():
-    index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
-
-    for obj in generate_caputure_objects_from_index(get_index_as_string_from_path(index_path).splitlines()):
-        break
-
-    assert obj.data['length'] == '9754'
-
-
 def test_warc_by_cdx_no_index_files_found_exits(tmpdir, caplog):
     # Test that warc_by_cdx exits when no index files match the glob pattern
     with pytest.raises(SystemExit) as exc_info:
@@ -165,24 +152,6 @@ def test_warc_by_cdx_no_index_files_found_exits(tmpdir, caplog):
 
     assert exc_info.value.code == 1
     assert 'no index files found' in caplog.text
-
-
-def test_generate_caputure_objects_invalid_cdx_line():
-    # Test invalid CDX line parsing (line with wrong number of columns)
-    with pytest.raises(ValueError):
-        list(generate_caputure_objects_from_index('invalid-format'))
-
-
-def test_generate_caputure_objects_with_limit():
-    # Test limit functionality in get_caputure_objects_from_index
-    index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
-    index_content = get_index_as_string_from_path(index_path)
-
-    # Count objects with limit=2
-    objects = list(generate_caputure_objects_from_index(index_content.splitlines(), limit=2))
-
-    # Should stop after 2 objects
-    assert len(objects) == 2
 
 
 def test_warc_by_cdx_subprefix_and_metadata(tmpdir):
@@ -205,7 +174,7 @@ def test_warc_by_cdx_subprefix_and_metadata(tmpdir):
     )
 
     # Check that WARC file was created with subprefix
-    warc_path = os.path.join(tmpdir, 'TEST-SUB-000000.extracted.warc.gz')
+    warc_path = os.path.join(tmpdir, 'TEST-SUB-000000-001.extracted.warc.gz')
     assert os.path.exists(warc_path)
 
     # Validate metadata in warcinfo record
@@ -238,7 +207,7 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
     )
 
     # Check that WARC file was created
-    warc_path = os.path.join(tmpdir, 'TEST_NO_META-000000.extracted.warc.gz')
+    warc_path = os.path.join(tmpdir, 'TEST_NO_META-000000-001.extracted.warc.gz')
     assert os.path.exists(warc_path)
 
     # Validate that creator/operator are not in warcinfo record

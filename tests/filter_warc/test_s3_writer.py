@@ -1,49 +1,26 @@
 import pytest
+
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
+from unittest.mock import patch
 
-from cdx_toolkit.filter_warc.aioboto3_writer import S3ShardWriter
+from cdx_toolkit.filter_warc.s3_writer import mpu_abort
 
 
-def test_shard_writer_init():
-    """Test ShardWriter initialization."""
-    shard_key = 'test-shard.warc.gz'
-    dest_bucket = 'test-bucket'
-    content_type = 'application/gzip'
-    min_part_size = 5 * 1024 * 1024  # 5 MiB
-    max_attempts = 3
-    base_backoff_seconds = 0.1
-
-    writer = S3ShardWriter(
-        shard_key=shard_key,
-        dest_bucket=dest_bucket,
-        content_type=content_type,
-        min_part_size=min_part_size,
-        max_attempts=max_attempts,
-        base_backoff_seconds=base_backoff_seconds,
-    )
-
-    assert writer.shard_key == shard_key
-    assert writer.dest_bucket == dest_bucket
-    assert writer.content_type == content_type
-    assert writer.min_part_size == min_part_size
-    assert writer.max_attempts == max_attempts
-    assert writer.base_backoff_seconds == base_backoff_seconds
-    assert writer.upload_id is None
-    assert writer.part_number == 1
-    assert writer.parts == []
-    assert isinstance(writer.buffer, bytearray)
-    assert len(writer.buffer) == 0
+from cdx_toolkit.filter_warc.s3_writer import S3ShardWriter
 
 
 def test_shard_writer_start():
     """Test ShardWriter start method."""
 
     async def run_test():
-        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_create') as mock_mpu_create:
+        with patch('cdx_toolkit.filter_warc.s3_writer.mpu_create') as mock_mpu_create:
             mock_mpu_create.return_value = 'test-upload-id'
 
+            mock_s3 = AsyncMock()
+
             writer = S3ShardWriter(
+                s3_client=mock_s3,
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -52,8 +29,7 @@ def test_shard_writer_start():
                 base_backoff_seconds=0.1,
             )
 
-            mock_s3 = AsyncMock()
-            await writer.start(mock_s3)
+            await writer.start()
 
             assert writer.upload_id == 'test-upload-id'
             mock_mpu_create.assert_called_once_with(
@@ -100,7 +76,7 @@ def test_shard_writer_write_large_data():
     """Test ShardWriter write method with large data that triggers part uploads."""
 
     async def run_test():
-        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part:
+        with patch('cdx_toolkit.filter_warc.s3_writer.mpu_upload_part') as mock_upload_part:
             mock_upload_part.return_value = 'test-etag-1'
 
             mock_s3 = AsyncMock()
@@ -138,7 +114,7 @@ def test_shard_writer_flush_full_parts():
     """Test ShardWriter _flush_full_parts private method directly."""
 
     async def run_test():
-        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part:
+        with patch('cdx_toolkit.filter_warc.s3_writer.mpu_upload_part') as mock_upload_part:
             mock_upload_part.return_value = 'test-etag-flush'
 
             mock_s3 = AsyncMock()
@@ -175,8 +151,8 @@ def test_shard_writer_close_with_buffer():
     """Test ShardWriter close method with data remaining in buffer."""
 
     async def run_test():
-        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
-            'cdx_toolkit.filter_warc.aioboto3_writer.mpu_complete'
+        with patch('cdx_toolkit.filter_warc.s3_writer.mpu_upload_part') as mock_upload_part, patch(
+            'cdx_toolkit.filter_warc.s3_writer.mpu_complete'
         ) as mock_complete:
             mock_upload_part.return_value = 'final-etag'
 
@@ -232,10 +208,13 @@ def test_shard_writer_close_empty():
     """Test ShardWriter close method with no data (empty buffer, no parts)."""
 
     async def run_test():
-        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
-            'cdx_toolkit.filter_warc.aioboto3_writer.mpu_complete'
+        with patch('cdx_toolkit.filter_warc.s3_writer.mpu_upload_part') as mock_upload_part, patch(
+            'cdx_toolkit.filter_warc.s3_writer.mpu_complete'
         ) as mock_complete:
+            mock_s3 = AsyncMock()
+
             writer = S3ShardWriter(
+                s3_client=mock_s3,
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -246,8 +225,7 @@ def test_shard_writer_close_empty():
             writer.upload_id = 'test-upload-id'
 
             # No data in buffer, no parts uploaded
-            mock_s3 = AsyncMock()
-            await writer.close(mock_s3)
+            await writer.close()
 
             # Should not upload any parts or complete MPU since there's no data
             mock_upload_part.assert_not_called()
@@ -264,13 +242,16 @@ def test_shard_writer_close_with_exception():
     """Test ShardWriter close method with exception and abort handling."""
 
     async def run_test():
-        with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
-            'cdx_toolkit.filter_warc.aioboto3_writer.mpu_complete'
-        ) as mock_complete, patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_abort') as mock_abort:
+        with patch('cdx_toolkit.filter_warc.s3_writer.mpu_upload_part') as mock_upload_part, patch(
+            'cdx_toolkit.filter_warc.s3_writer.mpu_complete'
+        ) as mock_complete, patch('cdx_toolkit.filter_warc.s3_writer.mpu_abort') as mock_abort:
             mock_upload_part.return_value = 'error-etag'
             mock_complete.side_effect = Exception('Complete failed')
 
+            mock_s3 = AsyncMock()
+
             writer = S3ShardWriter(
+                s3_client=mock_s3,
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -283,15 +264,48 @@ def test_shard_writer_close_with_exception():
             # Add some data to buffer to trigger upload and complete
             writer.buffer.extend(b'some data')
 
-            mock_s3 = AsyncMock()
-
             # Should raise the exception after attempting abort
             with pytest.raises(Exception, match='Complete failed'):
-                await writer.close(mock_s3)
+                await writer.close()
 
             # Should have attempted to upload part and complete, then abort on failure
             mock_upload_part.assert_called_once()
             mock_complete.assert_called_once()
             mock_abort.assert_called_once_with(mock_s3, 'test-bucket', 'test.warc.gz', 'test-upload-id')
+
+    asyncio.run(run_test())
+
+
+def test_mpu_abort_success():
+    """Test mpu_abort function with successful abort."""
+
+    async def run_test():
+        mock_s3 = AsyncMock()
+        bucket = 'test-bucket'
+        key = 'test-key'
+        upload_id = 'test-upload-id'
+
+        await mpu_abort(mock_s3, bucket, key, upload_id)
+
+        mock_s3.abort_multipart_upload.assert_called_once_with(Bucket=bucket, Key=key, UploadId=upload_id)
+
+    asyncio.run(run_test())
+
+
+def test_mpu_abort_with_exception():
+    """Test mpu_abort function when abort fails (should catch exception)."""
+
+    async def run_test():
+        mock_s3 = AsyncMock()
+        mock_s3.abort_multipart_upload.side_effect = Exception('S3 error')
+
+        bucket = 'test-bucket'
+        key = 'test-key'
+        upload_id = 'test-upload-id'
+
+        # Should not raise exception, should log it instead
+        await mpu_abort(mock_s3, bucket, key, upload_id)
+
+        mock_s3.abort_multipart_upload.assert_called_once_with(Bucket=bucket, Key=key, UploadId=upload_id)
 
     asyncio.run(run_test())

@@ -4,12 +4,12 @@ import time
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import fsspec
-from surt import surt
 
-from cdx_toolkit.filter_cdx.matcher import Matcher, TupleMatcher, TrieMatcher
+from url_is_in import URLMatcher, SURTMatcher
+
 
 
 logger = logging.getLogger(__name__)
@@ -50,25 +50,19 @@ def run_filter_cdx(args, cmdline: str):
     with filter_fs.open(filter_fs_path, 'rt') as input_f:
         include_prefixes = [line.strip() for line in input_f.readlines()]
 
-    # Convert to SURT if filter file contains URLs
-    if args.filter_type == 'url':
-        logger.info('Converting urls to surts ...')
-        include_surt_prefixes = [surt(url) for url in include_prefixes]
-    else:
-        # Filter is already given as surts
-        include_surt_prefixes = include_prefixes
+    logger.info(f'Loaded {len(include_prefixes):,} filter entries')
 
-    # Create matcher based on selected approach
-    matcher_classes = {
-        'trie': TrieMatcher,
-        'tuple': TupleMatcher,
-    }
+    # Use matcher based on URL or SURT inputs
+    if args.filter_type == 'url':
+        matcher = URLMatcher(include_prefixes, match_subdomains=True)
+    else:
+        matcher = SURTMatcher(include_prefixes, match_subdomains=True)
+
     limit = 0 if args.limit is None else args.limit
-    logger.info(f'Loaded {len(include_surt_prefixes):,} filter entries using {args.matching_approach} approach')
 
     # Process files in parallel
     total_lines_n, total_included_n, total_errors_n = filter_cdx(
-        matcher=matcher_classes[args.matching_approach](include_surt_prefixes),
+        matcher=matcher,
         input_paths=input_paths,
         output_paths=output_paths,
         limit=limit,
@@ -77,15 +71,11 @@ def run_filter_cdx(args, cmdline: str):
 
     # Calculate ratio safely to avoid division by zero
     ratio = total_included_n / total_lines_n if total_lines_n > 0 else 0.0
-    logger.info(
-        f'Filter statistics: {total_included_n} / {total_lines_n} lines ({ratio:.4f})'
-    )
-    logger.info(
-        f'Errors: {total_errors_n}'
-    )
+    logger.info(f'Filter statistics: {total_included_n} / {total_lines_n} lines ({ratio:.4f})')
+    logger.info(f'Errors: {total_errors_n}')
 
     if limit > 0 and total_included_n >= 0:
-        logger.info(f"Limit reached at {limit}")
+        logger.info(f'Limit reached at {limit}')
 
     # End timing and log execution time
     end_time = time.time()
@@ -95,7 +85,7 @@ def run_filter_cdx(args, cmdline: str):
 
 
 def filter_cdx(
-    matcher: Matcher,
+    matcher: Union[URLMatcher, SURTMatcher],
     input_paths: List[str],
     output_paths: List[str],
     n_parallel: int = 1,
@@ -124,9 +114,7 @@ def filter_cdx(
             input_path, output_path = future_to_paths[future]
             try:
                 lines_n, included_n = future.result()
-                logger.info(
-                    f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}'
-                )
+                logger.info(f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}')
 
                 total_lines_n += lines_n
                 total_included_n += included_n
@@ -155,7 +143,7 @@ def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):
     input_file_paths = []
     for input_path in input_fs_file_paths:
         # Get relative path from input_base_path without last slash
-        rel_path = input_path[len(input_fs_base_path)+1:]
+        rel_path = input_path[len(input_fs_base_path) + 1 :]
 
         # Create corresponding full input and output path
         # Use forward slashes for URL paths (S3, HTTP, etc.) to ensure cross-platform compatibility
@@ -176,7 +164,13 @@ def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):
     return input_file_paths, output_file_paths
 
 
-def _process_single_file(input_path, output_path, matcher, limit: int = 0, log_every_n: int = 100_000):
+def _process_single_file(
+    input_path: str,
+    output_path: str,
+    matcher: Union[SURTMatcher, URLMatcher],
+    limit: int = 0,
+    log_every_n: int = 100_000,
+):
     """Process a single input/output file pair. Returns (lines_n, included_n)."""
     lines_n = 0
     included_n = 0
@@ -203,7 +197,7 @@ def _process_single_file(input_path, output_path, matcher, limit: int = 0, log_e
                 lines_n += 1
 
                 # Use SURT matcher
-                include_record = matcher.matches(record_surt)
+                include_record = matcher.is_in(record_surt)
 
                 if include_record:
                     output_f.write(line)

@@ -26,12 +26,6 @@ def add_filter_cdx_args(parser: argparse.ArgumentParser):
         help="Glob pattern relative to input_base_path (e.g., '**/*.cdx.gz' or 'collections/*/indexes/*.gz')",
     )
     parser.add_argument(
-        '--matching-approach',
-        choices=['trie', 'tuple'],
-        default='trie',
-        help='Matching approach to use (default: trie)',
-    )
-    parser.add_argument(
         '--overwrite',
         action='store_true',
         help='Allow overwriting existing output files',

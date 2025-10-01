@@ -1,19 +1,17 @@
 import asyncio
 import logging
 import statistics
+import sys
 from typing import List, Optional, Dict
 
-import aioboto3
+
 from botocore.config import Config
 
-from cdx_toolkit.filter_warc.aioboto3_utils import (
-    RangeJob,
-    RangePayload,
-    ThroughputTracker,
+from cdx_toolkit.filter_warc.s3_utils import (
     is_s3_url,
-    ranged_get_bytes,
 )
-from cdx_toolkit.filter_warc.aioboto3_warc_filter import create_new_writer_with_header
+from cdx_toolkit.filter_warc.data_classes import RangeJob, RangePayload, ThroughputTracker
+from cdx_toolkit.filter_warc.warc_utils import create_new_writer_with_header
 from cdx_toolkit.filter_warc.cdx_utils import (
     iter_cdx_index_from_path,
 )
@@ -52,6 +50,8 @@ class WARCFilter:
         log_every_n: int = 1000,
         warc_download_prefix: Optional[str] = None,
         n_parallel: int = 1,
+        n_parallel_readers: Optional[int] = None,
+        n_parallel_writers: Optional[int] = None,
         max_attempts: int = 5,
         base_backoff_seconds: float = 0.5,
         writer_kwargs: Optional[Dict] = None,
@@ -73,7 +73,7 @@ class WARCFilter:
         self.record_limit = record_limit
         self.log_every_n = log_every_n
         self.warc_download_prefix = warc_download_prefix
-        self.n_parallel = n_parallel
+
         self.writer_kwargs = writer_kwargs
         self.range_jobs_queue_size = range_jobs_queue_size
         self.warc_records_queue_size = warc_records_queue_size
@@ -81,8 +81,11 @@ class WARCFilter:
         self.fetcher_to_consumer_ratio = fetcher_to_consumer_ratio
         self.max_attempts = max_attempts
         self.base_backoff_seconds = base_backoff_seconds
-        self.num_fetchers = n_parallel
-        self.num_consumers = max(int(self.num_fetchers / self.fetcher_to_consumer_ratio), 1)
+
+        self.n_parallel = n_parallel
+        self.num_readers = n_parallel_readers if n_parallel_readers is not None else n_parallel
+        self.num_writers = n_parallel_writers if n_parallel_writers is not None else max(int(self.num_readers / self.fetcher_to_consumer_ratio), 1)
+
         self.gzip = self.index_paths[0].endswith('.gz') if self.index_paths else False
         self.warc_version = warc_version
         self.content_type = content_type
@@ -106,9 +109,15 @@ class WARCFilter:
             or is_s3_url(self.prefix_path)  # stage 3
         )
 
-    def get_s3_client(self):
-        """Return s3 client if needed."""
+    def get_s3_client_context(self):
+        """Return s3 client context if needed."""
         if self.needs_s3():
+            if sys.version_info.major < 3 or (sys.version_info.major >= 3 and sys.version_info.minor < 9):
+                logger.error('Reading and writing to S3 requires Python version >= 3.9')
+                sys.exit(1)
+
+            import aioboto3
+
             session = aioboto3.Session()
 
             return session.client('s3', config=self.get_boto3_config())
@@ -120,71 +129,78 @@ class WARCFilter:
         range_jobs_queue: asyncio.Queue = asyncio.Queue(maxsize=self.range_jobs_queue_size)
         warc_records_queue: asyncio.Queue = asyncio.Queue(maxsize=self.warc_records_queue_size)
 
-        async with self.get_s3_client() as s3_client:
-            # Fetch file paths and ranges (offset, length) from index files
-            logger.info('Starting lister, %d fetchers, %d consumers', self.num_fetchers, self.num_consumers)
+        s3_client_context = self.get_s3_client_context()
+        if s3_client_context is not None:
+            async with s3_client_context as s3_client:
+                return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue, s3_client)
+        else:
+            return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue, None)
 
-            job_generators = asyncio.create_task(
-                self.generate_range_jobs(
-                    range_jobs_queue,
+    async def _run_filter_pipeline(self, range_jobs_queue: asyncio.Queue, warc_records_queue: asyncio.Queue, s3_client) -> int:
+        """Run the actual filter pipeline with or without S3 client."""
+        # Fetch file paths and ranges (offset, length) from index files
+        logger.info('Starting lister, %d fetchers, %d consumers', self.num_readers, self.num_writers)
+
+        job_generators = asyncio.create_task(
+            self.generate_range_jobs(
+                range_jobs_queue,
+                s3_client=s3_client,
+            )
+        )
+
+        # Read WARC records based on file paths and ranges
+        warc_readers = [
+            asyncio.create_task(
+                self.read_warc_records(
+                    reader_id=i,
+                    range_jobs_queue=range_jobs_queue,
+                    warc_records_queue=warc_records_queue,
                     s3_client=s3_client,
                 )
             )
+            for i in range(self.num_readers)
+        ]
 
-            # Read WARC records based on file paths and ranges
-            warc_readers = [
-                asyncio.create_task(
-                    self.read_warc_records(
-                        fetcher_id=i,
-                        range_jobs_queue=range_jobs_queue,
-                        warc_records_queue=warc_records_queue,
-                        s3_client=s3_client,
-                    )
+        # Write WARC records
+        warc_writers = [
+            asyncio.create_task(
+                self.write_warc_records(
+                    writer_id=i,
+                    warc_records_queue=warc_records_queue,
+                    s3_client=s3_client,
                 )
-                for i in range(self.num_fetchers)
-            ]
-
-            # Write WARC records
-            warc_writers = [
-                asyncio.create_task(
-                    self.write_warc_records(
-                        consumer_id=i,
-                        warc_records_queue=warc_records_queue,
-                        s3_client=s3_client,
-                    )
-                )
-                for i in range(self.num_consumers)
-            ]
-
-            await job_generators
-            logger.info('Range jobs submitted, waiting for readers to finish')
-
-            readers_results = await asyncio.gather(*warc_readers)
-
-            readers_records = sum([result['stats']['total_records'] for result in readers_results])
-            readers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in readers_results])
-            readers_records_per_sec = statistics.mean(
-                [result['stats']['records_per_sec'] for result in readers_results]
             )
+            for i in range(self.num_writers)
+        ]
 
-            logger.info(f'All WARC readers completed: {readers_records} records')
-            logger.info(f'Reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
+        await job_generators
+        logger.info('Range jobs submitted, waiting for readers to finish')
 
-            # Send stop signals to consumers
-            for _ in range(self.num_consumers):
-                await warc_records_queue.put(_STOP)
+        readers_results = await asyncio.gather(*warc_readers)
 
-            writers_results = await asyncio.gather(*warc_writers)
+        readers_records = sum([result['stats']['total_records'] for result in readers_results])
+        readers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in readers_results])
+        readers_records_per_sec = statistics.mean(
+            [result['stats']['records_per_sec'] for result in readers_results]
+        )
 
-            writers_records = sum([result['stats']['total_records'] for result in writers_results])
-            writers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in writers_results])
-            writers_records_per_sec = statistics.mean(
-                [result['stats']['records_per_sec'] for result in writers_results]
-            )
-            # warc_writers_bytes = sum([result['stats']['total_bytes'] for result in consumer_results])
+        logger.info(f'All WARC readers completed: {readers_records} records')
+        logger.info(f'Reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
 
-            logger.info(f'All WARC writers completed: {writers_records} records')
-            logger.info(f'Writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} r/s')
+        # Send stop signals to consumers
+        for _ in range(self.num_writers):
+            await warc_records_queue.put(_STOP)
+
+        writers_results = await asyncio.gather(*warc_writers)
+
+        writers_records = sum([result['stats']['total_records'] for result in writers_results])
+        writers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in writers_results])
+        writers_records_per_sec = statistics.mean(
+            [result['stats']['records_per_sec'] for result in writers_results]
+        )
+
+        logger.info(f'All WARC writers completed: {writers_records} records')
+        logger.info(f'Writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} r/s')
 
         return writers_records
 
@@ -222,14 +238,14 @@ class WARCFilter:
                 break
 
         # signal fetchers to stop
-        for _ in range(self.num_fetchers):
+        for _ in range(self.num_readers):
             await range_jobs_queue.put(_STOP)
 
         logger.info('Enqueued %d jobs from %s', count, index_path)
 
     async def read_warc_records(
         self,
-        fetcher_id: int,
+        reader_id: int,
         range_jobs_queue: asyncio.Queue,
         warc_records_queue: asyncio.Queue,
         s3_client=None,
@@ -245,8 +261,8 @@ class WARCFilter:
                 if job is _STOP:
                     stats = tracker.get_stats()
                     logger.info(
-                        'WARC Fetcher %d stopping. Stats: %.1fs, %d requests, %.1f MB, %.2f MB/s, %.2f req/s',
-                        fetcher_id,
+                        'WARC Reader %d stopping. Stats: %.1fs, %d requests, %.1f MB, %.2f MB/s, %.2f req/s',
+                        reader_id,
                         stats['elapsed'],
                         stats['total_requests'],
                         stats['total_bytes'] / (1024 * 1024),
@@ -255,8 +271,7 @@ class WARCFilter:
                     )
                     break  # Exit loop, but still execute finally block
                 assert isinstance(job, RangeJob)
-                data = await ranged_get_bytes(
-                    job,
+                data = await job.ranged_get_bytes(
                     self.max_attempts,
                     self.base_backoff_seconds,
                     s3_client=s3_client,
@@ -268,8 +283,8 @@ class WARCFilter:
                 if self.log_every_n > 0 and counter % self.log_every_n == 0:
                     stats = tracker.get_stats()
                     logger.info(
-                        'WARC Fetcher %d: %d items, %.1f MB, %.2f MB/s, %.2f req/s',
-                        fetcher_id,
+                        'WARC Reader %d: %d items, %.1f MB, %.2f MB/s, %.2f req/s',
+                        reader_id,
                         counter,
                         stats['total_bytes'] / (1024 * 1024),
                         stats['mb_per_sec'],
@@ -279,8 +294,8 @@ class WARCFilter:
                 await warc_records_queue.put(RangePayload(job=job, data=data))
             except Exception:
                 logger.exception(
-                    'WARC Fetcher %d failed on %s/%s [%d,%d]',
-                    fetcher_id,
+                    'WARC Reader %d failed on %s/%s [%d,%d]',
+                    reader_id,
                     getattr(job, 'bucket', '?'),
                     getattr(job, 'key', '?'),
                     getattr(job, 'offset', -1),
@@ -289,22 +304,22 @@ class WARCFilter:
             finally:
                 range_jobs_queue.task_done()
 
-        return {'fetcher_id': fetcher_id, 'stats': tracker.get_stats()}
+        return {'reader_id': reader_id, 'stats': tracker.get_stats()}
 
     async def write_warc_records(
         self,
-        consumer_id: int,
+        writer_id: int,
         warc_records_queue: asyncio.Queue,
         s3_client=None,
     ) -> dict:
-        """Write WARC records. Each consumer owns ONE shard MPU and appends ranges to it."""
+        """Write WARC records. Each writer owns ONE shard MPU and appends ranges to it."""
         # File rotation tracking
         current_file_sequence = 1
         current_file_size = 0
 
         new_writer_kwargs = dict(
             s3_client=s3_client,
-            consumer_id=consumer_id,
+            writer_id=writer_id,
             output_path_prefix=self.prefix_path,
             max_attempts=self.max_attempts,
             base_backoff_seconds=self.base_backoff_seconds,
@@ -362,7 +377,7 @@ class WARCFilter:
                         stats = tracker.get_stats()
                         logger.info(
                             'WARC writer %d stopping. Stats: %.1fs, %d items, %.1f MB written, %.2f MB/s write speed',
-                            consumer_id,
+                            writer_id,
                             stats['elapsed'],
                             stats['total_requests'],
                             stats['total_bytes'] / (1024 * 1024),
@@ -395,13 +410,13 @@ class WARCFilter:
                             stats = tracker.get_stats()
                             logger.info(
                                 'WARC writer %d: %d items, %.1f MB written, %.2f MB/s',
-                                consumer_id,
+                                writer_id,
                                 counter,
                                 stats['total_bytes'] / (1024 * 1024),
                                 stats['mb_per_sec'],
                             )
                 except Exception:
-                    logger.exception('WARC writer %d failed on %s', consumer_id, getattr(item, 'job', None))
+                    logger.exception('WARC writer %d failed on %s', writer_id, getattr(item, 'job', None))
                     should_stop = False
                 finally:
                     warc_records_queue.task_done()
@@ -411,7 +426,7 @@ class WARCFilter:
         finally:
             await writer.close()
 
-        return {'consumer_id': consumer_id, 'stats': tracker.get_stats()}
+        return {'writer_id': writer_id, 'stats': tracker.get_stats()}
 
     def get_boto3_config(self):
         return Config(

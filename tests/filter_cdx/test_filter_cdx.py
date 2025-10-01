@@ -5,7 +5,9 @@ from unittest.mock import patch
 
 from cdx_toolkit.cli import main
 from cdx_toolkit.filter_cdx import _process_single_file, resolve_paths, validate_resolved_paths, filter_cdx
-from cdx_toolkit.filter_cdx.matcher import TupleMatcher
+
+from url_is_in import SURTMatcher
+
 from tests.conftest import requires_aws_s3, TEST_DATA_PATH
 
 fixture_path = TEST_DATA_PATH / 'filter_cdx'
@@ -174,7 +176,7 @@ def test_cli_filter_cdx_with_parallel_processing(tmpdir, caplog):
 
 def test_process_single_file(tmpdir):
     input_path = TEST_DATA_PATH / 'warc_by_cdx/filtered_CC-MAIN-2024-30_cdx-00187.gz'
-    matcher = TupleMatcher(prefixes=['fr,'])
+    matcher = SURTMatcher(['fr,'])
 
     lines_n, included_n = _process_single_file(
         input_path=input_path,

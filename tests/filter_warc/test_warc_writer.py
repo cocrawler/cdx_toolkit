@@ -3,10 +3,13 @@ import fsspec
 import pytest
 import cdx_toolkit
 
-from tests.conftest import requires_aws_s3
+from tests.conftest import TEST_DATA_PATH, requires_aws_s3
 
 from warcio import WARCWriter
 from warcio.archiveiterator import ArchiveIterator
+
+
+fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
 
 
 @pytest.mark.parametrize(
@@ -15,7 +18,7 @@ from warcio.archiveiterator import ArchiveIterator
         pytest.param('test-prefix', False, id='File name prefix on local'),
         pytest.param('test-prefix', True, id='File name prefix on local with gzip'),
         # raised FileNotFound error (parent dir does not exist)
-        # pytest.param("test-prefix-folder/file-prefix", None, id="Folder as prefix"),  
+        # pytest.param("test-prefix-folder/file-prefix", None, id="Folder as prefix"),
     ],
 )
 def test_write_to_local(prefix, gzip, tmpdir):
@@ -114,3 +117,26 @@ def test_write_to_s3(s3_tmpdir):
 
     assert 'description: test' in info_record
     assert resource_record == input_resource_record_text
+
+
+def test_warc_info():
+    warc_version = '1.0'
+    gzip = False
+    file_handler = BytesIO()
+    filename = 'foo.warc'
+
+    info = {
+        'software': 'pypi_cdx_toolkit/123',
+        'isPartOf': 'bar',
+        'description': 'warc extraction based on CDX generated with: xx',
+        'format': 'WARC file version 1.0',
+    }
+
+    writer = WARCWriter(file_handler, gzip=gzip, warc_version=warc_version)
+    warcinfo = writer.create_warcinfo_record(filename, info)
+
+    writer.write_record(warcinfo)
+
+    file_value = file_handler.getvalue().decode('utf-8')
+
+    assert 'pypi_cdx_toolkit/123' in file_value

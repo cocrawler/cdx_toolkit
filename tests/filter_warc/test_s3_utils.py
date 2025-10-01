@@ -1,13 +1,11 @@
 import pytest
 
 import asyncio
-from unittest.mock import AsyncMock
 
 
-from cdx_toolkit.filter_warc.aioboto3_utils import (
+from cdx_toolkit.filter_warc.s3_utils import (
     _backoff,
     parse_s3_uri,
-    mpu_abort,
     with_retries,
 )
 from botocore.exceptions import EndpointConnectionError
@@ -92,41 +90,6 @@ def test_parse_s3_uri():
 
     with pytest.raises(ValueError, match='Malformed S3 URI'):
         parse_s3_uri('s3:///file')
-
-
-def test_mpu_abort_success():
-    """Test mpu_abort function with successful abort."""
-
-    async def run_test():
-        mock_s3 = AsyncMock()
-        bucket = 'test-bucket'
-        key = 'test-key'
-        upload_id = 'test-upload-id'
-
-        await mpu_abort(mock_s3, bucket, key, upload_id)
-
-        mock_s3.abort_multipart_upload.assert_called_once_with(Bucket=bucket, Key=key, UploadId=upload_id)
-
-    asyncio.run(run_test())
-
-
-def test_mpu_abort_with_exception():
-    """Test mpu_abort function when abort fails (should catch exception)."""
-
-    async def run_test():
-        mock_s3 = AsyncMock()
-        mock_s3.abort_multipart_upload.side_effect = Exception('S3 error')
-
-        bucket = 'test-bucket'
-        key = 'test-key'
-        upload_id = 'test-upload-id'
-
-        # Should not raise exception, should log it instead
-        await mpu_abort(mock_s3, bucket, key, upload_id)
-
-        mock_s3.abort_multipart_upload.assert_called_once_with(Bucket=bucket, Key=key, UploadId=upload_id)
-
-    asyncio.run(run_test())
 
 
 def test_with_retries_success():

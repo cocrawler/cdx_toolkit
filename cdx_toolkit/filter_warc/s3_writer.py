@@ -1,14 +1,84 @@
 import logging
 from typing import List, Dict, Optional
 
-from cdx_toolkit.filter_warc.aioboto3_utils import (
-    mpu_abort,
-    mpu_complete,
-    mpu_create,
-    mpu_upload_part,
+from cdx_toolkit.filter_warc.s3_utils import (
+    with_retries,
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def mpu_create(
+    s3,
+    bucket: str,
+    key: str,
+    *,
+    max_attempts: int,
+    base_backoff_seconds: float,
+):
+    """Create multi part upload to S3."""
+    kwargs = {'Bucket': bucket, 'Key': key}
+    resp = await with_retries(
+        lambda: s3.create_multipart_upload(**kwargs),
+        op_name=f'create_multipart_upload {bucket}/{key}',
+        max_attempts=max_attempts,
+        base_backoff_seconds=base_backoff_seconds,
+    )
+    return resp['UploadId']
+
+
+async def mpu_upload_part(
+    s3,
+    bucket: str,
+    key: str,
+    upload_id: str,
+    part_number: int,
+    body: bytes,
+    max_attempts: int,
+    base_backoff_seconds: float,
+) -> str:
+    """Upload a part of a multi-part upload to S3."""
+    resp = await with_retries(
+        lambda: s3.upload_part(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            PartNumber=part_number,
+            Body=body,
+        ),
+        op_name=f'upload_part {bucket}/{key}#{part_number}',
+        max_attempts=max_attempts,
+        base_backoff_seconds=base_backoff_seconds,
+    )
+    return resp['ETag']
+
+
+async def mpu_complete(
+    s3,
+    bucket: str,
+    key: str,
+    upload_id: str,
+    parts: List[Dict],
+    max_attempts: int,
+    base_backoff_seconds: float,
+):
+    """Send complete for multi-part upload."""
+    await with_retries(
+        lambda: s3.complete_multipart_upload(
+            Bucket=bucket, Key=key, UploadId=upload_id, MultipartUpload={'Parts': parts}
+        ),
+        op_name=f'complete_multipart_upload {bucket}/{key}',
+        max_attempts=max_attempts,
+        base_backoff_seconds=base_backoff_seconds,
+    )
+
+
+async def mpu_abort(s3, bucket: str, key: str, upload_id: str):
+    """Abort mult-part upload."""
+    try:
+        await s3.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
+    except Exception:
+        logger.exception('Failed to abort MPU %s on %s/%s', upload_id, bucket, key)
 
 
 class S3ShardWriter:

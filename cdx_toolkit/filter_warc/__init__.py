@@ -1,20 +1,16 @@
 import logging
 import sys
 import time
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 import fsspec
 
 
 from cdx_toolkit.utils import get_version, setup
-from cdx_toolkit.filter_warc.aioboto3_warc_filter import filter_warc_by_cdx_via_aioboto3
-from cdx_toolkit.filter_warc.fsspec_warc_filter import filter_warc_by_cdx_via_fsspec
 
 from cdx_toolkit.filter_warc.warc_filter import WARCFilter
 
 logger = logging.getLogger(__name__)
-
-ImplementationType = Literal['fsspec', 'aioboto3', 'warc_filter']
 
 
 def run_warcer_by_cdx(args, cmdline):
@@ -34,8 +30,6 @@ def run_warcer_by_cdx(args, cmdline):
 
     # Start timing
     start_time = time.time()
-
-    implementation: ImplementationType = args.implementation
 
     write_paths_as_resource_records = args.write_paths_as_resource_records
     write_paths_as_resource_records_metadata = args.write_paths_as_resource_records_metadata
@@ -81,56 +75,20 @@ def run_warcer_by_cdx(args, cmdline):
         args.cdx_glob,
     )
 
-    if implementation == 'fsspec':
-        records_n = filter_warc_by_cdx_via_fsspec(
-            index_paths=cdx_paths,
-            prefix_path=prefix_path,
-            writer_info=info,
-            writer_subprefix=args.subprefix,
-            write_paths_as_resource_records=write_paths_as_resource_records,
-            write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
-            limit=limit,
-            log_every_n=log_every_n,
-            warc_download_prefix=cdx.warc_download_prefix,
-            n_parallel=n_parallel,
-            writer_kwargs=writer_kwargs,
-        )
-    elif implementation == 'aioboto3':
-        if sys.version_info.major < 3 or (sys.version_info.major >= 3 and sys.version_info.minor < 9):
-            logger.error('The `aioboto3` implementation requires Python version >= 3.9')
-            sys.exit(1)
-
-        records_n = filter_warc_by_cdx_via_aioboto3(
-            index_paths=cdx_paths,
-            prefix_path=prefix_path,
-            writer_info=info,
-            writer_subprefix=args.subprefix,
-            write_paths_as_resource_records=write_paths_as_resource_records,
-            write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
-            limit=limit,
-            log_every_n=log_every_n,
-            warc_download_prefix=cdx.warc_download_prefix,
-            n_parallel=n_parallel,
-            writer_kwargs=writer_kwargs,
-        )
-    elif implementation == "warc_filter":
-
-        warc_filter = WARCFilter(
-            index_paths=cdx_paths,
-            prefix_path=prefix_path,
-            writer_info=info,
-            writer_subprefix=args.subprefix,
-            write_paths_as_resource_records=write_paths_as_resource_records,
-            write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
-            record_limit=limit,
-            log_every_n=log_every_n,
-            warc_download_prefix=cdx.warc_download_prefix,
-            n_parallel=n_parallel,
-            writer_kwargs=writer_kwargs,
-        )
-        records_n = warc_filter.filter()
-    else:
-        raise ValueError(f'Invalid implementation: {implementation}')
+    warc_filter = WARCFilter(
+        index_paths=cdx_paths,
+        prefix_path=prefix_path,
+        writer_info=info,
+        writer_subprefix=args.subprefix,
+        write_paths_as_resource_records=write_paths_as_resource_records,
+        write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
+        record_limit=limit,
+        log_every_n=log_every_n,
+        warc_download_prefix=cdx.warc_download_prefix,
+        n_parallel=n_parallel,
+        writer_kwargs=writer_kwargs,
+    )
+    records_n = warc_filter.filter()
 
     logger.info('WARC records extracted: %i', records_n)
 
