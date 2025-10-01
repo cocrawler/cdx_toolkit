@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-from cdx_toolkit.filter_warc.aioboto3_writer import ShardWriter
+from cdx_toolkit.filter_warc.aioboto3_writer import S3ShardWriter
 
 
 def test_shard_writer_init():
@@ -14,7 +14,7 @@ def test_shard_writer_init():
     max_attempts = 3
     base_backoff_seconds = 0.1
 
-    writer = ShardWriter(
+    writer = S3ShardWriter(
         shard_key=shard_key,
         dest_bucket=dest_bucket,
         content_type=content_type,
@@ -43,7 +43,7 @@ def test_shard_writer_start():
         with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_create') as mock_mpu_create:
             mock_mpu_create.return_value = 'test-upload-id'
 
-            writer = ShardWriter(
+            writer = S3ShardWriter(
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -71,7 +71,10 @@ def test_shard_writer_write_small_data():
     """Test ShardWriter write method with small data that stays in buffer."""
 
     async def run_test():
-        writer = ShardWriter(
+        mock_s3 = AsyncMock()
+
+        writer = S3ShardWriter(
+            s3_client=mock_s3,
             shard_key='test.warc.gz',
             dest_bucket='test-bucket',
             content_type='application/gzip',
@@ -80,10 +83,9 @@ def test_shard_writer_write_small_data():
             base_backoff_seconds=0.1,
         )
 
-        mock_s3 = AsyncMock()
         small_data = b'small test data'
 
-        await writer.write(mock_s3, small_data)
+        await writer.write(small_data)
 
         # Data should be in buffer, no parts uploaded yet
         assert len(writer.buffer) == len(small_data)
@@ -101,7 +103,10 @@ def test_shard_writer_write_large_data():
         with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part:
             mock_upload_part.return_value = 'test-etag-1'
 
-            writer = ShardWriter(
+            mock_s3 = AsyncMock()
+
+            writer = S3ShardWriter(
+                s3_client=mock_s3,
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -111,10 +116,9 @@ def test_shard_writer_write_large_data():
             )
             writer.upload_id = 'test-upload-id'
 
-            mock_s3 = AsyncMock()
             large_data = b'x' * 250  # 250 bytes, should create 2 parts
 
-            await writer.write(mock_s3, large_data)
+            await writer.write(large_data)
 
             # Should have uploaded 2 parts (100 bytes each) with 50 bytes remaining in buffer
             assert mock_upload_part.call_count == 2
@@ -137,7 +141,9 @@ def test_shard_writer_flush_full_parts():
         with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part:
             mock_upload_part.return_value = 'test-etag-flush'
 
-            writer = ShardWriter(
+            mock_s3 = AsyncMock()
+            writer = S3ShardWriter(
+                s3_client=mock_s3,
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -150,8 +156,7 @@ def test_shard_writer_flush_full_parts():
             # Pre-fill buffer with 150 bytes (should create 3 parts of 50 bytes each)
             writer.buffer.extend(b'a' * 150)
 
-            mock_s3 = AsyncMock()
-            await writer._flush_full_parts(mock_s3)
+            await writer._flush_full_parts()
 
             # Should have uploaded 3 full parts, no remainder
             assert mock_upload_part.call_count == 3
@@ -175,7 +180,10 @@ def test_shard_writer_close_with_buffer():
         ) as mock_complete:
             mock_upload_part.return_value = 'final-etag'
 
-            writer = ShardWriter(
+            mock_s3 = AsyncMock()
+
+            writer = S3ShardWriter(
+                s3_client=mock_s3,
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -189,8 +197,7 @@ def test_shard_writer_close_with_buffer():
             remaining_data = b'final chunk data'
             writer.buffer.extend(remaining_data)
 
-            mock_s3 = AsyncMock()
-            await writer.close(mock_s3)
+            await writer.close()
 
             # Should upload the final part and complete MPU
             mock_upload_part.assert_called_once_with(
@@ -228,7 +235,7 @@ def test_shard_writer_close_empty():
         with patch('cdx_toolkit.filter_warc.aioboto3_writer.mpu_upload_part') as mock_upload_part, patch(
             'cdx_toolkit.filter_warc.aioboto3_writer.mpu_complete'
         ) as mock_complete:
-            writer = ShardWriter(
+            writer = S3ShardWriter(
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',
@@ -263,7 +270,7 @@ def test_shard_writer_close_with_exception():
             mock_upload_part.return_value = 'error-etag'
             mock_complete.side_effect = Exception('Complete failed')
 
-            writer = ShardWriter(
+            writer = S3ShardWriter(
                 shard_key='test.warc.gz',
                 dest_bucket='test-bucket',
                 content_type='application/gzip',

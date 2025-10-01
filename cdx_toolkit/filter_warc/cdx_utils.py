@@ -55,6 +55,7 @@ def iter_cdx_index_from_path(index_path: str, warc_download_prefix: str) -> Iter
     """
     logger.info('Reading CDX from %s', index_path)
 
+
     with fsspec.open(index_path, 'rt', compression='gzip' if index_path.endswith('.gz') else None) as f:
         for line in f:
             try:

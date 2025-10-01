@@ -11,11 +11,12 @@ from cdx_toolkit.filter_warc.aioboto3_utils import (
 logger = logging.getLogger(__name__)
 
 
-class ShardWriter:
+class S3ShardWriter:
     """Manages one MPU: buffers bytes, uploads >=5 MiB parts, completes on close."""
 
     def __init__(
         self,
+        s3_client,
         shard_key: str,
         dest_bucket: str,
         content_type: Optional[str],
@@ -23,6 +24,7 @@ class ShardWriter:
         max_attempts: int,
         base_backoff_seconds: float,
     ):
+        self.s3_client = s3_client
         self.shard_key = shard_key
         self.dest_bucket = dest_bucket
         self.content_type = content_type
@@ -34,9 +36,9 @@ class ShardWriter:
         self.parts: List[Dict] = []
         self.buffer = bytearray()
 
-    async def start(self, s3):
+    async def start(self):
         self.upload_id = await mpu_create(
-            s3,
+            self.s3_client,
             self.dest_bucket,
             self.shard_key,
             max_attempts=self.max_attempts,
@@ -44,12 +46,12 @@ class ShardWriter:
         )
         logger.info('Started MPU for %s (UploadId=%s)', self.shard_key, self.upload_id)
 
-    async def _flush_full_parts(self, s3):
+    async def _flush_full_parts(self):
         while len(self.buffer) >= self.min_part_size:
             chunk = self.buffer[: self.min_part_size]
             del self.buffer[: self.min_part_size]
             etag = await mpu_upload_part(
-                s3,
+                self.s3_client,
                 self.dest_bucket,
                 self.shard_key,
                 self.upload_id,
@@ -61,15 +63,15 @@ class ShardWriter:
             self.parts.append({'PartNumber': self.part_number, 'ETag': etag})
             self.part_number += 1
 
-    async def write(self, s3, data: bytes):
+    async def write(self, data: bytes):
         self.buffer.extend(data)
-        await self._flush_full_parts(s3)
+        await self._flush_full_parts()
 
-    async def close(self, s3):
+    async def close(self):
         try:
             if self.buffer:
                 etag = await mpu_upload_part(
-                    s3,
+                    self.s3_client,
                     self.dest_bucket,
                     self.shard_key,
                     self.upload_id,
@@ -84,7 +86,7 @@ class ShardWriter:
 
             if self.parts:
                 await mpu_complete(
-                    s3,
+                    self.s3_client,
                     self.dest_bucket,
                     self.shard_key,
                     self.upload_id,
@@ -96,5 +98,7 @@ class ShardWriter:
         except Exception:
             logger.exception('Completing MPU failed for %s; attempting abort.', self.shard_key)
             if self.upload_id:
-                await mpu_abort(s3, self.dest_bucket, self.shard_key, self.upload_id)
+                await mpu_abort(self.s3_client, self.dest_bucket, self.shard_key, self.upload_id)
             raise
+
+

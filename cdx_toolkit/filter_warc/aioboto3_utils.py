@@ -2,10 +2,12 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from os import urandom
 
 from botocore.exceptions import ClientError, EndpointConnectionError
+
+from cdx_toolkit.myrequests import myrequests_get
 
 
 logger = logging.getLogger(__name__)
@@ -41,11 +43,19 @@ class ThroughputTracker:
 
 @dataclass(frozen=True)
 class RangeJob:
-    """Defines a S3 range read request."""
-    bucket: str
-    key: str
+    """Defines a S3 or HTTP range read request."""
+    url: str
     offset: int
     length: int
+
+    def is_s3(self):
+        return is_s3_url(self.url)
+
+    def get_s3_bucket_and_key(self) -> Tuple[str, str]:
+        if self.is_s3():
+            return parse_s3_uri(self.url)
+        else:
+            raise ValueError("Cannot get bucket and key from a HTTP job")
 
 
 @dataclass(frozen=True)
@@ -97,23 +107,34 @@ async def with_retries(coro_factory, *, op_name: str, max_attempts: int, base_ba
 
 
 async def ranged_get_bytes(
-    s3,
-    bucket: str,
-    key: str,
-    offset: int,
-    length: int,
+    job: RangeJob,
     max_attempts: int,
     base_backoff_seconds: float,
+    s3_client=None,
 ) -> bytes:
-    """Ranged get request to S3 with retries and backoff."""
+    """Ranged get request to S3 with retries and backoff or HTTP."""
+    offset = job.offset
+    length = job.length
+
     end = offset + length - 1  # inclusive
-    resp = await with_retries(
-        lambda: s3.get_object(Bucket=bucket, Key=key, Range=f'bytes={offset}-{end}'),
-        op_name=f'ranged_get {bucket}/{key}[{offset}:{end}]',
-        max_attempts=max_attempts,
-        base_backoff_seconds=base_backoff_seconds,
-    )
-    return await resp['Body'].read()
+
+    if job.is_s3():
+        # read from S3
+        bucket, key = job.get_s3_bucket_and_key()
+        resp = await with_retries(
+            lambda: s3_client.get_object(Bucket=bucket, Key=key, Range=f'bytes={offset}-{end}'),
+            op_name=f'ranged_get {bucket}/{key}[{offset}:{end}]',
+            max_attempts=max_attempts,
+            base_backoff_seconds=base_backoff_seconds,
+        )
+        return await resp['Body'].read()
+
+    else:
+        # read from HTTP
+        headers = {'Range': 'bytes={}-{}'.format(offset, end)}
+
+        resp = myrequests_get(job.url, headers=headers)
+        return resp.content
 
 
 async def mpu_create(
@@ -187,3 +208,7 @@ async def mpu_abort(s3, bucket: str, key: str, upload_id: str):
         await s3.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
     except Exception:
         logger.exception('Failed to abort MPU %s on %s/%s', upload_id, bucket, key)
+
+
+def is_s3_url(url: str) -> bool:
+    return url.startswith("s3:/")

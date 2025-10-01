@@ -11,13 +11,15 @@ from cdx_toolkit.filter_warc.aioboto3_utils import (
     RangeJob,
     RangePayload,
     ThroughputTracker,
+    is_s3_url,
     parse_s3_uri,
     ranged_get_bytes,
 )
-from cdx_toolkit.filter_warc.aioboto3_writer import ShardWriter
+from cdx_toolkit.filter_warc.aioboto3_writer import S3ShardWriter
 from cdx_toolkit.filter_warc.cdx_utils import (
     iter_cdx_index_from_path,
 )
+from cdx_toolkit.filter_warc.local_writer import LocalFileWriter
 from cdx_toolkit.filter_warc.warc_utils import get_bytes_from_warc_record, get_resource_record_from_path
 
 
@@ -185,8 +187,7 @@ async def get_range_jobs_from_index_paths(
                 index_path, warc_download_prefix=warc_download_prefix
             ):
                 # Convert the CDX record back to a RangeJob
-                bucket, key = parse_s3_uri(warc_url)
-                job = RangeJob(bucket=bucket, key=key, offset=offset, length=length)
+                job = RangeJob(url=warc_url, offset=offset, length=length)
                 await key_queue.put(job)
                 count += 1
 
@@ -239,13 +240,10 @@ async def fetch_warc_ranges(
                 break  # Exit loop, but still execute finally block
             assert isinstance(job, RangeJob)
             data = await ranged_get_bytes(
-                s3,
-                job.bucket,
-                job.key,
-                job.offset,
-                job.length,
+                job,
                 max_attempts,
                 base_backoff_seconds,
+                s3_client=s3,
             )
             tracker.add_bytes(len(data))
             counter += 1
@@ -294,11 +292,9 @@ def generate_warc_filename(
 
 
 async def create_new_writer_with_header(
-    s3,
     consumer_id: int,
     sequence: int,
-    dest_bucket: str,
-    dest_prefix: str,
+    output_path_prefix: str,
     max_attempts: int,
     base_backoff_seconds: float,
     min_part_size: int,
@@ -307,26 +303,45 @@ async def create_new_writer_with_header(
     writer_subprefix: Optional[str] = None,
     gzip: bool = False,
     content_type: Optional[str] = None,
+    s3_client=None,
 ):
-    filename = generate_warc_filename(
-        dest_prefix=dest_prefix,
-        consumer_id=consumer_id,
-        sequence=sequence,
-        writer_subprefix=writer_subprefix,
-        gzip=gzip,
-    )
+    if is_s3_url(output_path_prefix):
+        dest_bucket, dest_prefix = parse_s3_uri(output_path_prefix)
 
-    new_writer = ShardWriter(
-        filename,
-        dest_bucket,
-        content_type,
-        min_part_size,
-        max_attempts,
-        base_backoff_seconds,
-    )
+        filename = generate_warc_filename(
+            dest_prefix=dest_prefix,
+            consumer_id=consumer_id,
+            sequence=sequence,
+            writer_subprefix=writer_subprefix,
+            gzip=gzip,
+        )
+
+        new_writer = S3ShardWriter(
+            s3_client,
+            filename,
+            dest_bucket,
+            content_type,
+            min_part_size,
+            max_attempts,
+            base_backoff_seconds,
+        )
+
+    else:
+        # local file system
+        filename = generate_warc_filename(
+            dest_prefix=output_path_prefix,
+            consumer_id=consumer_id,
+            sequence=sequence,
+            writer_subprefix=writer_subprefix,
+            gzip=gzip,
+        )
+
+        new_writer = LocalFileWriter(
+            file_path=filename,
+        )
 
     # Initialize writer
-    await new_writer.start(s3)
+    await new_writer.start()
 
     # Write WARC header
     buffer = BytesIO()
@@ -334,7 +349,7 @@ async def create_new_writer_with_header(
     warcinfo = warc_writer.create_warcinfo_record(filename, writer_info)
     warc_writer.write_record(warcinfo)
     header_data = buffer.getvalue()
-    await new_writer.write(s3, header_data)
+    await new_writer.write(header_data)
 
     return new_writer, len(header_data)
 
@@ -360,19 +375,16 @@ async def write_warc(
 ):
     """Stage 3: Write WARC. Each consumer owns ONE shard MPU and appends ranges to it."""
 
-    dest_bucket, dest_prefix = parse_s3_uri(prefix_path)
-
     # File rotation tracking
     current_file_sequence = 1
     current_file_size = 0
 
     # Initialize first writer with header
     writer, header_size = await create_new_writer_with_header(
-        s3,
+        s3_client=s3,
         consumer_id=consumer_id,
         sequence=current_file_sequence,
-        dest_bucket=dest_bucket,
-        dest_prefix=dest_prefix,
+        output_path_prefix=prefix_path,
         max_attempts=max_attempts,
         base_backoff_seconds=base_backoff_seconds,
         writer_info=writer_info,
@@ -403,7 +415,7 @@ async def write_warc(
             )
             record_data = get_bytes_from_warc_record(resource_record, warc_version=warc_version, gzip=gzip)
 
-            await writer.write(s3, record_data)
+            await writer.write(record_data)
 
             # Keep track but do not rotate resource records
             current_file_size += len(record_data)
@@ -432,15 +444,14 @@ async def write_warc(
 
                     # Check if we need to rotate files due to size limit
                     if max_file_size and current_file_size + len(item.data) > max_file_size:
-                        await writer.close(s3)
+                        await writer.close()
                         current_file_sequence += 1
 
                         writer, header_size = await create_new_writer_with_header(
-                            s3,
+                            s3_client=s3,
                             consumer_id=consumer_id,
                             sequence=current_file_sequence,
-                            dest_bucket=dest_bucket,
-                            dest_prefix=dest_prefix,
+                            output_path_prefix=prefix_path,
                             max_attempts=max_attempts,
                             base_backoff_seconds=base_backoff_seconds,
                             writer_info=writer_info,
@@ -454,7 +465,7 @@ async def write_warc(
                         current_file_size = header_size
                         logger.info(f'Rotated to new WARC file sequence {current_file_sequence} due to size limit')
 
-                    await writer.write(s3, item.data)
+                    await writer.write(item.data)
                     current_file_size += len(item.data)
                     tracker.add_bytes(len(item.data))
 
@@ -477,6 +488,6 @@ async def write_warc(
             if should_stop:
                 break
     finally:
-        await writer.close(s3)
+        await writer.close()
 
     return {'consumer_id': consumer_id, 'stats': tracker.get_stats()}
