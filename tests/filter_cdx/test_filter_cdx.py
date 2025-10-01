@@ -60,6 +60,29 @@ def test_cli_filter_cdx_with_urls(tmpdir, caplog):
 
 
 @requires_aws_s3
+def test_cli_filter_cdx_with_wildcard_urls(tmpdir, caplog):
+    # check if expected number is reached
+    index_path = 's3://commoncrawl/cc-index/collections'
+    index_glob = '/CC-MAIN-2024-30/indexes/cdx-00187.gz'
+    whitelist_path = fixture_path / 'whitelist_wildcard_urls.txt'  # matches on all .com and .fr host names
+
+    main(
+        args=[
+            '-v',
+            '--limit=10',
+            'filter_cdx',
+            f'{index_path}',
+            f'{str(whitelist_path)}',
+            f'{tmpdir}',
+            '--filter-type=url',
+            f'--input-glob={index_glob}',
+        ]
+    )
+
+    assert 'Limit reached' in caplog.text
+
+
+@requires_aws_s3
 def test_resolve_cdx_paths_from_cc_s3_to_local(tmpdir):
     tmpdir = str(tmpdir)
     base_path = 's3://commoncrawl/cc-index/collections'

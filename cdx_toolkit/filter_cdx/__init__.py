@@ -8,7 +8,7 @@ from typing import List, Tuple, Union
 
 import fsspec
 
-from url_is_in import URLMatcher, SURTMatcher
+from url_is_in import convert_url_to_surt_with_wildcard, SURTMatcher
 
 
 
@@ -52,11 +52,11 @@ def run_filter_cdx(args, cmdline: str):
 
     logger.info(f'Loaded {len(include_prefixes):,} filter entries')
 
-    # Use matcher based on URL or SURT inputs
+    # Convert URLs to SURTs
     if args.filter_type == 'url':
-        matcher = URLMatcher(include_prefixes, match_subdomains=True)
-    else:
-        matcher = SURTMatcher(include_prefixes, match_subdomains=True)
+        include_prefixes = [convert_url_to_surt_with_wildcard(item_url) for item_url in include_prefixes]
+
+    matcher = SURTMatcher(include_prefixes, match_subdomains=True)
 
     limit = 0 if args.limit is None else args.limit
 
@@ -85,7 +85,7 @@ def run_filter_cdx(args, cmdline: str):
 
 
 def filter_cdx(
-    matcher: Union[URLMatcher, SURTMatcher],
+    matcher: SURTMatcher,
     input_paths: List[str],
     output_paths: List[str],
     n_parallel: int = 1,
@@ -99,33 +99,49 @@ def filter_cdx(
     # Parallel processing
     logger.info('Filtering with %i processes in parallel (limit: %i)', n_parallel, limit)
 
+    executor = ProcessPoolExecutor(max_workers=n_parallel)
+    future_to_paths = {}
+
     try:
-        with ProcessPoolExecutor(max_workers=n_parallel) as executor:
-            # Create partial function with common arguments
-            process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
+        # Create partial function with common arguments
+        process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
 
-            # Submit all jobs
-            future_to_paths = {
-                executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
-                for input_path, output_path in zip(input_paths, output_paths)
-            }
+        # Submit all jobs
+        future_to_paths = {
+            executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
+            for input_path, output_path in zip(input_paths, output_paths)
+        }
 
-            # Collect results
-            for future in as_completed(future_to_paths):
-                input_path, output_path = future_to_paths[future]
-                try:
-                    lines_n, included_n = future.result()
-                    logger.info(f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}')
+        # Collect results
+        for future in as_completed(future_to_paths):
+            input_path, output_path = future_to_paths[future]
+            try:
+                lines_n, included_n = future.result()
+                logger.info(f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}')
 
-                    total_lines_n += lines_n
-                    total_included_n += included_n
+                total_lines_n += lines_n
+                total_included_n += included_n
 
-                except Exception as exc:
-                    logger.error(f'File {input_path} generated an exception: {exc}')
-                    total_errors_n += 1
+            except Exception as exc:
+                logger.error(f'File {input_path} generated an exception: {exc}')
+                total_errors_n += 1
+
     except KeyboardInterrupt:
-        logger.warning('Process interrupted by user (Ctrl+C)')
-        # The executor context manager will handle cleanup automatically
+        logger.warning('Process interrupted by user (Ctrl+C). Cancelling running tasks...')
+
+        # Cancel all pending futures
+        for future in future_to_paths:
+            future.cancel()
+
+        # Force shutdown the executor
+        executor.shutdown(wait=False)
+
+        logger.info('All tasks cancelled.')
+        return total_lines_n, total_included_n, total_errors_n
+
+    finally:
+        # Clean shutdown in normal case
+        executor.shutdown(wait=True)
 
     return total_lines_n, total_included_n, total_errors_n
 
@@ -171,7 +187,7 @@ def resolve_paths(input_base_path: str, input_glob: str, output_base_path: str):
 def _process_single_file(
     input_path: str,
     output_path: str,
-    matcher: Union[SURTMatcher, URLMatcher],
+    matcher: SURTMatcher,
     limit: int = 0,
     log_every_n: int = 100_000,
 ):
