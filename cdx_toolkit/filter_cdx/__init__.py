@@ -2,8 +2,8 @@ import logging
 import os
 import time
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
+from multiprocessing import Pool
 from typing import List, Tuple, Union
 
 import fsspec
@@ -99,49 +99,33 @@ def filter_cdx(
     # Parallel processing
     logger.info('Filtering with %i processes in parallel (limit: %i)', n_parallel, limit)
 
-    executor = ProcessPoolExecutor(max_workers=n_parallel)
-    future_to_paths = {}
+    # Create partial function with common arguments
+    process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
 
+    # Prepare arguments for each task
+    task_args = list(zip(input_paths, output_paths))
+
+    pool = None
     try:
-        # Create partial function with common arguments
-        process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
-
-        # Submit all jobs
-        future_to_paths = {
-            executor.submit(process_file_partial, input_path, output_path): (input_path, output_path)
-            for input_path, output_path in zip(input_paths, output_paths)
-        }
-
-        # Collect results
-        for future in as_completed(future_to_paths):
-            input_path, output_path = future_to_paths[future]
-            try:
-                lines_n, included_n = future.result()
-                logger.info(f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}')
-
-                total_lines_n += lines_n
-                total_included_n += included_n
-
-            except Exception as exc:
-                logger.error(f'File {input_path} generated an exception: {exc}')
-                total_errors_n += 1
+        pool = Pool(processes=n_parallel)
+        # Use imap for better interrupt handling
+        for lines_n, included_n in pool.imap(lambda args: process_file_partial(*args), task_args):
+            total_lines_n += lines_n
+            total_included_n += included_n
 
     except KeyboardInterrupt:
-        logger.warning('Process interrupted by user (Ctrl+C). Cancelling running tasks...')
-
-        # Cancel all pending futures
-        for future in future_to_paths:
-            future.cancel()
-
-        # Force shutdown the executor
-        executor.shutdown(wait=False)
-
-        logger.info('All tasks cancelled.')
-        return total_lines_n, total_included_n, total_errors_n
-
+        logger.warning('Process interrupted by user (Ctrl+C). Terminating running tasks...')
+        if pool:
+            pool.terminate()
+            pool.join()
+        logger.info('All tasks terminated.')
+    except Exception as exc:
+        logger.error(f'Error during parallel processing: {exc}')
+        total_errors_n += 1
     finally:
-        # Clean shutdown in normal case
-        executor.shutdown(wait=True)
+        if pool:
+            pool.close()
+            pool.join()
 
     return total_lines_n, total_included_n, total_errors_n
 
