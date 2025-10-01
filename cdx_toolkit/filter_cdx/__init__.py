@@ -84,6 +84,12 @@ def run_filter_cdx(args, cmdline: str):
     logger.info(f'Script execution time: {execution_time:.3f} seconds')
 
 
+def _process_file_args(args) -> Tuple[str, str, int, int]:
+    """Wrapper function to unpack arguments for multiprocessing."""
+    input_path, output_path, matcher, limit = args
+    return _process_single_file(input_path, output_path, matcher, limit)
+
+
 def filter_cdx(
     matcher: SURTMatcher,
     input_paths: List[str],
@@ -99,19 +105,18 @@ def filter_cdx(
     # Parallel processing
     logger.info('Filtering with %i processes in parallel (limit: %i)', n_parallel, limit)
 
-    # Create partial function with common arguments
-    process_file_partial = partial(_process_single_file, matcher=matcher, limit=limit)
-
-    # Prepare arguments for each task
-    task_args = list(zip(input_paths, output_paths))
+    # Prepare arguments for each task (input_path, output_path, matcher, limit)
+    task_args = [(input_path, output_path, matcher, limit)
+                 for input_path, output_path in zip(input_paths, output_paths)]
 
     pool = None
     try:
         pool = Pool(processes=n_parallel)
         # Use imap for better interrupt handling
-        for lines_n, included_n in pool.imap(lambda args: process_file_partial(*args), task_args):
+        for input_path, _, lines_n, included_n in pool.imap(_process_file_args, task_args):
             total_lines_n += lines_n
             total_included_n += included_n
+            logger.info(f'File statistics: included {total_included_n} / {total_lines_n} lines: {input_path}')
 
     except KeyboardInterrupt:
         logger.warning('Process interrupted by user (Ctrl+C). Terminating running tasks...')
@@ -174,7 +179,7 @@ def _process_single_file(
     matcher: SURTMatcher,
     limit: int = 0,
     log_every_n: int = 100_000,
-):
+) -> Tuple[str, str, int, int]:
     """Process a single input/output file pair. Returns (lines_n, included_n)."""
     lines_n = 0
     included_n = 0
@@ -219,7 +224,7 @@ def _process_single_file(
         logger.warning('Output file is empty, removing it: %s', output_fs_path)
         output_fs.rm(output_fs_path)
 
-    return lines_n, included_n
+    return input_path, output_path, lines_n, included_n
 
 
 def validate_resolved_paths(output_paths, overwrite):
