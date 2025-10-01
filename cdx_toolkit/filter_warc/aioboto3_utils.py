@@ -20,13 +20,15 @@ class ThroughputTracker:
     start_time: float = 0.0
     total_bytes: int = 0
     total_requests: int = 0
+    total_records: int = 0
 
     def start(self):
         self.start_time = time.time()
 
-    def add_bytes(self, bytes_count: int):
+    def add(self, bytes_count: int = 0, records_count: int = 0, requests_count: int = 1):
         self.total_bytes += bytes_count
-        self.total_requests += 1
+        self.total_requests += requests_count
+        self.total_records += records_count
 
     def get_stats(self) -> dict:
         elapsed = time.time() - self.start_time
@@ -35,9 +37,11 @@ class ThroughputTracker:
             'elapsed': elapsed,
             'total_bytes': self.total_bytes,
             'total_requests': self.total_requests,
+            'total_records': self.total_records,
             'bytes_per_sec': self.total_bytes / elapsed if elapsed > 0 else 0,
             'mb_per_sec': (self.total_bytes / elapsed) / (1024 * 1024) if elapsed > 0 else 0,
             'requests_per_sec': self.total_requests / elapsed if elapsed > 0 else 0,
+            'records_per_sec': self.total_records / elapsed if elapsed > 0 else 0,
         }
 
 
@@ -47,6 +51,7 @@ class RangeJob:
     url: str
     offset: int
     length: int
+    records_count: int = 1
 
     def is_s3(self):
         return is_s3_url(self.url)

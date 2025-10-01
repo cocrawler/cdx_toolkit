@@ -152,15 +152,17 @@ async def filter_warc_by_cdx_via_aioboto3_async(
         await lister_task
         logger.info('Range jobs submitted, waiting for fetchers to finish')
 
-        await asyncio.gather(*fetchers)
+        fetcher_results = await asyncio.gather(*fetchers)
         logger.info('All WARC fetchers completed')
+
+        fetcher_total_requests = sum([result['stats']['total_requests'] for result in fetcher_results])
 
         # Send stop signals to consumers
         for _ in range(num_consumers):
             await item_queue.put(_STOP)
 
         consumer_results = await asyncio.gather(*consumers)
-        n_records = sum([result['stats']['total_requests'] for result in consumer_results])
+        n_records = sum([result['stats']['total_records'] for result in consumer_results])
 
         logger.info('All WARC writers completed')
 
@@ -187,7 +189,7 @@ async def get_range_jobs_from_index_paths(
                 index_path, warc_download_prefix=warc_download_prefix
             ):
                 # Convert the CDX record back to a RangeJob
-                job = RangeJob(url=warc_url, offset=offset, length=length)
+                job = RangeJob(url=warc_url, offset=offset, length=length, records_count=1)
                 await key_queue.put(job)
                 count += 1
 
@@ -245,7 +247,7 @@ async def fetch_warc_ranges(
                 base_backoff_seconds,
                 s3_client=s3,
             )
-            tracker.add_bytes(len(data))
+            tracker.add(bytes_count=len(data), records_count=job.records_count)
             counter += 1
 
             # Log progress every 10 items
@@ -467,7 +469,7 @@ async def write_warc(
 
                     await writer.write(item.data)
                     current_file_size += len(item.data)
-                    tracker.add_bytes(len(item.data))
+                    tracker.add(bytes_count=len(item.data), records_count=item.job.records_count)
 
                     # Log progress every 10 items
                     if log_every_n > 0 and counter % log_every_n == 0:
