@@ -1,7 +1,7 @@
 # Install with "python -m pip install -r requirements.txt".
 # must be kept in sync with setup.py
 
-requests==2.25.1
+requests>=2.25.1
 warcio==1.7.4
 fsspec[s3]
 surt>=0.3.1
@@ -9,14 +9,14 @@ tqdm>=4.67.1
 url-is-in>=0.1.1
 
 # used by Makefile
-pytest==6.2.4
-pytest-cov==2.12.1
-pytest-sugar==0.9.4
-coveralls==3.1.0
+pytest>=6.2.4
+pytest-cov>=2.12.1
+pytest-sugar>=0.9.4
+coveralls>=3.1.0
 botocore>=1.39.11
-responses==0.25.8
+responses>=0.25.8
 
 # packaging
-twine==3.4.1
-setuptools==57.0.0
-setuptools-scm==6.0.1
+twine>=3.4.1
+setuptools>=57.0.0
+setuptools-scm>=6.0.1

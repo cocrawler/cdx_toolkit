@@ -11,6 +11,7 @@ import requests
 import responses
 import base64
 import uuid
+import shutil
 
 from unittest.mock import patch
 
@@ -19,6 +20,14 @@ TEST_S3_BUCKET = os.environ.get('CDXT_TEST_S3_BUCKET', 'commoncrawl-ci-temp')
 DISABLE_S3_TESTS = bool(os.environ.get('CDXT_DISABLE_S3_TESTS', False))
 
 TEST_DATA_BASE_PATH = Path(__file__).parent / 'data'
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_cache():
+    """Delete cache directory before test session starts"""
+    cache_dir = os.path.expanduser('~/.cache/cdx_toolkit/')
+    if os.path.exists(cache_dir):
+        shutil.rmtree(cache_dir)
 
 
 def check_aws_s3_access():

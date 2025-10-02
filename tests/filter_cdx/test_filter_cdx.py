@@ -201,7 +201,7 @@ def test_process_single_file(tmpdir):
     input_path = TEST_DATA_PATH / 'warc_by_cdx/filtered_CC-MAIN-2024-30_cdx-00187.gz'
     matcher = SURTMatcher(['fr,'])
 
-    lines_n, included_n = _process_single_file(
+    _, _, lines_n, included_n = _process_single_file(
         input_path=input_path,
         output_path=tmpdir + '/filter_cdx',
         matcher=matcher,
@@ -218,7 +218,7 @@ def test_process_single_file_empty(tmpdir):
     with open(input_path, 'w') as f:
         f.write('')
 
-    lines_n, included_n = _process_single_file(
+    _, _, lines_n, included_n = _process_single_file(
         input_path=input_path,
         output_path=tmpdir + '/output',
         matcher=None,
@@ -247,9 +247,9 @@ def test_filter_cdx_error_handling(tmpdir, caplog):
         )
 
         # Verify error handling results
-        assert total_errors == 2, f'Should have 1 error from the failed file, got {total_errors}'
+        assert total_errors == 1, f'Should have 1 error from the first failed file, got {total_errors}'
         assert total_lines == 0, 'Should have lines from the successful file'
         assert total_included == 0, 'Should have included lines from the successful file'
 
         # Check that error was logged correctly
-        assert 'generated an exception' in caplog.text
+        assert 'Error during parallel processing' in caplog.text
