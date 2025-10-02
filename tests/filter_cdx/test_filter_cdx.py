@@ -231,27 +231,38 @@ def test_process_single_file_empty(tmpdir):
 
 def test_filter_cdx_error_handling(tmpdir, caplog):
     """Test filter_cdx function error handling when exceptions occur during processing."""
+    import multiprocessing
 
-    def mock_process_single_file(*args, **kwargs):
-        raise ValueError()
+    # Store original start method to restore later
+    original_start_method = multiprocessing.get_start_method()
 
-    # Create test input and output paths
-    input_paths = [str(tmpdir / 'input1.cdx'), str(tmpdir / 'input2.cdx')]
-    output_paths = [str(tmpdir / 'output1.cdx'), str(tmpdir / 'output2.cdx')]
+    try:
+        # Force fork method for consistent behavior across platforms
+        multiprocessing.set_start_method('fork', force=True)
 
-    # Replace the _process_single_file function with our mock
-    with patch('cdx_toolkit.filter_cdx._process_single_file', side_effect=mock_process_single_file):
-        # Test the error handling
-        total_lines, total_included, total_errors = filter_cdx(
-            matcher=None,
-            input_paths=input_paths,
-            output_paths=output_paths,
-        )
+        def mock_process_single_file(*args, **kwargs):
+            raise ValueError()
 
-        # Verify error handling results
-        assert total_errors == 1, f'Should have 1 error from the first failed file, got {total_errors}'
-        assert total_lines == 0, 'Should have lines from the successful file'
-        assert total_included == 0, 'Should have included lines from the successful file'
+        # Create test input and output paths
+        input_paths = [str(tmpdir / 'input1.cdx'), str(tmpdir / 'input2.cdx')]
+        output_paths = [str(tmpdir / 'output1.cdx'), str(tmpdir / 'output2.cdx')]
 
-        # Check that error was logged correctly
-        assert 'Error during parallel processing' in caplog.text
+        # Replace the _process_single_file function with our mock
+        with patch('cdx_toolkit.filter_cdx._process_single_file', side_effect=mock_process_single_file):
+            # Test the error handling
+            total_lines, total_included, total_errors = filter_cdx(
+                matcher=None,
+                input_paths=input_paths,
+                output_paths=output_paths,
+            )
+
+            # Verify error handling results
+            assert total_errors == 1, f'Should have 1 error from the first failed file, got {total_errors}'
+            assert total_lines == 0, 'Should have lines from the successful file'
+            assert total_included == 0, 'Should have included lines from the successful file'
+
+            # Check that error was logged correctly
+            assert 'Error during parallel processing' in caplog.text
+    finally:
+        # Restore original start method
+        multiprocessing.set_start_method(original_start_method, force=True)
