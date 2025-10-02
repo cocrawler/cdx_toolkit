@@ -24,7 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 class WARCFilter:
-    """Filter WARC files using a three stage listner-producer-consumer pattern.
+    """Filter or extract specific records from WARC files based on CDX indexes.
+    
+    The WARC filter uses a three stage listner-producer-consumer pattern.
 
     Filter targets:
     - CDX index files from local or remote file system.
@@ -64,6 +66,33 @@ class WARCFilter:
         min_part_size: int = 5 * 1024 * 1024,  # 5 MiB (for upload)
         max_file_size: Optional[int] = 1 * 1024 * 1024 * 1024,  # 1 GiB (for WARC outputs)
     ):
+        """Initialize the WARC filter.
+
+        Args:
+            index_paths: List of paths to CDX index files.
+            prefix_path: Output path prefix for filtered WARC files.
+            writer_info: Dictionary containing writer metadata.
+            writer_subprefix: Optional subprefix for writer output paths.
+            write_paths_as_resource_records: Optional list of file paths to write as resource records.
+            write_paths_as_resource_records_metadata: Optional list of metadata paths for resource records.
+            record_limit: Maximum number of records to process (0 for unlimited).
+            log_every_n: Log progress every N records.
+            warc_download_prefix: Optional prefix to prepend to WARC URLs.
+            n_parallel: Number of parallel workers (default for readers/writers).
+            n_parallel_readers: Number of parallel reader tasks (overrides n_parallel).
+            n_parallel_writers: Number of parallel writer tasks (overrides n_parallel).
+            max_attempts: Maximum retry attempts for failed operations.
+            base_backoff_seconds: Base backoff time in seconds for retries.
+            writer_kwargs: Optional additional kwargs for writers.
+            range_jobs_queue_size: Maximum size of range jobs queue.
+            warc_records_queue_size: Maximum size of WARC records queue.
+            fetcher_to_consumer_ratio: Ratio of readers to writers for auto-scaling.
+            aws_region_name: AWS region name for S3 operations.
+            warc_version: WARC format version (e.g., '1.0' or '1.1').
+            content_type: Optional content type for WARC output.
+            min_part_size: Minimum part size for multipart uploads (5 MiB).
+            max_file_size: Maximum size for individual WARC files (1 GiB).
+        """
         self.index_paths = index_paths
         self.prefix_path = prefix_path
         self.writer_info = writer_info
@@ -93,7 +122,11 @@ class WARCFilter:
         self.max_file_size = max_file_size
 
     def filter(self) -> int:
-        """Perform the filtering process (calls async method via asyncio.run)."""
+        """Perform the filtering process (calls async method via asyncio.run).
+
+        Returns:
+            int: Number of records written, or -1 if interrupted.
+        """
         try:
             return asyncio.run(self.filter_async())
         except KeyboardInterrupt:
@@ -102,7 +135,11 @@ class WARCFilter:
         return -1
 
     def needs_s3(self) -> bool:
-        """Returns true if S3 is needed at any stage."""
+        """Returns true if S3 is needed at any stage.
+
+        Returns:
+            bool: True if S3 client is needed for any operation.
+        """
         return (
             (self.index_paths is not None and len(self.index_paths) > 0 and is_s3_url(self.index_paths[0]))  # stage 1
             or is_s3_url(self.warc_download_prefix)  # stage 3
@@ -110,7 +147,14 @@ class WARCFilter:
         )
 
     def get_s3_client_context(self):
-        """Return s3 client context if needed."""
+        """Return s3 client context if needed.
+
+        Returns:
+            Optional[aioboto3.Session.client]: S3 client context manager if S3 is needed, None otherwise.
+
+        Raises:
+            SystemExit: If S3 is needed but Python version is < 3.9.
+        """
         if self.needs_s3():
             if sys.version_info.major < 3 or (sys.version_info.major >= 3 and sys.version_info.minor < 9):
                 logger.error('Reading and writing to S3 requires Python version >= 3.9')
@@ -125,7 +169,11 @@ class WARCFilter:
             return None
 
     async def filter_async(self) -> int:
-        """Filter process using a three stage approach (job generator, warc reader, warc writer)."""
+        """Filter process using a three stage approach (job generator, warc reader, warc writer).
+
+        Returns:
+            int: Number of records written.
+        """
         range_jobs_queue: asyncio.Queue = asyncio.Queue(maxsize=self.range_jobs_queue_size)
         warc_records_queue: asyncio.Queue = asyncio.Queue(maxsize=self.warc_records_queue_size)
 
@@ -134,10 +182,24 @@ class WARCFilter:
             async with s3_client_context as s3_client:
                 return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue, s3_client)
         else:
-            return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue, None)
+            return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue)
 
-    async def _run_filter_pipeline(self, range_jobs_queue: asyncio.Queue, warc_records_queue: asyncio.Queue, s3_client) -> int:
-        """Run the actual filter pipeline with or without S3 client."""
+    async def _run_filter_pipeline(
+            self,
+            range_jobs_queue: asyncio.Queue,
+            warc_records_queue: asyncio.Queue,
+            s3_client=None,
+        ) -> int:
+        """Run the actual filter pipeline with or without S3 client.
+
+        Args:
+            range_jobs_queue: Queue for range jobs from CDX index.
+            warc_records_queue: Queue for WARC record payloads.
+            s3_client: Optional S3 client for reading/writing to S3.
+
+        Returns:
+            int: Number of records written.
+        """
         # Fetch file paths and ranges (offset, length) from index files
         logger.info('Starting lister, %d fetchers, %d consumers', self.num_readers, self.num_writers)
 
@@ -200,7 +262,7 @@ class WARCFilter:
         )
 
         logger.info(f'All WARC writers completed: {writers_records} records')
-        logger.info(f'Writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} r/s')
+        logger.info(f'Writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} rec/s')
 
         return writers_records
 
@@ -209,7 +271,12 @@ class WARCFilter:
         range_jobs_queue: asyncio.Queue,
         s3_client=None,
     ):
-        """Read the CDX paths, parse lines -> RangeJob (WARC files and offets) -> key_queue."""
+        """Read the CDX paths, parse lines -> RangeJob (WARC files and offets) -> key_queue.
+
+        Args:
+            range_jobs_queue: Queue to put RangeJob objects into.
+            s3_client: Optional S3 client for reading CDX indexes from S3.
+        """
 
         logger.info('Range index limit: %i', self.record_limit)
         count = 0
@@ -250,7 +317,17 @@ class WARCFilter:
         warc_records_queue: asyncio.Queue,
         s3_client=None,
     ) -> dict:
-        """Read WARC records based on range jobs -> enqueue RangePayload."""
+        """Read WARC records based on range jobs -> enqueue RangePayload.
+
+        Args:
+            reader_id: Unique identifier for this reader task.
+            range_jobs_queue: Queue to read RangeJob objects from.
+            warc_records_queue: Queue to put RangePayload objects into.
+            s3_client: Optional S3 client for reading WARC files from S3.
+
+        Returns:
+            dict: Statistics dictionary with reader_id and throughput stats.
+        """
         tracker = ThroughputTracker()
         tracker.start()
         counter = 0
@@ -312,7 +389,16 @@ class WARCFilter:
         warc_records_queue: asyncio.Queue,
         s3_client=None,
     ) -> dict:
-        """Write WARC records. Each writer owns ONE shard MPU and appends ranges to it."""
+        """Write WARC records. Each writer owns ONE shard MPU and appends ranges to it.
+
+        Args:
+            writer_id: Unique identifier for this writer task.
+            warc_records_queue: Queue to read RangePayload objects from.
+            s3_client: Optional S3 client for writing WARC files to S3.
+
+        Returns:
+            dict: Statistics dictionary with writer_id and throughput stats.
+        """
         # File rotation tracking
         current_file_sequence = 1
         current_file_size = 0
@@ -429,9 +515,19 @@ class WARCFilter:
         return {'writer_id': writer_id, 'stats': tracker.get_stats()}
 
     def get_boto3_config(self):
+        """Get boto3 configuration for S3 client.
+
+        Returns:
+            Config: Boto3 configuration object with retry and timeout settings.
+        """
+        # Calculate max connections based on parallelism
+        # Each reader + writer needs connections, plus some overhead for retries
+        max_pool_connections = max(50, (self.num_readers + self.num_writers) * 2)
+
         return Config(
             region_name=self.aws_region_name,
             retries={'max_attempts': max(2, self.max_attempts), 'mode': 'standard'},
             connect_timeout=10,
             read_timeout=120,
+            max_pool_connections=max_pool_connections,
         )

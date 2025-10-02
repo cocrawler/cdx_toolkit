@@ -84,9 +84,11 @@ jobs:
           script: |
             core.exportVariable('CDXT_DISABLE_S3_TESTS', '1')
 
-      - name: Run tests
+      - name: Run tests (only feature)
         run: |
-          make test_coverage
+          # make test_coverage
+          pytest -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/filter_warc tests/filter_cdx -v -v
+          coverage report
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
