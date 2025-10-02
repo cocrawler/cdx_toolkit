@@ -383,6 +383,36 @@ class WARCFilter:
 
         return {'reader_id': reader_id, 'stats': tracker.get_stats()}
 
+    async def write_resource_records(self, writer, warcinfo_id: str) -> int:
+        """Write WARC resource records based on paths"""
+        resource_records_size = 0
+
+        logger.info(f'Writing {len(self.write_paths_as_resource_records)} resource records to WARC ... ')
+
+        # Resource records are written at the beginning the WARC file.
+        for i, resource_record_path in enumerate(self.write_paths_as_resource_records):
+            logger.info(f'Writing resource record from {resource_record_path} ...')
+            resource_record = get_resource_record_from_path(
+                file_path=resource_record_path,
+                metadata_path=(
+                    self.write_paths_as_resource_records_metadata[i]
+                    if self.write_paths_as_resource_records_metadata
+                    else None
+                ),
+                warcinfo_id=warcinfo_id,
+            )
+            record_data = get_bytes_from_warc_record(
+                resource_record, warc_version=self.warc_version, gzip=self.gzip
+            )
+            await writer.write(record_data)
+
+            # Keep track but do not rotate resource records
+            resource_records_size += len(record_data)
+
+        logger.info(f'Resource records added: {len(self.write_paths_as_resource_records)}')
+
+        return resource_records_size
+
     async def write_warc_records(
         self,
         writer_id: int,
@@ -418,7 +448,7 @@ class WARCFilter:
         )
 
         # Initialize first writer with header
-        writer, header_size = await create_new_writer_with_header(
+        writer, header_size, warcinfo_id = await create_new_writer_with_header(
             sequence=current_file_sequence,
             **new_writer_kwargs,
         )
@@ -428,32 +458,11 @@ class WARCFilter:
         tracker.start()
         counter = 0
 
-        # Write WARC resource records
+        # Resource records
         if self.write_paths_as_resource_records:
-            logger.info(f'Writing {len(self.write_paths_as_resource_records)} resource records to WARC ... ')
+            current_file_size += await self.write_resource_records(writer, warcinfo_id=warcinfo_id)
 
-            # Resource records are written at the beginning the WARC file.
-            for i, resource_record_path in enumerate(self.write_paths_as_resource_records):
-                logger.info(f'Writing resource record from {resource_record_path} ...')
-                resource_record = get_resource_record_from_path(
-                    file_path=resource_record_path,
-                    metadata_path=(
-                        self.write_paths_as_resource_records_metadata[i]
-                        if self.write_paths_as_resource_records_metadata
-                        else None
-                    ),
-                )
-                record_data = get_bytes_from_warc_record(
-                    resource_record, warc_version=self.warc_version, gzip=self.gzip
-                )
-
-                await writer.write(record_data)
-
-                # Keep track but do not rotate resource records
-                current_file_size += len(record_data)
-
-            logger.info(f'Resource records added: {len(self.write_paths_as_resource_records)}')
-
+        # Response records
         try:
             while True:
                 item = await warc_records_queue.get()
@@ -479,7 +488,7 @@ class WARCFilter:
                             await writer.close()
                             current_file_sequence += 1
 
-                            writer, header_size = await create_new_writer_with_header(
+                            writer, header_size, warcinfo_id = await create_new_writer_with_header(
                                 sequence=current_file_sequence,
                                 **new_writer_kwargs,
                             )
@@ -487,11 +496,16 @@ class WARCFilter:
                             current_file_size = header_size
                             logger.info(f'Rotated to new WARC file sequence {current_file_sequence} due to size limit')
 
+                            # Resource records also to new files
+                            if self.write_paths_as_resource_records:
+                                current_file_size += await self.write_resource_records(writer, warcinfo_id=warcinfo_id)
+
+                        # Write actual response record
                         await writer.write(item.data)
                         current_file_size += len(item.data)
                         tracker.add(bytes_count=len(item.data), records_count=item.job.records_count)
 
-                        # Log progress every 10 items
+                        # Log progress every N items
                         if self.log_every_n > 0 and counter % self.log_every_n == 0:
                             stats = tracker.get_stats()
                             logger.info(

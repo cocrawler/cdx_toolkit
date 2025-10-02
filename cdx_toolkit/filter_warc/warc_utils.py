@@ -5,7 +5,7 @@ import fsspec
 from warcio.recordloader import ArcWarcRecord
 from warcio import WARCWriter
 
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Tuple, Union
 
 import mimetypes
 
@@ -26,6 +26,7 @@ def get_bytes_from_warc_record(
 
 def get_resource_record_from_path(
     file_path: Union[str, Path],
+    warcinfo_id: str,
     metadata_path: Optional[Union[str, Path]] = None,
     ) -> ArcWarcRecord:
     """Build WARC resource record for file path and metdata path.
@@ -58,19 +59,22 @@ def get_resource_record_from_path(
             warc_content_type = metadata.get("warc_content_type", None)
             uri = metadata.get("uri", None)
             http_headers = metadata.get("http_headers", None)
-            warc_headers_dict = metadata.get("warc_headers_dict", None)
+            warc_headers_dict = metadata.get("warc_headers_dict", {})
     else:
         # Without metdata
         warc_content_type = None
         uri = None
         http_headers = None
-        warc_headers_dict = None
+        warc_headers_dict = {}
 
     if warc_content_type is None:
         warc_content_type = mimetypes.guess_type(file_path)[0]
 
     if uri is None:
         uri = file_path
+
+    # Set WARC-Warcinfo-ID
+    warc_headers_dict["WARC-Warcinfo-ID"] = warcinfo_id
 
     return WARCWriter(None).create_warc_record(
         uri=uri,
@@ -112,7 +116,7 @@ async def create_new_writer_with_header(
     gzip: bool = False,
     content_type: Optional[str] = None,
     s3_client=None,
-):
+) -> Tuple[Union[S3ShardWriter, LocalFileWriter], int, str]:
     if is_s3_url(output_path_prefix):
         dest_bucket, dest_prefix = parse_s3_uri(output_path_prefix)
 
@@ -159,4 +163,7 @@ async def create_new_writer_with_header(
     header_data = buffer.getvalue()
     await new_writer.write(header_data)
 
-    return new_writer, len(header_data)
+    # WARC-Warcinfo-ID indicates the WARC-Record-ID of the associated ‘warcinfo’ record
+    warcinfo_id = warcinfo.rec_headers.get("WARC-Record-ID")
+
+    return new_writer, len(header_data), warcinfo_id
