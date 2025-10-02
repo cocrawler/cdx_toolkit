@@ -33,6 +33,16 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
     )
     parser.add_argument('--operator', action='store', help='a person, if the creator is an organization')
     parser.add_argument(
+        '--description',
+        action='store',
+        help='the `description` field in the `warcinfo` record (auto-generated if not set)',
+    )
+    parser.add_argument(
+        '--is-part-of',
+        action='store',
+        help='the `isPartOf` field in the `warcinfo` record (auto-generated if not set)',
+    )
+    parser.add_argument(
         '--warc-download-prefix',
         action='store',
         help='prefix for downloading content, automatically set for CC',

@@ -56,7 +56,7 @@ class WARCFilter:
         n_parallel_writers: Optional[int] = None,
         max_attempts: int = 5,
         base_backoff_seconds: float = 0.5,
-        writer_kwargs: Optional[Dict] = None,
+        # writer_kwargs: Optional[Dict] = None,
         range_jobs_queue_size: int = 1000,
         warc_records_queue_size: int = 200,
         fetcher_to_consumer_ratio: int = 6,
@@ -90,8 +90,8 @@ class WARCFilter:
             aws_region_name: AWS region name for S3 operations.
             warc_version: WARC format version (e.g., '1.0' or '1.1').
             content_type: Optional content type for WARC output.
-            min_part_size: Minimum part size for multipart uploads (5 MiB).
-            max_file_size: Maximum size for individual WARC files (1 GiB).
+            min_part_size: Minimum part byte size for multipart uploads (default: 5 MiB).
+            max_file_size: Maximum byte size for individual WARC files (default: 1 GiB).
         """
         self.index_paths = index_paths
         self.prefix_path = prefix_path
@@ -103,7 +103,7 @@ class WARCFilter:
         self.log_every_n = log_every_n
         self.warc_download_prefix = warc_download_prefix
 
-        self.writer_kwargs = writer_kwargs
+        # self.writer_kwargs = writer_kwargs
         self.range_jobs_queue_size = range_jobs_queue_size
         self.warc_records_queue_size = warc_records_queue_size
         self.aws_region_name = aws_region_name
@@ -356,7 +356,7 @@ class WARCFilter:
                 tracker.add(bytes_count=len(data), records_count=job.records_count)
                 counter += 1
 
-                # Log progress every 10 items
+                # Log progress every N items
                 if self.log_every_n > 0 and counter % self.log_every_n == 0:
                     stats = tracker.get_stats()
                     logger.info(

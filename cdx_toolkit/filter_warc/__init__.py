@@ -41,14 +41,17 @@ def run_warcer_by_cdx(args, cmdline):
     if not write_paths_as_resource_records and write_paths_as_resource_records_metadata:
         raise ValueError("Metadata paths are set but resource records paths are missing.")
 
-    ispartof = args.prefix
-    if args.subprefix:
-        ispartof += '-' + args.subprefix
+    if args.is_part_of:
+        ispartof = args.is_part_of
+    else:
+        ispartof = args.prefix
+        if args.subprefix:
+            ispartof += '-' + args.subprefix
 
     info = {
         'software': 'pypi_cdx_toolkit/' + get_version(),
         'isPartOf': ispartof,
-        'description': 'warc extraction based on CDX generated with: ' + cmdline,
+        'description': args.description if args.description else 'warc extraction based on CDX generated with: ' + cmdline,
         'format': 'WARC file version 1.0',
     }
     if args.creator:
@@ -56,10 +59,10 @@ def run_warcer_by_cdx(args, cmdline):
     if args.operator:
         info['operator'] = args.operator
 
-    writer_kwargs = {}
-    if 'size' in kwargs:
-        writer_kwargs['size'] = kwargs['size']
-        del kwargs['size']
+    # writer_kwargs = {}
+    # if 'size' in kwargs:
+    #     writer_kwargs['size'] = kwargs['size']
+    #     del kwargs['size']
 
     n_parallel = args.parallel
     log_every_n = args.log_every_n
@@ -86,7 +89,8 @@ def run_warcer_by_cdx(args, cmdline):
         log_every_n=log_every_n,
         warc_download_prefix=cdx.warc_download_prefix,
         n_parallel=n_parallel,
-        writer_kwargs=writer_kwargs,
+        max_file_size=args.size,
+        # writer_kwargs=writer_kwargs,
     )
     records_n = warc_filter.filter()
 

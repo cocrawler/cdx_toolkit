@@ -201,7 +201,7 @@ def test_process_single_file(tmpdir):
     input_path = TEST_DATA_PATH / 'warc_by_cdx/filtered_CC-MAIN-2024-30_cdx-00187.gz'
     matcher = SURTMatcher(['fr,'])
 
-    _, _, lines_n, included_n = _process_single_file(
+    _, _, lines_n, included_n, errors_n = _process_single_file(
         input_path=input_path,
         output_path=tmpdir + '/filter_cdx',
         matcher=matcher,
@@ -211,6 +211,7 @@ def test_process_single_file(tmpdir):
 
     assert included_n == 100
     assert lines_n == 100
+    assert errors_n == 0
 
 
 def test_process_single_file_empty(tmpdir):
@@ -218,13 +219,14 @@ def test_process_single_file_empty(tmpdir):
     with open(input_path, 'w') as f:
         f.write('')
 
-    _, _, lines_n, included_n = _process_single_file(
+    _, _, lines_n, included_n, errors_n = _process_single_file(
         input_path=input_path,
         output_path=tmpdir + '/output',
         matcher=None,
     )
     assert lines_n == 0
     assert included_n == 0
+    assert errors_n == 0
 
 
 def test_filter_cdx_error_handling(tmpdir, caplog):
