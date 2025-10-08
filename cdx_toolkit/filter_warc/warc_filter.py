@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class WARCFilter:
     """Filter or extract specific records from WARC files based on CDX indexes.
-    
+
     The WARC filter uses a three stage listner-producer-consumer pattern.
 
     Filter targets:
@@ -113,7 +113,11 @@ class WARCFilter:
 
         self.n_parallel = n_parallel
         self.num_readers = n_parallel_readers if n_parallel_readers is not None else n_parallel
-        self.num_writers = n_parallel_writers if n_parallel_writers is not None else max(int(self.num_readers / self.fetcher_to_consumer_ratio), 1)
+        self.num_writers = (
+            n_parallel_writers
+            if n_parallel_writers is not None
+            else max(int(self.num_readers / self.fetcher_to_consumer_ratio), 1)
+        )
 
         self.gzip = self.index_paths[0].endswith('.gz') if self.index_paths else False
         self.warc_version = warc_version
@@ -185,11 +189,11 @@ class WARCFilter:
             return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue)
 
     async def _run_filter_pipeline(
-            self,
-            range_jobs_queue: asyncio.Queue,
-            warc_records_queue: asyncio.Queue,
-            s3_client=None,
-        ) -> int:
+        self,
+        range_jobs_queue: asyncio.Queue,
+        warc_records_queue: asyncio.Queue,
+        s3_client=None,
+    ) -> int:
         """Run the actual filter pipeline with or without S3 client.
 
         Args:
@@ -242,9 +246,7 @@ class WARCFilter:
 
         readers_records = sum([result['stats']['total_records'] for result in readers_results])
         readers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in readers_results])
-        readers_records_per_sec = statistics.mean(
-            [result['stats']['records_per_sec'] for result in readers_results]
-        )
+        readers_records_per_sec = statistics.mean([result['stats']['records_per_sec'] for result in readers_results])
 
         logger.info(f'All WARC readers completed: {readers_records} records')
         logger.info(f'Reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
@@ -257,9 +259,7 @@ class WARCFilter:
 
         writers_records = sum([result['stats']['total_records'] for result in writers_results])
         writers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in writers_results])
-        writers_records_per_sec = statistics.mean(
-            [result['stats']['records_per_sec'] for result in writers_results]
-        )
+        writers_records_per_sec = statistics.mean([result['stats']['records_per_sec'] for result in writers_results])
 
         logger.info(f'All WARC writers completed: {writers_records} records')
         logger.info(f'Writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} rec/s')
@@ -357,16 +357,7 @@ class WARCFilter:
                 counter += 1
 
                 # Log progress every N items
-                if self.log_every_n > 0 and counter % self.log_every_n == 0:
-                    stats = tracker.get_stats()
-                    logger.info(
-                        'WARC Reader %d: %d items, %.1f MB, %.2f MB/s, %.2f req/s',
-                        reader_id,
-                        counter,
-                        stats['total_bytes'] / (1024 * 1024),
-                        stats['mb_per_sec'],
-                        stats['requests_per_sec'],
-                    )
+                self.log_reader(reader_id=reader_id, counter=counter, tracker=tracker)
 
                 await warc_records_queue.put(RangePayload(job=job, data=data))
             except Exception:
@@ -401,9 +392,7 @@ class WARCFilter:
                 ),
                 warcinfo_id=warcinfo_id,
             )
-            record_data = get_bytes_from_warc_record(
-                resource_record, warc_version=self.warc_version, gzip=self.gzip
-            )
+            record_data = get_bytes_from_warc_record(resource_record, warc_version=self.warc_version, gzip=self.gzip)
             await writer.write(record_data)
 
             # Keep track but do not rotate resource records
@@ -484,21 +473,13 @@ class WARCFilter:
                         assert isinstance(item, RangePayload)
 
                         # Check if we need to rotate files due to size limit
-                        if self.max_file_size and current_file_size + len(item.data) > self.max_file_size:
-                            await writer.close()
-                            current_file_sequence += 1
-
-                            writer, header_size, warcinfo_id = await create_new_writer_with_header(
-                                sequence=current_file_sequence,
-                                **new_writer_kwargs,
-                            )
-
-                            current_file_size = header_size
-                            logger.info(f'Rotated to new WARC file sequence {current_file_sequence} due to size limit')
-
-                            # Resource records also to new files
-                            if self.write_paths_as_resource_records:
-                                current_file_size += await self.write_resource_records(writer, warcinfo_id=warcinfo_id)
+                        writer, current_file_sequence, current_file_size = await self.rotate_files(
+                            writer=writer,
+                            current_file_sequence=current_file_sequence,
+                            current_file_size=current_file_size,
+                            added_byte_size=len(item.data),
+                            **new_writer_kwargs,
+                        )
 
                         # Write actual response record
                         await writer.write(item.data)
@@ -506,15 +487,8 @@ class WARCFilter:
                         tracker.add(bytes_count=len(item.data), records_count=item.job.records_count)
 
                         # Log progress every N items
-                        if self.log_every_n > 0 and counter % self.log_every_n == 0:
-                            stats = tracker.get_stats()
-                            logger.info(
-                                'WARC writer %d: %d items, %.1f MB written, %.2f MB/s',
-                                writer_id,
-                                counter,
-                                stats['total_bytes'] / (1024 * 1024),
-                                stats['mb_per_sec'],
-                            )
+                        self.log_writer(writer_id=writer_id, counter=counter, tracker=tracker)
+
                 except Exception:
                     logger.exception('WARC writer %d failed on %s', writer_id, getattr(item, 'job', None))
                     should_stop = False
@@ -527,6 +501,53 @@ class WARCFilter:
             await writer.close()
 
         return {'writer_id': writer_id, 'stats': tracker.get_stats()}
+
+    def log_reader(self, reader_id: int, counter: int, tracker: ThroughputTracker):
+        """Log progress every N items."""
+        if self.log_every_n > 0 and counter % self.log_every_n == 0:
+            stats = tracker.get_stats()
+            logger.info(
+                'WARC Reader %d: %d items, %.1f MB, %.2f MB/s, %.2f req/s',
+                reader_id,
+                counter,
+                stats['total_bytes'] / (1024 * 1024),
+                stats['mb_per_sec'],
+                stats['requests_per_sec'],
+            )
+
+    def log_writer(self, writer_id: int, counter: int, tracker: ThroughputTracker):
+        """Log progress every N items."""
+        if self.log_every_n > 0 and counter % self.log_every_n == 0:
+            stats = tracker.get_stats()
+            logger.info(
+                'WARC Writer %d: %d items, %.1f MB written, %.2f MB/s',
+                writer_id,
+                counter,
+                stats['total_bytes'] / (1024 * 1024),
+                stats['mb_per_sec'],
+            )
+
+    async def rotate_files(
+        self, writer, current_file_sequence: int, current_file_size: int, added_byte_size: int, **new_writer_kwargs
+    ):
+        """Check if we need to rotate files due to size limit and perform rotation if needed."""
+        if self.max_file_size and current_file_size + added_byte_size > self.max_file_size:
+            await writer.close()
+            current_file_sequence += 1
+
+            writer, header_size, warcinfo_id = await create_new_writer_with_header(
+                sequence=current_file_sequence,
+                **new_writer_kwargs,
+            )
+
+            current_file_size = header_size
+            logger.info(f'Rotated to new WARC file sequence {current_file_sequence} due to size limit')
+
+            # Resource records also to new files
+            if self.write_paths_as_resource_records:
+                current_file_size += await self.write_resource_records(writer, warcinfo_id=warcinfo_id)
+
+        return writer, current_file_sequence, current_file_size
 
     def get_boto3_config(self):
         """Get boto3 configuration for S3 client.

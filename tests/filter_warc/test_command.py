@@ -131,7 +131,40 @@ def test_cli_warc_by_cdx_over_s3_to_s3_in_parallel(s3_tmpdir, caplog):
         's3://commoncrawl',
         base_prefix=s3_tmpdir,
         caplog=caplog,
-        extra_args=['--parallel=3'],
+        extra_args=['--parallel=3', '--is-part-of=foobar'],
+    )
+
+
+@requires_aws_s3
+def test_cli_warc_by_cdx_over_s3_to_s3_warc_filter(s3_tmpdir, caplog):
+    assert_cli_warc_by_cdx(
+        's3://commoncrawl',
+        base_prefix=s3_tmpdir,
+        caplog=caplog,
+    )
+
+
+@requires_aws_s3
+def test_cli_warc_by_cdx_over_http_to_s3_in_parallel(s3_tmpdir, caplog):
+    assert_cli_warc_by_cdx(
+        'https://data.commoncrawl.org',
+        base_prefix=s3_tmpdir,
+        caplog=caplog,
+        extra_args=[
+            '--parallel=3',
+        ],
+    )
+
+
+@requires_aws_s3
+def test_cli_warc_by_cdx_over_s3_to_local_in_parallel(tmpdir, caplog):
+    assert_cli_warc_by_cdx(
+        's3://commoncrawl',
+        base_prefix=tmpdir,
+        caplog=caplog,
+        extra_args=[
+            '--parallel=3',
+        ],
     )
 
 

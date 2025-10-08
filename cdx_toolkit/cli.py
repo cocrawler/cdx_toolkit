@@ -9,10 +9,10 @@ import cdx_toolkit
 
 from cdx_toolkit.utils import get_version, setup
 
-from cdx_toolkit.filter_cdx import run_filter_cdx
+from cdx_toolkit.filter_cdx.command import run_filter_cdx
 from cdx_toolkit.filter_cdx.args import add_filter_cdx_args
 
-from cdx_toolkit.filter_warc import run_warcer_by_cdx
+from cdx_toolkit.filter_warc.command import run_warcer_by_cdx
 from cdx_toolkit.filter_warc.args import add_warcer_by_cdx_args
 
 

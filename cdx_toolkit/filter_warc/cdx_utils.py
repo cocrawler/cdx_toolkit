@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 
-from typing import Iterable, Optional, Tuple, Union
+import sys
+from typing import Iterable, List, Optional, Tuple, Union
 
 import fsspec
 import logging
@@ -65,3 +66,28 @@ def iter_cdx_index_from_path(index_path: str, warc_download_prefix: str) -> Iter
                 continue
 
     logger.info(f'CDX completed from {index_path}')
+
+
+def get_cdx_paths(index_path: str, index_glob: Optional[str] = None) -> List[str]:
+    """Find CDX index paths using glob pattern."""
+    if index_glob is None:
+        # Read from a single index
+        index_paths = [index_path]
+    else:
+        # Prepare index paths
+        index_fs, index_fs_path = fsspec.url_to_fs(index_path)
+
+        # Fetch multiple indicies via glob
+        full_glob = index_fs_path + index_glob
+
+        logger.info('glob pattern from %s (%s)', full_glob, index_fs.protocol)
+
+        index_paths = sorted(index_fs.glob(full_glob))
+
+        logger.info('glob pattern found %i index files in %s', len(index_paths), index_fs_path)
+
+        if not index_paths:
+            logger.error('no index files found via glob')
+            sys.exit(1)
+
+    return index_paths

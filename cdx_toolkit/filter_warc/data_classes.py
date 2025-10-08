@@ -7,7 +7,6 @@ from typing import Tuple
 from cdx_toolkit.myrequests import myrequests_get
 
 
-
 @dataclass
 class ThroughputTracker:
     """Track throughput metrics for fetchers and consumers."""

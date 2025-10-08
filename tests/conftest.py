@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 import pytest
 import boto3
-from botocore.exceptions import NoCredentialsError, ClientError
+from botocore.config import Config
+from botocore.exceptions import NoCredentialsError, ClientError, EndpointConnectionError
 
 import json
 import functools
@@ -30,16 +31,33 @@ def cleanup_cache():
         shutil.rmtree(cache_dir)
 
 
+# Cache for AWS S3 access check to avoid repeated network calls
+_aws_s3_access_cache = None
+
+
 def check_aws_s3_access():
-    """Check if AWS S3 access is available."""
+    """Check if AWS S3 access is available (cached result)."""
+    global _aws_s3_access_cache
+
+    if _aws_s3_access_cache is not None:
+        return _aws_s3_access_cache
+
     try:
-        s3_client = boto3.client('s3')
+        config = Config(
+            retries={
+                'max_attempts': 1,
+                'mode': 'standard'
+            }
+        )
+        s3_client = boto3.client('s3', config=config)
 
         # Try list objects on test bucket
         s3_client.list_objects_v2(Bucket=TEST_S3_BUCKET, MaxKeys=1)
-        return True
-    except (NoCredentialsError, ClientError):
-        return False
+        _aws_s3_access_cache = True
+    except (NoCredentialsError, ClientError, ConnectionError, EndpointConnectionError):
+        _aws_s3_access_cache = False
+
+    return _aws_s3_access_cache
 
 
 def requires_aws_s3(func):
@@ -62,9 +80,10 @@ def s3_tmpdir():
     # Yield the S3 path
     yield f's3://{bucket_name}/{temp_prefix}'
 
-    # Cleanup: delete all objects with this prefix
-    s3_client = boto3.client('s3')
     try:
+        # Cleanup: delete all objects with this prefix
+        s3_client = boto3.client('s3')
+
         # List all objects with the temp prefix
         response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=temp_prefix)
 
@@ -72,7 +91,7 @@ def s3_tmpdir():
             # Delete all objects
             objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
             s3_client.delete_objects(Bucket=bucket_name, Delete={'Objects': objects_to_delete})
-    except ClientError:
+    except (NoCredentialsError, ClientError, ConnectionError, EndpointConnectionError):
         # Ignore cleanup errors - test objects will eventually expire
         pass
 

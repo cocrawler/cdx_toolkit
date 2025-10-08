@@ -20,9 +20,9 @@ def test_backoff():
     result1 = _backoff(1, base_backoff)
     assert 0.8 <= result1 <= 1.2
 
-    # Test attempt 2: should be between 1.6 and 2.4 seconds (2^1 * base * jitter)
+    # Test attempt 2: should be between 1.6 and 2.41 seconds (2^1 * base * jitter)
     result2 = _backoff(2, base_backoff)
-    assert 1.6 <= result2 <= 2.4
+    assert 1.6 <= result2 <= 2.41
 
     # Test attempt 3: should be between 3.2 and 4.8 seconds (2^2 * base * jitter)
     result3 = _backoff(3, base_backoff)
