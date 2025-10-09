@@ -15,23 +15,24 @@ from botocore.exceptions import ClientError
 def test_backoff():
     """Test _backoff function with exponential backoff and jitter."""
     base_backoff = 1.0
+    tol_float = 0.001  # tolerance for float errors
 
     # Test attempt 1: should be between 0.8 and 1.2 seconds (with jitter)
     result1 = _backoff(1, base_backoff)
-    assert 0.8 <= result1 <= 1.2
+    assert 0.8 <= result1 <= 1.2 + tol_float
 
     # Test attempt 2: should be between 1.6 and 2.41 seconds (2^1 * base * jitter)
     result2 = _backoff(2, base_backoff)
-    assert 1.6 <= result2 <= 2.41
+    assert 1.6 <= result2 <= 2.4 + tol_float
 
     # Test attempt 3: should be between 3.2 and 4.8 seconds (2^2 * base * jitter)
     result3 = _backoff(3, base_backoff)
-    assert 3.2 <= result3 <= 4.8
+    assert 3.2 <= result3 <= 4.8 + tol_float
 
     # Test with different base backoff
     base_backoff_small = 0.1
     result_small = _backoff(1, base_backoff_small)
-    assert 0.08 <= result_small <= 0.12
+    assert 0.08 <= result_small <= 0.12 + tol_float
 
     # Test minimum backoff (should never be less than 0.05)
     very_small_base = 0.001
