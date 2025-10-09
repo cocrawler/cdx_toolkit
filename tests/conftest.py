@@ -31,6 +31,14 @@ def cleanup_cache():
         shutil.rmtree(cache_dir)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def set_mock_time():
+    """Set CDXT_MOCK_TIME environment variable for consistent test results"""
+    # August 15, 2025 - ensures tests use CC-MAIN-2025-33 which exists in mock data
+    if 'CDXT_MOCK_TIME' not in os.environ:
+        os.environ['CDXT_MOCK_TIME'] = '1755259200'
+
+
 # Cache for AWS S3 access check to avoid repeated network calls
 _aws_s3_access_cache = None
 
