@@ -46,6 +46,7 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         '--warc-download-prefix',
         action='store',
         help='prefix for downloading content, automatically set for CC',
+        default='https://data.commoncrawl.org',
     )
     parser.add_argument(
         '--write-paths-as-resource-records',  # --write-index-as-record

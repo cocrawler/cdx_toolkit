@@ -25,8 +25,6 @@ def run_warcer_by_cdx(args, cmdline):
     """
     logger.info('Filtering WARC files based on CDX')
 
-    cdx, kwargs = setup(args)
-
     # Start timing
     start_time = time.time()
 
@@ -86,7 +84,7 @@ def run_warcer_by_cdx(args, cmdline):
         write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
         record_limit=limit,
         log_every_n=log_every_n,
-        warc_download_prefix=cdx.warc_download_prefix,
+        warc_download_prefix=args.warc_download_prefix,
         n_parallel=n_parallel,
         max_file_size=args.size,
         # writer_kwargs=writer_kwargs,

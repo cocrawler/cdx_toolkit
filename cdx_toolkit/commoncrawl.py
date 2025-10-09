@@ -11,7 +11,7 @@ import logging
 
 from .myrequests import myrequests_get
 from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp, pad_timestamp_up, cc_index_to_time, cc_index_to_time_special
-from .settings import MOCK_TIME
+from .settings import get_mock_time
 
 LOGGER = logging.getLogger(__name__)
 
@@ -121,8 +121,9 @@ def apply_cc_defaults(params, crawl_present=False, now=None):
         else:
             if not now:
                 # Check for test/override time first
-                if MOCK_TIME:
-                    now = float(MOCK_TIME)
+                mock_time = get_mock_time()
+                if mock_time:
+                    now = mock_time
                 else:
                     # now is passed in by tests. if not set, use actual now.
                     now = time.time()

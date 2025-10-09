@@ -33,7 +33,6 @@ def assert_cli_warc_by_cdx(
     main(
         args=[
             '-v',
-            '--cc',
             '--limit=10',
             'warc_by_cdx',
             str(index_path),
@@ -174,8 +173,6 @@ def test_warc_by_cdx_no_index_files_found_exits(tmpdir, caplog):
         main(
             args=[
                 '-v',
-                '--cc',
-                '--cc-mirror=https://index.commoncrawl.org/',
                 'warc_by_cdx',
                 f'{str(tmpdir)}',
                 f'--prefix={str(tmpdir)}/TEST',
@@ -194,8 +191,6 @@ def test_warc_by_cdx_subprefix_and_metadata(tmpdir):
     main(
         args=[
             '-v',
-            '--cc',
-            '--cc-mirror=https://index.commoncrawl.org/',
             '--limit=1',
             'warc_by_cdx',
             f'{str(index_path)}',
@@ -230,8 +225,6 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
     main(
         args=[
             '-v',
-            '--cc',
-            '--cc-mirror=https://index.commoncrawl.org/',
             '--limit=1',
             'warc_by_cdx',
             f'{str(index_path)}',
@@ -262,7 +255,6 @@ def test_resource_records_paths_mismatch():
         main(
             args=[
                 '-v',
-                '--cc',
                 'warc_by_cdx',
                 'foo/bar',
                 '--write-paths-as-resource-records',
@@ -278,5 +270,5 @@ def test_resource_records_paths_mismatch():
 def test_metadata_paths_without_resource_records_paths():
     # Test if error of missing resource records paths is raised.
     with pytest.raises(ValueError) as exc_info:
-        main(args=['-v', '--cc', 'warc_by_cdx', 'foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2'])
+        main(args=['-v', 'warc_by_cdx', 'foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2'])
     assert exc_info.match('Metadata paths are set but')

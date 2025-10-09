@@ -23,15 +23,15 @@ DISABLE_S3_TESTS = bool(os.environ.get('CDXT_DISABLE_S3_TESTS', False))
 TEST_DATA_BASE_PATH = Path(__file__).parent / 'data'
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def cleanup_cache():
-    """Delete cache directory before test session starts"""
+    """Delete cache directory before each test to ensure clean state"""
     cache_dir = os.path.expanduser('~/.cache/cdx_toolkit/')
     if os.path.exists(cache_dir):
         shutil.rmtree(cache_dir)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope='session', autouse=True)
 def set_mock_time():
     """Set CDXT_MOCK_TIME environment variable for consistent test results"""
     # August 15, 2025 - ensures tests use CC-MAIN-2025-33 which exists in mock data
@@ -51,12 +51,7 @@ def check_aws_s3_access():
         return _aws_s3_access_cache
 
     try:
-        config = Config(
-            retries={
-                'max_attempts': 1,
-                'mode': 'standard'
-            }
-        )
+        config = Config(retries={'max_attempts': 1, 'mode': 'standard'})
         s3_client = boto3.client('s3', config=config)
 
         # Try list objects on test bucket
@@ -205,28 +200,39 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None
                 )
 
 
-def conditional_mock_responses(func):
+def conditional_mock_responses(func=None, *, auto_mock_data: bool = True):
     """Conditionally applies @responses.activate and auto-loads mock data based on DISABLE_MOCK_RESPONSES env var.
 
     The mock data is automatically loaded from JSONL file from the tests/data directory
     and dependinng on the test module and test function.
+
+    Args:
+        auto_mock_data: If True, auto-loads test-specific mock data. If False, only loads CC endpoints.
     """
 
-    # If the flag DISABLE_MOCK_RESPONSES is not detected, response mocking remains enabled
-    if not os.environ.get('DISABLE_MOCK_RESPONSES'):
-        # Add responses.activate
-        func = add_mock_responses(func)
+    def decorator(f):
+        # If the flag DISABLE_MOCK_RESPONSES is not detected, response mocking remains enabled
+        if not os.environ.get('DISABLE_MOCK_RESPONSES'):
+            # Add responses.activate
+            f = add_mock_responses(f, auto_mock_data=auto_mock_data)
 
-    if os.environ.get('SAVE_MOCK_RESPONSES'):
-        # Mock data is saved by capturing output from requests.get
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with patch('requests.get', side_effect=_custom_behavior_with_original(requests.get)):
-                return func(*args, **kwargs)
+        if os.environ.get('SAVE_MOCK_RESPONSES'):
+            # Mock data is saved by capturing output from requests.get
+            @functools.wraps(f)
+            def wrapper(*args, **kwargs):
+                with patch('requests.get', side_effect=_custom_behavior_with_original(requests.get)):
+                    return f(*args, **kwargs)
 
-        return wrapper
+            return wrapper
 
-    return func
+        return f
+
+    if func is None:
+        # Called with arguments: @conditional_mock_responses(auto_mock_data=False)
+        return decorator
+    else:
+        # Called without arguments: @conditional_mock_responses
+        return decorator(func)
 
 
 def save_response_as_mock_data(test_info: str, request_url: str, request_params: Dict, resp, output_base_dir: str):
@@ -293,14 +299,15 @@ def _custom_behavior_with_original(original_func):
     return custom_behavior
 
 
-def add_mock_responses(func):
+def add_mock_responses(func, auto_mock_data: bool = True):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Load mock data for index calls (same for many test functions)
         mock_response_from_jsonl('test_get_cc_endpoints', 'test_cc')
 
         # Auto-load mock data based on function name
-        mock_response_from_jsonl(func.__name__, func.__module__.split('.')[-1])
+        if auto_mock_data:
+            mock_response_from_jsonl(func.__name__, func.__module__.split('.')[-1])
         return func(*args, **kwargs)
 
     return responses.activate(wrapper)
