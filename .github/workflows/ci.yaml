@@ -84,6 +84,23 @@ jobs:
           script: |
             core.exportVariable('CDXT_DISABLE_S3_TESTS', '1')
 
+      - name: Set environment variables for faster unit tests (requests are mocked)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('CDXT_MAX_ERRORS', '2')
+            core.exportVariable('CDXT_WARNING_AFTER_N_ERRORS', '2')
+            core.exportVariable('CDXT_DEFAULT_MIN_RETRY_INTERVAL', '0.01')
+            core.exportVariable('CDXT_CC_INDEX_MIN_RETRY_INTERVAL', '0.01')
+            core.exportVariable('CDXT_CC_DATA_MIN_RETRY_INTERVAL', '0.01')
+            core.exportVariable('CDXT_IA_MIN_RETRY_INTERVAL', '0.01')
+
+      # - name: Run tests (only feature)
+      #   run: |
+      #     # make test_coverage
+      #     pytest -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/filter_warc tests/filter_cdx -v -v
+      #     coverage report
+
       - name: Run tests (only feature)
         run: |
           # make test_coverage
