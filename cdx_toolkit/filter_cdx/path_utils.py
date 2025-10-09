@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import fsspec
 
@@ -10,7 +11,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 
-def resolve_paths(input_base_path: str, input_glob: str | None, output_base_path: str):
+def resolve_paths(input_base_path: str, input_glob: Optional[str], output_base_path: str):
     """Resolve input paths from glob pattern and generate corresponding output paths."""
     # Use fsspec to handle local and remote file systems
     input_fs, input_fs_base_path = fsspec.url_to_fs(input_base_path)
@@ -32,7 +33,7 @@ def resolve_paths(input_base_path: str, input_glob: str | None, output_base_path
     input_file_paths = []
     for input_path in input_fs_file_paths:
         # Get relative path from input_base_path without last slash
-        rel_path = input_path[len(input_fs_base_path)+1:]
+        rel_path = input_path[len(input_fs_base_path) + 1 :]
 
         # Create corresponding full input and output path
         # Use forward slashes for URL paths (S3, HTTP, etc.) to ensure cross-platform compatibility
