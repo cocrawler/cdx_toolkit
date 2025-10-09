@@ -104,7 +104,7 @@ jobs:
       - name: Run tests (only feature)
         run: |
           # make test_coverage
-          pytest -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/filter_warc tests/filter_cdx -v -v
+          pytest -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/ -v -v
           coverage report
 
       - name: Upload coverage to Codecov
