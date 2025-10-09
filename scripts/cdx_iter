@@ -143,6 +143,8 @@ elif args.warc:
         if obj.is_revisit():
             LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
         writer.write_record(record)
+
+    writer.close()
 else:
     for obj in cdx.iter(args.url, **kwargs):
         printme = winnow_fields(obj)
