@@ -35,7 +35,7 @@ def assert_cli_warc_by_cdx(
             '-v',
             '--limit=10',
             'warc_by_cdx',
-            str(index_path),
+            f'--cdx-path={str(index_path)}',
             '--write-paths-as-resource-records',
             str(resource_record_path),
             f'--prefix={base_prefix}/TEST_warc_by_index',
@@ -174,7 +174,7 @@ def test_warc_by_cdx_no_index_files_found_exits(tmpdir, caplog):
             args=[
                 '-v',
                 'warc_by_cdx',
-                f'{str(tmpdir)}',
+                f'--cdx-path={str(tmpdir)}',
                 f'--prefix={str(tmpdir)}/TEST',
                 '--cdx-glob=/nonexistent-pattern-*.gz',
             ]
@@ -193,7 +193,7 @@ def test_warc_by_cdx_subprefix_and_metadata(tmpdir):
             '-v',
             '--limit=1',
             'warc_by_cdx',
-            f'{str(index_path)}',
+            f'--cdx-path={str(index_path)}',
             f'--prefix={str(tmpdir)}/TEST',
             '--subprefix=SUB',
             '--creator=test_creator',
@@ -227,7 +227,7 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
             '-v',
             '--limit=1',
             'warc_by_cdx',
-            f'{str(index_path)}',
+            f'--cdx-path={str(index_path)}',
             f'--prefix={str(tmpdir)}/TEST_NO_META',
         ]
     )
@@ -256,7 +256,7 @@ def test_resource_records_paths_mismatch():
             args=[
                 '-v',
                 'warc_by_cdx',
-                'foo/bar',
+                '--cdx-path=foo/bar',
                 '--write-paths-as-resource-records',
                 'resource1',
                 'resource2',
@@ -270,5 +270,5 @@ def test_resource_records_paths_mismatch():
 def test_metadata_paths_without_resource_records_paths():
     # Test if error of missing resource records paths is raised.
     with pytest.raises(ValueError) as exc_info:
-        main(args=['-v', 'warc_by_cdx', 'foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2'])
+        main(args=['-v', 'warc_by_cdx', '--cdx-path=foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2'])
     assert exc_info.match('Metadata paths are set but')

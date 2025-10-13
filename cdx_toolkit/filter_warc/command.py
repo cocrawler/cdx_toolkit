@@ -33,10 +33,10 @@ def run_warcer_by_cdx(args, cmdline):
 
     if write_paths_as_resource_records and write_paths_as_resource_records_metadata:
         if len(write_paths_as_resource_records) != len(write_paths_as_resource_records_metadata):
-            raise ValueError("Number of paths to resource records must be equal to metadata paths.")
+            raise ValueError('Number of paths to resource records must be equal to metadata paths.')
 
     if not write_paths_as_resource_records and write_paths_as_resource_records_metadata:
-        raise ValueError("Metadata paths are set but resource records paths are missing.")
+        raise ValueError('Metadata paths are set but resource records paths are missing.')
 
     if args.is_part_of:
         ispartof = args.is_part_of
@@ -48,7 +48,9 @@ def run_warcer_by_cdx(args, cmdline):
     info = {
         'software': 'pypi_cdx_toolkit/' + get_version(),
         'isPartOf': ispartof,
-        'description': args.description if args.description else 'warc extraction based on CDX generated with: ' + cmdline,
+        'description': args.description
+        if args.description
+        else 'warc extraction based on CDX generated with: ' + cmdline,
         'format': 'WARC file version 1.0',
     }
     if args.creator:
@@ -69,14 +71,24 @@ def run_warcer_by_cdx(args, cmdline):
 
     # make sure the base dir exists
     prefix_fs.makedirs(prefix_fs._parent(prefix_fs_path), exist_ok=True)
+    
+    # target source handling
+    cdx_paths = None
+    athena_where_clause = None
 
-    cdx_paths = get_cdx_paths(
-        args.cdx_path,
-        args.cdx_glob,
-    )
+    if args.target_source == 'cdx':
+        cdx_paths = get_cdx_paths(
+            args.cdx_path,
+            args.cdx_glob,
+        )
+    elif args.target_source == "athena":
+        raise NotImplementedError
+    else:
+        raise ValueError(f'Invalid target source specified: {args.target_source} (available: cdx, athena)')
 
     warc_filter = WARCFilter(
-        index_paths=cdx_paths,
+        cdx_paths=cdx_paths,
+        athena_where_clause=athena_where_clause,
         prefix_path=prefix_path,
         writer_info=info,
         writer_subprefix=args.subprefix,

@@ -6,7 +6,12 @@ logger = logging.getLogger(__name__)
 
 
 def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
-    parser.add_argument('cdx_path', help='Path to CDX index file (local or remote, e.g. S3)')
+    parser.add_argument(
+        '--cdx-path',
+        type=str,
+        default=None,
+        help='Path to CDX index file (local or remote, e.g. S3). Required if target source is set to `cdx`.',
+    )
     parser.add_argument(
         '--cdx-glob',
         type=str,
@@ -50,12 +55,12 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
     )
     parser.add_argument(
         '--write-paths-as-resource-records',  # --write-index-as-record
-        nargs="*",
+        nargs='*',
         help='Paths to multiple files. File content is written to as a resource record to each the WARC file',
     )
     parser.add_argument(
         '--write-paths-as-resource-records-metadata',
-        nargs="*",
+        nargs='*',
         help='Paths to multiple metadata files (JSON) for resource records from `--write-paths-as-resource-records`',
     )
     parser.add_argument(
@@ -81,5 +86,11 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         type=int,
         default=1000,
         help='Every N extracted record a log message is emitted (0 = no record logs)',
+    )
+    parser.add_argument(
+        '--target-source',
+        action='store',
+        default='cdx',
+        help='Source from that the filter targets are loaded (available options: `cdx`, `athena`; defaults to `cdx`)',
     )
     return parser

@@ -29,7 +29,7 @@ class WARCFilter:
     The WARC filter uses a three stage listner-producer-consumer pattern.
 
     Filter targets:
-    - CDX index files from local or remote file system.
+    - CDX index files from local or remote file system, containing paths to WARC files and positions of target records.
 
     WARC reader:
     - HTTP range reads
@@ -42,9 +42,10 @@ class WARCFilter:
 
     def __init__(
         self,
-        index_paths: List[str],
         prefix_path: str,
         writer_info: Dict,
+        cdx_paths: Optional[List[str]] = None,
+        athena_where_clause: Optional[str] = None,
         writer_subprefix: Optional[str] = None,
         write_paths_as_resource_records: Optional[List[str]] = None,
         write_paths_as_resource_records_metadata: Optional[List[str]] = None,
@@ -69,7 +70,8 @@ class WARCFilter:
         """Initialize the WARC filter.
 
         Args:
-            index_paths: List of paths to CDX index files.
+            cdx_paths: List of paths to CDX index files.
+            athena_where_clause: Where-clause for Athena query.
             prefix_path: Output path prefix for filtered WARC files.
             writer_info: Dictionary containing writer metadata.
             writer_subprefix: Optional subprefix for writer output paths.
@@ -93,7 +95,8 @@ class WARCFilter:
             min_part_size: Minimum part byte size for multipart uploads (default: 5 MiB).
             max_file_size: Maximum byte size for individual WARC files (default: 1 GiB).
         """
-        self.index_paths = index_paths
+        self.cdx_paths = cdx_paths
+        self.athena_where_clause = athena_where_clause
         self.prefix_path = prefix_path
         self.writer_info = writer_info
         self.writer_subprefix = writer_subprefix
@@ -119,7 +122,7 @@ class WARCFilter:
             else max(int(self.num_readers / self.fetcher_to_consumer_ratio), 1)
         )
 
-        self.gzip = self.index_paths[0].endswith('.gz') if self.index_paths else False
+        self.gzip = self.cdx_paths[0].endswith('.gz') if self.cdx_paths else False
         self.warc_version = warc_version
         self.content_type = content_type
         self.min_part_size = min_part_size
@@ -145,13 +148,31 @@ class WARCFilter:
             bool: True if S3 client is needed for any operation.
         """
         return (
-            (self.index_paths is not None and len(self.index_paths) > 0 and is_s3_url(self.index_paths[0]))  # stage 1
+            (self.cdx_paths is not None and len(self.cdx_paths) > 0 and is_s3_url(self.cdx_paths[0]))  # stage 1
             or is_s3_url(self.warc_download_prefix)  # stage 3
             or is_s3_url(self.prefix_path)  # stage 3
         )
 
-    def get_s3_client_context(self):
-        """Return s3 client context if needed.
+    def get_boto3_base_config(self) -> Dict:
+        """Get boto3 base configuration for S3 client.
+
+        Returns:
+            Dict: Boto3 base configuration object with retry and timeout settings.
+        """
+        # Calculate max connections based on parallelism
+        # Each reader + writer needs connections, plus some overhead for retries
+        # max_pool_connections = max(50, (self.num_readers + self.num_writers) * 2)
+
+        return dict(
+            region_name=self.aws_region_name,
+            retries={
+                'max_attempts': max(2, self.max_attempts),
+                'mode': 'adaptive',  # Better than 'standard' for variable workloads
+            },
+        )
+
+    async def get_s3_clients(self) -> Optional[Dict]:
+        """Return s3 clients for job/read/write if needed.
 
         Returns:
             Optional[aioboto3.Session.client]: S3 client context manager if S3 is needed, None otherwise.
@@ -168,7 +189,34 @@ class WARCFilter:
 
             session = aioboto3.Session()
 
-            return session.client('s3', config=self.get_boto3_config())
+            # Lightweight config for CDX index reads
+            job_config = Config(
+                max_pool_connections=5,
+                read_timeout=60,
+                **self.get_boto3_base_config(),
+            )
+
+            # High-throughput config for range reads
+            read_config = Config(
+                max_pool_connections=self.num_readers * 3,
+                read_timeout=300,
+                tcp_keepalive=True,
+                **self.get_boto3_base_config(),
+            )
+
+            # Optimized config for multipart uploads
+            write_config = Config(
+                max_pool_connections=self.num_writers * 4,
+                read_timeout=120,
+                connect_timeout=10,
+                **self.get_boto3_base_config(),
+            )
+
+            return {
+                'job': session.client('s3', config=job_config),
+                'read': session.client('s3', config=read_config),
+                'write': session.client('s3', config=write_config),
+            }
         else:
             return None
 
@@ -181,25 +229,43 @@ class WARCFilter:
         range_jobs_queue: asyncio.Queue = asyncio.Queue(maxsize=self.range_jobs_queue_size)
         warc_records_queue: asyncio.Queue = asyncio.Queue(maxsize=self.warc_records_queue_size)
 
-        s3_client_context = self.get_s3_client_context()
-        if s3_client_context is not None:
-            async with s3_client_context as s3_client:
-                return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue, s3_client)
+        if self.needs_s3():
+
+            clients = await self.get_s3_clients()
+
+            async with clients['job'] as job_s3_client, \
+                       clients['read'] as read_s3_client, \
+                       clients['write'] as write_s3_client:
+
+                return await self._run_filter_pipeline(
+                    range_jobs_queue=range_jobs_queue,
+                    warc_records_queue=warc_records_queue,
+                    job_s3_client=job_s3_client,
+                    read_s3_client=read_s3_client,
+                    write_s3_client=write_s3_client,
+                )
         else:
-            return await self._run_filter_pipeline(range_jobs_queue, warc_records_queue)
+            return await self._run_filter_pipeline(
+                range_jobs_queue=range_jobs_queue,
+                warc_records_queue=warc_records_queue,
+            )
 
     async def _run_filter_pipeline(
         self,
         range_jobs_queue: asyncio.Queue,
         warc_records_queue: asyncio.Queue,
-        s3_client=None,
+        job_s3_client=None,
+        read_s3_client=None,
+        write_s3_client=None,
     ) -> int:
         """Run the actual filter pipeline with or without S3 client.
 
         Args:
             range_jobs_queue: Queue for range jobs from CDX index.
             warc_records_queue: Queue for WARC record payloads.
-            s3_client: Optional S3 client for reading/writing to S3.
+            index_s3_client: Optional S3 client for jobs generation from S3.
+            read_s3_client: Optional S3 client for reads from S3.
+            write_s3_client: Optional S3 client for writes S3.
 
         Returns:
             int: Number of records written.
@@ -208,9 +274,9 @@ class WARCFilter:
         logger.info('Starting lister, %d fetchers, %d consumers', self.num_readers, self.num_writers)
 
         job_generators = asyncio.create_task(
-            self.generate_range_jobs(
+            self.generate_range_jobs_from_cdx(
                 range_jobs_queue,
-                s3_client=s3_client,
+                s3_client=job_s3_client,
             )
         )
 
@@ -221,7 +287,7 @@ class WARCFilter:
                     reader_id=i,
                     range_jobs_queue=range_jobs_queue,
                     warc_records_queue=warc_records_queue,
-                    s3_client=s3_client,
+                    s3_client=read_s3_client,
                 )
             )
             for i in range(self.num_readers)
@@ -233,16 +299,24 @@ class WARCFilter:
                 self.write_warc_records(
                     writer_id=i,
                     warc_records_queue=warc_records_queue,
-                    s3_client=s3_client,
+                    s3_client=write_s3_client,
                 )
             )
             for i in range(self.num_writers)
         ]
 
-        await job_generators
-        logger.info('Range jobs submitted, waiting for readers to finish')
+        # Start writer coordination task
+        writer_coordinator = asyncio.create_task(
+            self._coordinate_writer_shutdown(warc_readers, warc_records_queue)
+        )
 
+        await job_generators
+        logger.info('Range jobs submitted, monitoring readers and writers')
+
+        # Wait for all tasks to complete
         readers_results = await asyncio.gather(*warc_readers)
+        writers_results = await asyncio.gather(*warc_writers)
+        await writer_coordinator
 
         readers_records = sum([result['stats']['total_records'] for result in readers_results])
         readers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in readers_results])
@@ -250,12 +324,6 @@ class WARCFilter:
 
         logger.info(f'All WARC readers completed: {readers_records} records')
         logger.info(f'Reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
-
-        # Send stop signals to consumers
-        for _ in range(self.num_writers):
-            await warc_records_queue.put(_STOP)
-
-        writers_results = await asyncio.gather(*warc_writers)
 
         writers_records = sum([result['stats']['total_records'] for result in writers_results])
         writers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in writers_results])
@@ -266,7 +334,60 @@ class WARCFilter:
 
         return writers_records
 
-    async def generate_range_jobs(
+    async def _coordinate_writer_shutdown(
+        self,
+        warc_readers: List[asyncio.Task],
+        warc_records_queue: asyncio.Queue
+    ):
+        """Coordinate efficient shutdown of writers as readers complete.
+
+        This prevents writers from waiting unnecessarily when all readers are done
+        and the records queue is being drained.
+        """
+        completed_readers = 0
+
+        # Monitor reader completion
+        while completed_readers < len(warc_readers):
+            # Wait for any reader to complete
+            done, pending = await asyncio.wait(
+                warc_readers,
+                return_when=asyncio.FIRST_COMPLETED,
+                timeout=1.0  # Check periodically
+            )
+
+            if done:
+                completed_readers = len(warc_readers) - len(pending)
+                logger.debug(f'Readers completed: {completed_readers}/{len(warc_readers)}')
+
+        # All readers completed - signal writers to stop
+        logger.info('All readers completed, signaling writers to stop')
+
+        # Send stop signals to all writers
+        for _ in range(self.num_writers):
+            await warc_records_queue.put(_STOP)
+
+    async def generate_range_jobs_from_single_cdx(
+        self,
+        cdx_path: str,
+        range_jobs_queue: asyncio.Queue,
+        count: int = 0,
+    ) -> int:
+        """Read a CDX file and generate range jobs based on URLs and offsets."""
+        for warc_url, offset, length in iter_cdx_index_from_path(
+            cdx_path, warc_download_prefix=self.warc_download_prefix
+        ):
+            # Convert the CDX record back to a RangeJob
+            job = RangeJob(url=warc_url, offset=offset, length=length, records_count=1)
+            await range_jobs_queue.put(job)
+            count += 1
+
+            if self.record_limit > 0 and count >= self.record_limit:
+                logger.warning('Index limit reached at %i', count)
+                break
+
+        return count
+
+    async def generate_range_jobs_from_cdx(
         self,
         range_jobs_queue: asyncio.Queue,
         s3_client=None,
@@ -281,21 +402,16 @@ class WARCFilter:
         logger.info('Range index limit: %i', self.record_limit)
         count = 0
 
-        # Iterate over index files
-        for index_path in self.index_paths:
+        # Iterate over index files 
+        # TODO this could be done in parallel
+        for index_path in self.cdx_paths:
             # Fetch range queries from index
             try:
-                for warc_url, offset, length in iter_cdx_index_from_path(
-                    index_path, warc_download_prefix=self.warc_download_prefix
-                ):
-                    # Convert the CDX record back to a RangeJob
-                    job = RangeJob(url=warc_url, offset=offset, length=length, records_count=1)
-                    await range_jobs_queue.put(job)
-                    count += 1
-
-                    if self.record_limit > 0 and count >= self.record_limit:
-                        logger.warning('Index limit reached at %i', count)
-                        break
+                count += await self.generate_range_jobs_from_single_cdx(
+                    cdx_path=index_path,
+                    range_jobs_queue=range_jobs_queue,
+                    count=count,
+                )
 
             except Exception as e:
                 logger.error('Failed to read CDX index from %s: %s', index_path, e)
@@ -548,21 +664,3 @@ class WARCFilter:
                 current_file_size += await self.write_resource_records(writer, warcinfo_id=warcinfo_id)
 
         return writer, current_file_sequence, current_file_size
-
-    def get_boto3_config(self):
-        """Get boto3 configuration for S3 client.
-
-        Returns:
-            Config: Boto3 configuration object with retry and timeout settings.
-        """
-        # Calculate max connections based on parallelism
-        # Each reader + writer needs connections, plus some overhead for retries
-        max_pool_connections = max(50, (self.num_readers + self.num_writers) * 2)
-
-        return Config(
-            region_name=self.aws_region_name,
-            retries={'max_attempts': max(2, self.max_attempts), 'mode': 'standard'},
-            connect_timeout=10,
-            read_timeout=120,
-            max_pool_connections=max_pool_connections,
-        )
