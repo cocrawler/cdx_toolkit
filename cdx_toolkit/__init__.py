@@ -1,7 +1,6 @@
 import logging
 import json
 from collections.abc import MutableMapping
-import sys
 import warnings
 
 try:
@@ -37,7 +36,7 @@ def showNumPages(r):
     elif isinstance(j, int):  # ia always returns text, parsed as a json int
         pages = j
     else:
-        raise ValueError('surprised by showNumPages value of '+str(j))
+        raise ValueError('surprised by showNumPages value of ' + str(j))
     return pages
 
 
@@ -80,18 +79,19 @@ def cdx_to_captures(resp, wb=None, warc_download_prefix=None):
             lines = json.loads(text)
             fields = lines.pop(0)
         except (json.decoder.JSONDecodeError, KeyError, IndexError):  # pragma: no cover
-            raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))
+            raise ValueError('cannot decode response, first bytes are ' + repr(text[:50]))
 
         ret = munge_fields(fields, lines)
         return [CaptureObject(r, wb=wb, warc_download_prefix=warc_download_prefix) for r in ret]
 
-    raise ValueError('cannot decode response, first bytes are '+repr(text[:50]))  # pragma: no cover
+    raise ValueError('cannot decode response, first bytes are ' + repr(text[:50]))  # pragma: no cover
 
 
 class CaptureObject(MutableMapping):
-    '''
+    """
     Represents a single capture of a webpage, plus less-visible info about how to fetch the content.
-    '''
+    """
+
     def __init__(self, data, wb=None, warc_download_prefix=None):
         self.data = data
         self.wb = wb
@@ -129,9 +129,9 @@ class CaptureObject(MutableMapping):
 
     @property
     def text(self):
-        '''
+        """
         Eventually this function will do something with the character set, but not yet.
-        '''
+        """
         return self.content.decode('utf-8', errors='replace')
 
     # the remaining code treats self.data like a dict
@@ -176,8 +176,9 @@ class CDXFetcherIter:
             if self.page == 0 and len(self.index_list) > 0 and self.endpoint < len(self.index_list):
                 LOGGER.info('get_more: fetching cdx from %s', self.index_list[self.endpoint])
 
-            status, objs = self.cdxfetcher.get_for_iter(self.endpoint, self.page,
-                                                        params=self.params, index_list=self.index_list)
+            status, objs = self.cdxfetcher.get_for_iter(
+                self.endpoint, self.page, params=self.params, index_list=self.index_list
+            )
             if status == 'last endpoint':
                 LOGGER.debug('get_more: I have reached the end')
                 return  # caller will raise StopIteration
@@ -207,7 +208,16 @@ class CDXFetcherIter:
 
 
 class CDXFetcher:
-    def __init__(self, source='cc', crawl=None, wb=None, warc_download_prefix=None, cc_mirror=None, cc_sort='mixed', loglevel=None):
+    def __init__(
+        self,
+        source='cc',
+        crawl=None,
+        wb=None,
+        warc_download_prefix=None,
+        cc_mirror=None,
+        cc_sort='mixed',
+        loglevel=None,
+    ):
         self.source = source
         self.crawl = crawl
         self.cc_sort = cc_sort
@@ -236,7 +246,14 @@ class CDXFetcher:
             LOGGER.setLevel(level=loglevel)
 
     def customize_index_list(self, params):
-        if self.source == 'cc' and (self.crawl or 'crawl' in params or 'from' in params or 'from_ts' in params or 'to' in params or 'closest' in params):
+        if self.source == 'cc' and (
+            self.crawl
+            or 'crawl' in params
+            or 'from' in params
+            or 'from_ts' in params
+            or 'to' in params
+            or 'closest' in params
+        ):
             LOGGER.info('making a custom cc index list')
             if self.crawl and 'crawl' not in params:
                 params['crawl'] = self.crawl
@@ -269,7 +286,9 @@ class CDXFetcher:
         ret = []
         for endpoint in index_list:
             resp = myrequests_get(endpoint, params=params, cdx=True)
-            objs = cdx_to_captures(resp, wb=self.wb, warc_download_prefix=self.warc_download_prefix)  # turns 400 and 404 into []
+            objs = cdx_to_captures(
+                resp, wb=self.wb, warc_download_prefix=self.warc_download_prefix
+            )  # turns 400 and 404 into []
             ret.extend(objs)
             if 'limit' in params:
                 params['limit'] -= len(objs)
@@ -297,15 +316,14 @@ class CDXFetcher:
 
     def items(self, url, **kwargs):  # pragma: no cover
         warnings.warn(
-            'cdx.items() has been renamed to cdx.iter() and will be removed in cdx_toolkit 1.0',
-            FutureWarning
+            'cdx.items() has been renamed to cdx.iter() and will be removed in cdx_toolkit 1.0', FutureWarning
         )
         return self.iter(url, **kwargs)
 
     def get_for_iter(self, endpoint, page, params={}, index_list=None):
-        '''
+        """
         Specalized get for the iterator
-        '''
+        """
         if endpoint >= len(index_list):
             return 'last endpoint', []
         if params.get('limit', -1) == 0:
@@ -325,12 +343,12 @@ class CDXFetcher:
         return 'ok', ret
 
     def get_size_estimate(self, url, as_pages=False, **kwargs):
-        '''
+        """
         Get the number of pages that match url
 
         useful additional args: matchType='host' pageSize=1
         or, url can end with * or start with *. to set the matchType
-        '''
+        """
         if 'details' in kwargs:
             details = True
             del kwargs['details']

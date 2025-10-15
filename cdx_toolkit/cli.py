@@ -6,7 +6,15 @@ import json
 import os
 
 import cdx_toolkit
-from cdx_toolkit.commoncrawl import normalize_crawl
+
+from cdx_toolkit.utils import get_version, setup
+
+from cdx_toolkit.filter_cdx.command import run_filter_cdx
+from cdx_toolkit.filter_cdx.args import add_filter_cdx_args
+
+from cdx_toolkit.filter_warc.command import run_warcer_by_cdx
+from cdx_toolkit.filter_warc.args import add_warcer_by_cdx_args
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +62,14 @@ def main(args=None):
     warc.add_argument('url')
     warc.set_defaults(func=warcer)
 
+    warc_by_cdx = subparsers.add_parser('warc_by_cdx', help='iterate over capture content based on an CDX index file, creating a warc')
+    add_warcer_by_cdx_args(warc_by_cdx)
+    warc_by_cdx.set_defaults(func=run_warcer_by_cdx)
+
+    filter_cdx = subparsers.add_parser('filter_cdx', help='Filter CDX files based on SURT prefixes whitelist')
+    add_filter_cdx_args(filter_cdx)
+    filter_cdx.set_defaults(func=run_filter_cdx)
+
     size = subparsers.add_parser('size', help='imprecise count of how many results are available')
     size.add_argument('--details', action='store_true', help='show details of each subindex')
     size.add_argument('url')
@@ -88,48 +104,6 @@ def set_loglevel(cmd):
 
     LOGGER.info('set loglevel to %s', str(loglevel))
 
-
-def get_version():
-    return cdx_toolkit.__version__
-
-
-def setup(cmd):
-    kwargs = {}
-    kwargs['source'] = 'cc' if cmd.crawl else cmd.cc or cmd.ia or cmd.source or None
-    if kwargs['source'] is None:
-        raise ValueError('must specify --cc, --ia, or a --source')
-    if cmd.wb:
-        kwargs['wb'] = cmd.wb
-    if cmd.cc_mirror:
-        kwargs['cc_mirror'] = cmd.cc_mirror
-    if cmd.crawl:
-        kwargs['crawl'] = normalize_crawl([cmd.crawl])  # currently a string, not a list
-    if getattr(cmd, 'warc_download_prefix', None) is not None:
-        kwargs['warc_download_prefix'] = cmd.warc_download_prefix
-
-    cdx = cdx_toolkit.CDXFetcher(**kwargs)
-
-    kwargs = {}
-    if cmd.limit:
-        kwargs['limit'] = cmd.limit
-    if 'from' in vars(cmd) and vars(cmd)['from']:  # python, uh, from is a reserved word
-        kwargs['from_ts'] = vars(cmd)['from']
-    if cmd.to:
-        kwargs['to'] = cmd.to
-    if cmd.closest:
-        if not cmd.get:  # pragma: no cover
-            LOGGER.info('note: --closest works best with --get')
-        kwargs['closest'] = cmd.closest
-    if cmd.filter:
-        kwargs['filter'] = cmd.filter
-
-    if cmd.cmd == 'warc' and cmd.size:
-        kwargs['size'] = cmd.size
-
-    if cmd.cmd == 'size' and cmd.details:
-        kwargs['details'] = cmd.details
-
-    return cdx, kwargs
 
 
 def winnow_fields(cmd, fields, obj):
@@ -213,9 +187,15 @@ def warcer(cmd, cmdline):
             LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
         writer.write_record(record)
 
+    writer.close()
+
 
 def sizer(cmd, cmdline):
     cdx, kwargs = setup(cmd)
 
     size = cdx.get_size_estimate(cmd.url, **kwargs)
     print(size)
+
+
+if __name__ == "__main__":
+    main()

@@ -8,14 +8,26 @@ on:
     branches:
     - main
 
+# These permissions are needed to interact with AWS S3 via GitHub's OIDC Token endpoint
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: read
+
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
+        # The full test-suite is only run with os=ubuntu and py=3.12
         python-version: [
-          '3.8', '3.9', '3.10', '3.11', '3.12', '3.13'
+          '3.8', 
+          '3.9', 
+          '3.10', 
+          '3.11', 
+          '3.12', 
+          '3.13'
         ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
@@ -23,11 +35,12 @@ jobs:
           - python-version: '3.8'
             os: ubuntu-22.04  # oldest version on github actions
             EXTRA: true
-          - python-version: '3.13'
-            os: ubuntu-latest
-            env:
-              LOGLEVEL=DEBUG
-            EXTRA: true
+          # disabled (duplicated matrix entry)
+          # - python-version: '3.13'
+          #   os: ubuntu-latest
+          #   env:
+          #     LOGLEVEL=DEBUG
+          #   EXTRA: true
           - python-version: '3.13'
             os: macos-latest
             EXTRA: true
@@ -57,9 +70,43 @@ jobs:
       - name: Install cdx_toolkit
         run: pip install .[test]
 
+      - name: Configure AWS credentials from OIDC (disabled for forks)
+        if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'        
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
+          aws-region: us-east-1
+
+      - name: Disable S3 unit tests for Python 3.8 (boto3 requires Python 3.9+)
+        if: ${{ startsWith(matrix.python-version, '3.8') }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('CDXT_DISABLE_S3_TESTS', '1')
+
+      - name: Set environment variables for faster unit tests (requests are mocked)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('CDXT_MAX_ERRORS', '2')
+            core.exportVariable('CDXT_WARNING_AFTER_N_ERRORS', '2')
+            core.exportVariable('CDXT_DEFAULT_MIN_RETRY_INTERVAL', '0.01')
+            core.exportVariable('CDXT_CC_INDEX_MIN_RETRY_INTERVAL', '0.01')
+            core.exportVariable('CDXT_CC_DATA_MIN_RETRY_INTERVAL', '0.01')
+            core.exportVariable('CDXT_IA_MIN_RETRY_INTERVAL', '0.01')
+            core.exportVariable('LOGLEVEL', 'DEBUG')
+
+      # - name: Run tests (only feature)
+      #   run: |
+      #     # make test_coverage
+      #     pytest -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/filter_warc tests/filter_cdx -v -v
+      #     coverage report
+
       - name: Run tests
         run: |
-          make test_coverage
+          # make test_coverage
+          pytest -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/ -v -v
+          coverage report
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

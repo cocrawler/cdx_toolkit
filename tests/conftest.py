@@ -1,16 +1,129 @@
-import json
 import os
 from pathlib import Path
+import pytest
+import boto3
+from botocore.config import Config
+from botocore.exceptions import NoCredentialsError, ClientError, EndpointConnectionError
+
+import json
 import functools
 from typing import Dict, Optional
 import requests
 import responses
 import base64
+import uuid
+import shutil
 
 from unittest.mock import patch
 
+TEST_DATA_PATH = Path(__file__).parent / 'data'
+TEST_S3_BUCKET = os.environ.get('CDXT_TEST_S3_BUCKET', 'commoncrawl-ci-temp')
+DISABLE_S3_TESTS = bool(os.environ.get('CDXT_DISABLE_S3_TESTS', False))
 
 TEST_DATA_BASE_PATH = Path(__file__).parent / 'data'
+
+
+@pytest.fixture(scope='session', autouse=True)
+def cleanup_cache():
+    """Delete cache directory before each test to ensure clean state"""
+    cache_dir = os.path.expanduser('~/.cache/cdx_toolkit/')
+    if os.path.exists(cache_dir):
+        shutil.rmtree(cache_dir)
+
+
+@pytest.fixture(scope='session', autouse=True)
+def set_mock_time():
+    """Set CDXT_MOCK_TIME environment variable for consistent test results"""
+    # August 15, 2025 - ensures tests use CC-MAIN-2025-33 which exists in mock data
+    if 'CDXT_MOCK_TIME' not in os.environ:
+        os.environ['CDXT_MOCK_TIME'] = '1755259200'
+
+
+# Cache for AWS S3/Athena access check to avoid repeated network calls
+_aws_s3_access_cache = None
+_aws_athena_access_cache = None
+
+
+def check_aws_s3_access():
+    """Check if AWS S3 access is available (cached result)."""
+    global _aws_s3_access_cache
+
+    if _aws_s3_access_cache is not None:
+        return _aws_s3_access_cache
+
+    try:
+        config = Config(retries={'max_attempts': 1, 'mode': 'standard'})
+        s3_client = boto3.client('s3', config=config)
+
+        # Try list objects on test bucket
+        s3_client.list_objects_v2(Bucket=TEST_S3_BUCKET, MaxKeys=1)
+        _aws_s3_access_cache = True
+    except (NoCredentialsError, ClientError, ConnectionError, EndpointConnectionError):
+        _aws_s3_access_cache = False
+
+    return _aws_s3_access_cache
+
+
+def requires_aws_s3(func):
+    """Pytest decorator that skips test if AWS S3 access is not available or disabled."""
+    return pytest.mark.skipif(DISABLE_S3_TESTS, reason='AWS S3 access is disabled via environment variable.')(
+        pytest.mark.skipif(
+            not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'
+        )(func)
+    )
+
+
+def check_aws_athena_access():
+    """Check if AWS Athena access is available."""
+    global _aws_athena_access_cache
+
+    if _aws_athena_access_cache is not None:
+        return _aws_athena_access_cache
+
+    try:
+        client = boto3.client('athena')
+
+        # Try list databasets
+        client.list_databases(CatalogName='AwsDataCatalog')
+        _aws_athena_access_cache = True
+    except (NoCredentialsError, ClientError):
+        _aws_athena_access_cache = False
+
+    return _aws_athena_access_cache
+
+
+def requires_aws_athena(func):
+    """Pytest decorator that skips test if AWS Athena access is not available."""
+    return pytest.mark.skipif(
+        not check_aws_athena_access(), reason='AWS Athena access not available (no credentials or permissions)'
+    )(func)
+
+
+@pytest.fixture
+def s3_tmpdir():
+    """S3 equivalent of tmpdir - provides a temporary S3 path and handles cleanup."""
+    bucket_name = TEST_S3_BUCKET
+
+    # Generate unique prefix using UUID to avoid collisions
+    temp_prefix = f'cdx_toolkit/ci/tmpdirs/{uuid.uuid4().hex}'
+
+    # Yield the S3 path
+    yield f's3://{bucket_name}/{temp_prefix}'
+
+    try:
+        # Cleanup: delete all objects with this prefix
+        s3_client = boto3.client('s3')
+
+        # List all objects with the temp prefix
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=temp_prefix)
+
+        if 'Contents' in response:
+            # Delete all objects
+            objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
+            s3_client.delete_objects(Bucket=bucket_name, Delete={'Objects': objects_to_delete})
+    except (NoCredentialsError, ClientError, ConnectionError, EndpointConnectionError):
+        # Ignore cleanup errors - test objects will eventually expire
+        pass
 
 
 def flexible_param_matcher(expected_params):
@@ -63,8 +176,8 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None
     export DISABLE_MOCK_RESPONSES=1
     ```
 
-    If the remote APIs change, new mock data can be semi-automatically collected 
-    by setting another environment variable, running corresponding unit tests, 
+    If the remote APIs change, new mock data can be semi-automatically collected
+    by setting another environment variable, running corresponding unit tests,
     and overwriting existing mock data in `tests/data/mock_responses`:
 
     ```bash
@@ -114,28 +227,39 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None
                 )
 
 
-def conditional_mock_responses(func):
+def conditional_mock_responses(func=None, *, auto_mock_data: bool = True):
     """Conditionally applies @responses.activate and auto-loads mock data based on DISABLE_MOCK_RESPONSES env var.
 
-    The mock data is automatically loaded from JSONL file from the tests/data directory 
+    The mock data is automatically loaded from JSONL file from the tests/data directory
     and dependinng on the test module and test function.
+
+    Args:
+        auto_mock_data: If True, auto-loads test-specific mock data. If False, only loads CC endpoints.
     """
 
-    # If the flag DISABLE_MOCK_RESPONSES is not detected, response mocking remains enabled
-    if not os.environ.get('DISABLE_MOCK_RESPONSES'):
-        # Add responses.activate
-        func = add_mock_responses(func)
+    def decorator(f):
+        # If the flag DISABLE_MOCK_RESPONSES is not detected, response mocking remains enabled
+        if not os.environ.get('DISABLE_MOCK_RESPONSES'):
+            # Add responses.activate
+            f = add_mock_responses(f, auto_mock_data=auto_mock_data)
 
-    if os.environ.get('SAVE_MOCK_RESPONSES'):
-        # Mock data is saved by capturing output from requests.get
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with patch('requests.get', side_effect=_custom_behavior_with_original(requests.get)):
-                return func(*args, **kwargs)
+        if os.environ.get('SAVE_MOCK_RESPONSES'):
+            # Mock data is saved by capturing output from requests.get
+            @functools.wraps(f)
+            def wrapper(*args, **kwargs):
+                with patch('requests.get', side_effect=_custom_behavior_with_original(requests.get)):
+                    return f(*args, **kwargs)
 
-        return wrapper
+            return wrapper
 
-    return func
+        return f
+
+    if func is None:
+        # Called with arguments: @conditional_mock_responses(auto_mock_data=False)
+        return decorator
+    else:
+        # Called without arguments: @conditional_mock_responses
+        return decorator(func)
 
 
 def save_response_as_mock_data(test_info: str, request_url: str, request_params: Dict, resp, output_base_dir: str):
@@ -202,14 +326,15 @@ def _custom_behavior_with_original(original_func):
     return custom_behavior
 
 
-def add_mock_responses(func):
+def add_mock_responses(func, auto_mock_data: bool = True):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Load mock data for index calls (same for many test functions)
         mock_response_from_jsonl('test_get_cc_endpoints', 'test_cc')
 
         # Auto-load mock data based on function name
-        mock_response_from_jsonl(func.__name__, func.__module__.split('.')[-1])
+        if auto_mock_data:
+            mock_response_from_jsonl(func.__name__, func.__module__.split('.')[-1])
         return func(*args, **kwargs)
 
     return responses.activate(wrapper)

@@ -11,6 +11,7 @@ import logging
 
 from .myrequests import myrequests_get
 from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp, pad_timestamp_up, cc_index_to_time, cc_index_to_time_special
+from .settings import get_mock_time
 
 LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ def get_cc_endpoints(cc_mirror):
         url = cc_mirror.rstrip('/') + '/collinfo.json'
         r = myrequests_get(url)
         if r.status_code != 200:
-            raise RuntimeError('error {} getting list of cc indices from {}'.format(r.status_code, collinfo))  # pragma: no cover
+            raise RuntimeError('error {} getting list of cc indices from {}'.format(r.status_code, url))  # pragma: no cover
         set_collinfo_cache(cc_mirror, r.text)
         col = r.json()
 
@@ -119,9 +120,13 @@ def apply_cc_defaults(params, crawl_present=False, now=None):
                 LOGGER.info('to but no from_ts, setting from_ts=%s', params['from_ts'])
         else:
             if not now:
-                # now is passed in by tests. if not set, use actual now.
-                # XXX could be changed to mock
-                now = time.time()
+                # Check for test/override time first
+                mock_time = get_mock_time()
+                if mock_time:
+                    now = mock_time
+                else:
+                    # now is passed in by tests. if not set, use actual now.
+                    now = time.time()
             params['from_ts'] = time_to_timestamp(now - year)
             LOGGER.info('no from or to, setting default 1 year ago from_ts=%s', params['from_ts'])
     else:
