@@ -1,6 +1,6 @@
 from cdx_toolkit.filter_warc.cdx_utils import get_cdx_paths
 from cdx_toolkit.filter_warc.warc_filter import WARCFilter
-from cdx_toolkit.utils import get_version, setup
+from cdx_toolkit.utils import get_version
 
 
 import fsspec
@@ -71,24 +71,25 @@ def run_warcer_by_cdx(args, cmdline):
 
     # make sure the base dir exists
     prefix_fs.makedirs(prefix_fs._parent(prefix_fs_path), exist_ok=True)
-    
-    # target source handling
-    cdx_paths = None
-    athena_where_clause = None
 
+    # target source handling
     if args.target_source == 'cdx':
         cdx_paths = get_cdx_paths(
             args.cdx_path,
             args.cdx_glob,
         )
     elif args.target_source == "athena":
-        raise NotImplementedError
+        # no extra handling required
+        cdx_paths = None
     else:
         raise ValueError(f'Invalid target source specified: {args.target_source} (available: cdx, athena)')
 
     warc_filter = WARCFilter(
+        target_source=args.target_source,
         cdx_paths=cdx_paths,
-        athena_where_clause=athena_where_clause,
+        athena_database=args.athena_database,
+        athena_s3_output_location=args.athena_s3_output,
+        athena_hostnames=args.athena_hostnames,
         prefix_path=prefix_path,
         writer_info=info,
         writer_subprefix=args.subprefix,

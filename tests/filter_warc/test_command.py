@@ -270,5 +270,77 @@ def test_resource_records_paths_mismatch():
 def test_metadata_paths_without_resource_records_paths():
     # Test if error of missing resource records paths is raised.
     with pytest.raises(ValueError) as exc_info:
-        main(args=['-v', 'warc_by_cdx', '--cdx-path=foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2'])
+        main(
+            args=['-v', 'warc_by_cdx', '--cdx-path=foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2']
+        )
     assert exc_info.match('Metadata paths are set but')
+
+
+def test_cli_warc_by_athena(
+    tmpdir,
+    caplog,
+):
+    base_prefix = tmpdir
+    warc_download_prefix = 's3://commoncrawl'
+    extra_args: Optional[List[str]] = None
+    warc_filename: str = 'TEST_warc_by_index-000000-001.extracted.warc.gz'  # due to parallel writer
+    base_prefix = str(base_prefix)
+
+    if extra_args is None:
+        extra_args = []
+
+    main(
+        args=[
+            '-v',
+            '--limit=10',
+            'warc_by_cdx',
+            '--target-source=athena',
+            '--athena-database=ccindex',
+            '--athena-s3-output=s3://commoncrawl-ci-temp/athena-results/',
+            '--athena-hostnames',
+            'oceancolor.sci.gsfc.nasa.gov',
+            'example.com',
+            f'--prefix={base_prefix}/TEST_warc_by_index',
+            '--creator=foo',
+            '--operator=bob',
+            f'--warc-download-prefix={warc_download_prefix}',
+        ]
+        + extra_args
+    )
+
+    # Check log
+    assert 'WARC records extracted: 10' in caplog.text
+
+    # Validate extracted WARC
+    if 's3:' in base_prefix:
+        warc_path = base_prefix + '/' + warc_filename
+    else:
+        warc_path = os.path.join(base_prefix, warc_filename)
+
+    info_record = None
+    response_records = []
+    response_contents = []
+
+    # resource_record = None
+    # resource_record_content = None
+
+    with fsspec.open(warc_path, 'rb') as stream:
+        for record in ArchiveIterator(stream):
+            if record.rec_type == 'warcinfo':
+                info_record = record.content_stream().read().decode('utf-8')
+
+            if record.rec_type == 'response':
+                response_records.append(record)
+                response_contents.append(record.content_stream().read().decode('utf-8', errors='ignore'))
+
+            # if record.rec_type == 'resource':
+            #     resource_record = record
+            #     resource_record_content = record.content_stream().read().decode('utf-8')
+
+    assert len(response_records) == 10, 'Invalid record count'
+
+    assert info_record is not None, 'Invalid info record'
+    assert 'operator: bob' in info_record, 'Invalid info record'
+
+    assert '<h1>Example Domain</h1>' in response_contents[0], 'Invalid response content'
+    assert '<h1>Example Domain</h1>' in response_contents[9], 'Invalid response content'

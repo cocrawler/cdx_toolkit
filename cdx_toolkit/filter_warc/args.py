@@ -18,7 +18,26 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         default=None,
         help='a glob pattern for read from multiple CDX indices',
     )
-    parser.add_argument('--prefix', default='TEST', help='prefix for the warc filename')
+    parser.add_argument(
+        '--athena-hostnames',
+        type=str,
+        nargs="+",
+        default=None,
+        help='Hostnames to filter for via Athena (whitelist). Required if target source is set to `athena`.',
+    )
+    parser.add_argument(
+        '--athena-database',
+        type=str,
+        default=None,
+        help='Athena database. Required if target source is set to `athena`.',
+    )
+    parser.add_argument(
+        '--athena-s3-output',
+        type=str,
+        default=None,
+        help='Athena S3 output location. Required if target source is set to `athena`.',
+    )
+    parser.add_argument('--prefix', default='TEST', help='prefix for the output warc filename')
     parser.add_argument(
         '--subprefix',
         type=str,

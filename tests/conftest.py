@@ -39,8 +39,9 @@ def set_mock_time():
         os.environ['CDXT_MOCK_TIME'] = '1755259200'
 
 
-# Cache for AWS S3 access check to avoid repeated network calls
+# Cache for AWS S3/Athena access check to avoid repeated network calls
 _aws_s3_access_cache = None
+_aws_athena_access_cache = None
 
 
 def check_aws_s3_access():
@@ -70,6 +71,32 @@ def requires_aws_s3(func):
             not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'
         )(func)
     )
+
+
+def check_aws_athena_access():
+    """Check if AWS Athena access is available."""
+    global _aws_athena_access_cache
+
+    if _aws_athena_access_cache is not None:
+        return _aws_athena_access_cache
+
+    try:
+        client = boto3.client('athena')
+
+        # Try list databasets
+        client.list_databases(CatalogName='AwsDataCatalog')
+        _aws_athena_access_cache = True
+    except (NoCredentialsError, ClientError):
+        _aws_athena_access_cache = False
+
+    return _aws_athena_access_cache
+
+
+def requires_aws_athena(func):
+    """Pytest decorator that skips test if AWS Athena access is not available."""
+    return pytest.mark.skipif(
+        not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'
+    )(func)
 
 
 @pytest.fixture
