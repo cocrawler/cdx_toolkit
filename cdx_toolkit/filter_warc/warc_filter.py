@@ -80,7 +80,7 @@ class WARCFilter:
             cdx_paths: List of paths to CDX index files.
             athena_database: Database for Athena query.
             athena_hostnames: Hostnames for Athena query.
-            athena_s3_output_location: S3 output location for Athena query.            
+            athena_s3_output_location: S3 output location for Athena query.
             prefix_path: Output path prefix for filtered WARC files.
             writer_info: Dictionary containing writer metadata.
             writer_subprefix: Optional subprefix for writer output paths.
@@ -303,7 +303,7 @@ class WARCFilter:
             int: Number of records written.
         """
         # Fetch file paths and ranges (offset, length) from index files
-        logger.info('Starting lister, %d fetchers, %d consumers', self.num_readers, self.num_writers)
+        logger.info('Starting job generator, %d WARC readers, %d WARC writers', self.num_readers, self.num_writers)
 
         # Generate range jobs from different target sources
         if self.target_source == 'cdx':
@@ -367,18 +367,26 @@ class WARCFilter:
         await writer_coordinator
 
         readers_records = sum([result['stats']['total_records'] for result in readers_results])
-        readers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in readers_results])
-        readers_records_per_sec = statistics.mean([result['stats']['records_per_sec'] for result in readers_results])
+        readers_mb_per_sec = self.num_readers * statistics.mean(
+            [result['stats']['mb_per_sec'] for result in readers_results]
+        )
+        readers_records_per_sec = self.num_readers * statistics.mean(
+            [result['stats']['records_per_sec'] for result in readers_results]
+        )
 
         logger.info(f'All WARC readers completed: {readers_records} records')
-        logger.info(f'Reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
+        logger.info(f'Total reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
 
         writers_records = sum([result['stats']['total_records'] for result in writers_results])
-        writers_mb_per_sec = statistics.mean([result['stats']['mb_per_sec'] for result in writers_results])
-        writers_records_per_sec = statistics.mean([result['stats']['records_per_sec'] for result in writers_results])
+        writers_mb_per_sec = self.num_writers * statistics.mean(
+            [result['stats']['mb_per_sec'] for result in writers_results]
+        )
+        writers_records_per_sec = self.num_writers * statistics.mean(
+            [result['stats']['records_per_sec'] for result in writers_results]
+        )
 
         logger.info(f'All WARC writers completed: {writers_records} records')
-        logger.info(f'Writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} rec/s')
+        logger.info(f'Total writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} rec/s')
 
         return writers_records
 
