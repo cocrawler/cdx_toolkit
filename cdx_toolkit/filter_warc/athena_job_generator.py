@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import Any, Iterable
+from typing import Any, Iterable, List
 
 from cdx_toolkit.filter_warc.data_classes import RangeJob
 
@@ -15,12 +15,12 @@ async def get_range_jobs_from_athena(
     s3_output_location: str,
     job_queue: asyncio.Queue,
     queue_stop_object: Any,
-    url_host_names: list[str],
+    url_host_names: List[str],
     warc_download_prefix: str,
     num_fetchers: int,
     limit: int = 0,
     max_wait_time: int = 300,
-):
+) -> int:
     """Generate range job based on an Athena query.
 
     CommonCrawl provides an index via AWS Athena that we can use to
@@ -79,6 +79,8 @@ async def get_range_jobs_from_athena(
         await job_queue.put(queue_stop_object)
 
     logger.info('Athena query enqueued %d jobs', count)
+
+    return count
 
 
 def _wait_for_query_completion(client, query_execution_id: str, max_wait_time: int) -> str:
