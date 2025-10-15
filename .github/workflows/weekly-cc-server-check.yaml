@@ -1,0 +1,38 @@
+# This tests if the fail2ban filtering on the CC cdx index server is too strict.
+
+name: Weekly CC server check
+
+on:
+  schedule:
+    # Every Monday at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  check:
+    runs-on: ubuntu-latest  
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12' 
+
+      - name: Get Runner IP
+        run: |
+          echo "Runner IP: $(curl -s https://ipinfo.io/ip)"
+
+      - name: Install setuptools on python 3.12+
+        run: |
+          pip install setuptools
+
+      - name: Install cdx_toolkit
+        run: pip install .[test]
+
+      - name: Run example
+        run: |
+          python examples/iter-and-warc.py
+
