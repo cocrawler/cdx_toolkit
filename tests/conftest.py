@@ -95,7 +95,7 @@ def check_aws_athena_access():
 def requires_aws_athena(func):
     """Pytest decorator that skips test if AWS Athena access is not available."""
     return pytest.mark.skipif(
-        not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'
+        not check_aws_athena_access(), reason='AWS Athena access not available (no credentials or permissions)'
     )(func)
 
 
