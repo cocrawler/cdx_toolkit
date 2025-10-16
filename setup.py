@@ -16,9 +16,12 @@ test_requirements = ['pytest', 'pytest-cov', 'flake8', 'responses']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
+dev_requirements = ['pre-commit']
+
 extras_require = {
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
+    'dev': package_requirements,
 }
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']

@@ -45,4 +45,5 @@ dist: distclean
 	twine upload dist/* -r pypi
 
 install:
-	pip install .
+	pip install -e ".[dev,test]"
+	pre-commit install
