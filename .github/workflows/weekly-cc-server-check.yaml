@@ -7,7 +7,7 @@ on:
     # Every Monday at 9:00 AM UTC
     - cron: '0 9 * * 1'
   workflow_dispatch:  # Allows manual triggering
-  pull_request:  # Allows manual triggering on PRs
+  # pull_request:  # Run automatically for PRs
 
 jobs:
   check:
