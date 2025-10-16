@@ -9,6 +9,7 @@ from tests.conftest import conditional_mock_responses
 
 # useful for debugging:
 import logging
+
 logging.basicConfig(level='INFO')
 
 
@@ -76,11 +77,21 @@ def test_match_cc_crawls():
     tests = [
         [['CC-MAIN-2013-20'], ['https://index.commoncrawl.org/CC-MAIN-2013-20-index']],
         [['CC-MAIN-2017'], ['https://index.commoncrawl.org/CC-MAIN-2017-51-index']],
-        [['CC-MAIN-2018'], ['https://index.commoncrawl.org/CC-MAIN-2018-05-index',
-                            'https://index.commoncrawl.org/CC-MAIN-2018-09-index',
-                            'https://index.commoncrawl.org/CC-MAIN-2018-13-index']],
-        [['CC-MAIN-2013', 'CC-MAIN-2017'], ['https://index.commoncrawl.org/CC-MAIN-2013-20-index',
-                                            'https://index.commoncrawl.org/CC-MAIN-2017-51-index']],
+        [
+            ['CC-MAIN-2018'],
+            [
+                'https://index.commoncrawl.org/CC-MAIN-2018-05-index',
+                'https://index.commoncrawl.org/CC-MAIN-2018-09-index',
+                'https://index.commoncrawl.org/CC-MAIN-2018-13-index',
+            ],
+        ],
+        [
+            ['CC-MAIN-2013', 'CC-MAIN-2017'],
+            [
+                'https://index.commoncrawl.org/CC-MAIN-2013-20-index',
+                'https://index.commoncrawl.org/CC-MAIN-2017-51-index',
+            ],
+        ],
         [['CC-MAIN-2013-20', 'no match'], ['https://index.commoncrawl.org/CC-MAIN-2013-20-index']],  # .warning
     ]
     for t in tests:
@@ -113,11 +124,14 @@ def test_bisect_cc():
     cc_map, cc_times = cdx_toolkit.commoncrawl.make_cc_maps(my_cc_endpoints)
 
     tests = [
-        #[(from, to), (first, last, count)],
+        # [(from, to), (first, last, count)],
         [('201801', '201804'), ('2017-51', '2018-13', 4)],  # XXX one too many at start
         [('20180214', '201804'), ('2018-05', '2018-13', 3)],  # XXX one too many at start
-        [('20180429', '20180430'), ('2018-13', '2018-13', 1)],  # XXX one too early for start and end XXX should be visible in cli... cli shows 2018-{17,13,9}
-        #[('', ''), ('', '', 1)],
+        [
+            ('20180429', '20180430'),
+            ('2018-13', '2018-13', 1),
+        ],  # XXX one too early for start and end XXX should be visible in cli... cli shows 2018-{17,13,9}
+        # [('', ''), ('', '', 1)],
     ]
 
     i_last = sorted(my_cc_endpoints)[-1]
@@ -130,31 +144,30 @@ def test_bisect_cc():
         i_count = t[1][2]
 
         index_list = cdx_toolkit.commoncrawl.bisect_cc(cc_map, cc_times, from_ts_t, to_t)
-        assert index_list[0] == i_from, 'test: '+repr(t)
-        assert index_list[-1] == i_to, 'test: '+repr(t)
+        assert index_list[0] == i_from, 'test: ' + repr(t)
+        assert index_list[-1] == i_to, 'test: ' + repr(t)
         assert len(index_list) == i_count
 
         index_list = cdx_toolkit.commoncrawl.bisect_cc(cc_map, cc_times, from_ts_t, None)
-        assert index_list[0] == i_from, 'test: '+repr(t)
-        assert index_list[-1] == i_last, 'test: '+repr(t)
+        assert index_list[0] == i_from, 'test: ' + repr(t)
+        assert index_list[-1] == i_last, 'test: ' + repr(t)
         assert len(index_list) >= i_count
 
 
 def test_customize_index_list():
     tests = [
-        #[(from, to), (first, last, count)],
-
+        # [(from, to), (first, last, count)],
         # gets the whole list because 201704 is before the first 2017 index
         # XXX why is 2013-20 being included ?! 1 year should leave it off
         [(None, '201804'), ('2018-13', '2013-20', 5)],
-
         [('201801', '201804'), ('2018-13', '2017-51', 4)],  # my_cc_endpoints[4:0:-1]],  # gets 2017-51 but not 2013-20
-        [('20180214', '201804'), ('2018-13', '2018-05', 3)],  # my_cc_endpoints[4:1:-1]],  # does not get 2017-51, does 2018-05 XXX
+        [
+            ('20180214', '201804'),
+            ('2018-13', '2018-05', 3),
+        ],  # my_cc_endpoints[4:1:-1]],  # does not get 2017-51, does 2018-05 XXX
         [('20180429', '20180430'), ('2018-13', '2018-13', 1)],  # my_cc_endpoints[4:5]],
-
         # empty time range
         [('20180430', '20180429'), ('2018-13', '2018-13', 1)],  # my_cc_endpoints[4:5]],
-
         # very empty time range
         [('20180430', '20100429'), ()],
     ]
@@ -186,12 +199,12 @@ def test_customize_index_list():
             i_to = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][1])
             i_count = t[1][2]
 
-            assert index_list[0] == i_from, 'test: '+repr(t)
-            assert index_list[-1] == i_to, 'test: '+repr(t)
+            assert index_list[0] == i_from, 'test: ' + repr(t)
+            assert index_list[-1] == i_to, 'test: ' + repr(t)
             assert len(index_list) == i_count
 
-            assert index_lista[0] == i_to, 'test asc: '+repr(t)
-            assert index_lista[-1] == i_from, 'test asc: '+repr(t)
+            assert index_lista[0] == i_to, 'test asc: ' + repr(t)
+            assert index_lista[-1] == i_from, 'test asc: ' + repr(t)
             assert len(index_lista) == i_count
 
 
@@ -219,8 +232,8 @@ def test_customize_index_list_closest():
             i_to = 'https://index.commoncrawl.org/CC-MAIN-{}-index'.format(t[1][1])
             i_count = t[1][2]
 
-            assert index_list[0] == i_from, 'test closest: '+repr(t)
-            assert index_list[-1] == i_to, 'test closest: '+repr(t)
+            assert index_list[0] == i_from, 'test closest: ' + repr(t)
+            assert index_list[-1] == i_to, 'test closest: ' + repr(t)
             assert len(index_list) == i_count
 
 

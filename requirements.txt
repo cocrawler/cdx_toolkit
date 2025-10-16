@@ -9,11 +9,8 @@ pytest==6.2.4
 pytest-cov==2.12.1
 pytest-sugar==0.9.4
 coveralls==3.1.0
-<<<<<<< HEAD
 flake8>=7.3.0
-=======
 responses==0.25.8
->>>>>>> main
 
 # packaging
 twine==3.4.1

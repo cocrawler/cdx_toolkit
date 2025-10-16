@@ -447,7 +447,7 @@ def test_multi_misc_ia(capsys, caplog):
     #  {'count': 1, 'is_int': True}],
     # [{'service': '--ia', 'mods': '--limit 10', 'cmd': 'size', 'rest': '--details commoncrawl.org/*'},
     #  {'count': 2}],
-    # [{'service': '--ia', 'mods': '--from 20180101 --to 20180110 --limit 10', 'cmd': 'size', 
+    # [{'service': '--ia', 'mods': '--from 20180101 --to 20180110 --limit 10', 'cmd': 'size',
     # 'rest': '--details commoncrawl.org'},
     #  {'count': 2}],
     multi_helper(testdata, capsys, caplog)

@@ -9,4 +9,3 @@ def test_cc_crawl():
 
     # this is a lot of work to test 4 lines of code :/
     pass
-

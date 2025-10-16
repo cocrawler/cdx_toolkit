@@ -26,7 +26,7 @@ test_coverage: clean_coverage
 	coverage report
 
 lint:
-	flake8 cdx_toolkit
+	flake8 cdx_toolkit tests
 
 distclean:
 	rm -rf dist/
