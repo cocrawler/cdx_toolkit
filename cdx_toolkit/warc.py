@@ -144,7 +144,12 @@ def fetch_warc_record(capture, warc_download_prefix):
 
     warc_target_uri = record.rec_headers.get_header('WARC-Target-URI')
     if url != warc_target_uri:  # pragma: no cover
-        print('Surprised that WARC-Target-URI {} is not the capture url {}'.format(warc_target_uri, url), file=sys.stderr)
+        print(
+            "Surprised that WARC-Target-URI {} is not the capture url {}".format(
+                warc_target_uri, url
+            ),
+            file=sys.stderr,
+        )
 
     record.rec_headers.replace_header('WARC-Source-URI', warc_url)
     record.rec_headers.replace_header('WARC-Source-Range', 'bytes={}-{}'.format(offset, offset+length-1))

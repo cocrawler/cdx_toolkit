@@ -2,6 +2,14 @@
 
 We welcome contributions to cdx_toolkit! Whether you're adding new features, improving documentation, or fixing bugs, your help is greatly appreciated.
 
+## Local installation
+
+Clone the repository, setup a virtual environment, and run the following command:
+
+```bash
+make install
+```
+
 ## Tests
 
 To test code changes, please run our test suite before submitting pull requests:
@@ -32,4 +40,18 @@ pytest tests/test_cli.py::test_basics
 
 ## Code format & linting
 
-Please following the definitions from `.editorconfig` and `.flake8`.
+Please following the definitions from `.editorconfig` and `.flake8`. 
+
+To test the linting, run this command:
+
+```bash
+make lint
+```
+
+To automatically run the linting on every commit, you can use the pre-commit hooks (automatically installed via `make install`).
+
+You can also run the hooks manually on all files:
+
+```bash
+pre-commit run --all-files
+```
