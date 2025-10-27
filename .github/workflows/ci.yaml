@@ -22,17 +22,12 @@ jobs:
       matrix:
         # The full test-suite is only run with os=ubuntu and py=3.12
         python-version: [
-          '3.8', 
-          '3.9', 
-          '3.10', 
-          '3.11', 
-          '3.12', 
-          '3.13'
+          '3.9', '3.10', '3.11', '3.12', '3.13', '3.14'
         ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
         include:
-          - python-version: '3.8'
+          - python-version: '3.9'
             os: ubuntu-22.04  # oldest version on github actions
             EXTRA: true
           # disabled (duplicated matrix entry)
@@ -96,11 +91,9 @@ jobs:
             core.exportVariable('CDXT_IA_MIN_RETRY_INTERVAL', '0.01')
             core.exportVariable('LOGLEVEL', 'DEBUG')
 
-      # - name: Run tests (only feature)
-      #   run: |
-      #     # make test_coverage
-      #     pytest -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests/filter_warc tests/filter_cdx -v -v
-      #     coverage report
+      - name: Lint code
+        run: |
+          make lint
 
       - name: Run tests
         run: |

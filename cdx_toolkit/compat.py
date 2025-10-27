@@ -26,10 +26,10 @@ def munge_filter(filter, source):
 
 def munge_fields(fields, lines):
     ret = []
-    for l in lines:
+    for line in lines:
         obj = {}
         for f in fields:
-            value = l.pop(0)
+            value = line.pop(0)
             if f in fields_to_pywb:
                 obj[fields_to_pywb[f]] = value
             else:
