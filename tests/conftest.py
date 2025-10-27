@@ -18,6 +18,8 @@ from unittest.mock import patch
 
 TEST_DATA_PATH = Path(__file__).parent / 'data'
 TEST_S3_BUCKET = os.environ.get('CDXT_TEST_S3_BUCKET', 'commoncrawl-ci-temp')
+TEST_ATHENA_S3_LOCATION = 's3://commoncrawl-ci-temp/athena-results/'
+TEST_ATHENA_DATABASE = 'ccindex'
 DISABLE_S3_TESTS = bool(os.environ.get('CDXT_DISABLE_S3_TESTS', False))
 
 TEST_DATA_BASE_PATH = Path(__file__).parent / 'data'
@@ -73,6 +75,24 @@ def requires_aws_s3(func):
     )
 
 
+def check_aws_athena_query_execution_access():
+    """Check if AWS Athena StartQueryExecution permission is available."""
+    try:
+        # Use IAM simulation instead of actual query execution
+        iam_client = boto3.client('iam')
+        response = iam_client.simulate_principal_policy(
+            PolicySourceArn=f'arn:aws:sts::{boto3.client("sts").get_caller_identity()["Account"]}:assumed-role/your-role/session',  # noqa: E501
+            ActionNames=['athena:StartQueryExecution'],
+            ResourceArns=['*'],
+        )
+
+        # Check if access is allowed
+        return response['EvaluationResults'][0]['EvalDecision'] == 'allowed'
+
+    except (ClientError, NoCredentialsError):
+        return False
+
+
 def check_aws_athena_access():
     """Check if AWS Athena access is available."""
     global _aws_athena_access_cache
@@ -85,7 +105,9 @@ def check_aws_athena_access():
 
         # Try list databasets
         client.list_databases(CatalogName='AwsDataCatalog')
-        _aws_athena_access_cache = True
+
+        # Try query access
+        _aws_athena_access_cache = check_aws_athena_query_execution_access()
     except (NoCredentialsError, ClientError):
         _aws_athena_access_cache = False
 

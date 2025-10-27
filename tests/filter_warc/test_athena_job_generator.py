@@ -1,7 +1,7 @@
 import asyncio
 from cdx_toolkit.filter_warc.warc_filter import _STOP
 from cdx_toolkit.filter_warc.athena_job_generator import get_databases, get_range_jobs_from_athena
-from tests.conftest import requires_aws_athena
+from tests.conftest import TEST_ATHENA_DATABASE, TEST_ATHENA_S3_LOCATION, requires_aws_athena
 
 import boto3
 
@@ -43,8 +43,8 @@ def test_get_range_jobs_from_athena():
         # Generate range jobs from Athena query
         await get_range_jobs_from_athena(
             client=athena_client,
-            database="ccindex",
-            s3_output_location="s3://commoncrawl-ci-temp/athena-results/",
+            database=TEST_ATHENA_DATABASE,
+            s3_output_location=TEST_ATHENA_S3_LOCATION,
             url_host_names=[
                 'oceancolor.sci.gsfc.nasa.gov',
             ],
