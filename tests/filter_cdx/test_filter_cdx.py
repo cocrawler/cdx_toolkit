@@ -1,5 +1,5 @@
 import multiprocessing
-import signal
+
 import time
 
 from unittest.mock import patch, MagicMock

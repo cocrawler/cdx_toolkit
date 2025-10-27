@@ -1,5 +1,5 @@
 import asyncio
-import pytest
+
 from unittest.mock import AsyncMock, patch
 from cdx_toolkit.filter_warc.data_classes import ThroughputTracker
 from tests.conftest import TEST_DATA_PATH

@@ -1,6 +1,5 @@
 from urllib.parse import quote
 from io import BytesIO
-import os.path
 import datetime
 import logging
 import sys
@@ -33,9 +32,9 @@ http_status_text = {
 
 
 def fake_wb_warc(url, wb_url, resp, capture):
-    '''
+    """
     Given a playback from a wayback, fake up a warc response record
-    '''
+    """
     status_code = resp.status_code
     status_reason = resp.reason
 
@@ -43,19 +42,18 @@ def fake_wb_warc(url, wb_url, resp, capture):
         url = capture['url']
         timestamp = capture['timestamp']
         if status_code == 200 and capture['status'] == '-':
-            LOGGER.warning('revisit record vivified by wayback for %s %s',
-                           url, timestamp)
+            LOGGER.warning('revisit record vivified by wayback for %s %s', url, timestamp)
         elif status_code == 200 and capture['status'].startswith('3'):
-            LOGGER.warning('redirect capture came back 200, same-surt same-timestamp capture? %s %s',
-                           url, timestamp)
+            LOGGER.warning('redirect capture came back 200, same-surt same-timestamp capture? %s %s', url, timestamp)
         elif status_code == 302 and capture['status'].startswith('3'):
             # this is OK, wayback always sends a temporary redir
             status_code = int(capture['status'])
             if status_code != resp.status_code and status_code in http_status_text:
                 status_reason = http_status_text[status_code]
         else:  # pragma: no cover
-            LOGGER.warning('surprised that status code is now=%d orig=%s %s %s',
-                           status_code, capture['status'], url, timestamp)
+            LOGGER.warning(
+                'surprised that status code is now=%d orig=%s %s %s', status_code, capture['status'], url, timestamp
+            )
 
     http_headers = []
     http_date = None
@@ -90,16 +88,15 @@ def fake_wb_warc(url, wb_url, resp, capture):
     content_bytes = resp.content
 
     writer = WARCWriter(None)  # needs warc_version here?
-    return writer.create_warc_record(url, 'response',
-                                     payload=BytesIO(content_bytes),
-                                     http_headers=http_headers,
-                                     warc_headers_dict=warc_headers_dict)
+    return writer.create_warc_record(
+        url, 'response', payload=BytesIO(content_bytes), http_headers=http_headers, warc_headers_dict=warc_headers_dict
+    )
 
 
 def fetch_wb_warc(capture, wb, modifier='id_'):
     for field in ('url', 'timestamp', 'status'):
         if field not in capture:  # pragma: no cover
-            raise ValueError('capture must contain '+field)
+            raise ValueError('capture must contain ' + field)
 
     if wb is None:  # pragma: no cover
         raise ValueError('No wayback configured')
@@ -124,7 +121,7 @@ def fetch_wb_warc(capture, wb, modifier='id_'):
 def fetch_warc_record(capture, warc_download_prefix):
     for field in ('url', 'filename', 'offset', 'length'):
         if field not in capture:  # pragma: no cover
-            raise ValueError('capture must contain '+field)
+            raise ValueError('capture must contain ' + field)
 
     url = capture['url']
     filename = capture['filename']
@@ -133,14 +130,14 @@ def fetch_warc_record(capture, warc_download_prefix):
 
     warc_url = warc_download_prefix + '/' + filename
 
-    if warc_url.startswith("s3:"):
+    if warc_url.startswith('s3:'):
         # fetch from S3
         with fsspec.open(warc_url, 'rb') as f:
             f.seek(offset)
             record_bytes = f.read(length)
     else:
         # fetch over HTTP
-        headers = {'Range': 'bytes={}-{}'.format(offset, offset+length-1)}
+        headers = {'Range': 'bytes={}-{}'.format(offset, offset + length - 1)}
 
         resp = myrequests_get(warc_url, headers=headers)
         record_bytes = resp.content
@@ -155,21 +152,20 @@ def fetch_warc_record(capture, warc_download_prefix):
     warc_target_uri = record.rec_headers.get_header('WARC-Target-URI')
     if url != warc_target_uri:  # pragma: no cover
         print(
-            "Surprised that WARC-Target-URI {} is not the capture url {}".format(
-                warc_target_uri, url
-            ),
+            'Surprised that WARC-Target-URI {} is not the capture url {}'.format(warc_target_uri, url),
             file=sys.stderr,
         )
 
     record.rec_headers.replace_header('WARC-Source-URI', warc_url)
-    record.rec_headers.replace_header('WARC-Source-Range', 'bytes={}-{}'.format(offset, offset+length-1))
+    record.rec_headers.replace_header('WARC-Source-Range', 'bytes={}-{}'.format(offset, offset + length - 1))
     return record
 
 
 class CDXToolkitWARCWriter:
-    """Writer for WARC files. 
-    
+    """Writer for WARC files.
+
     The fsspec package is used for writting to local or remote file system, e.g., S3."""
+
     def __init__(self, prefix, subprefix, info, size=1000000000, gzip=True, warc_version=None):
         self.prefix = prefix
         self.subprefix = subprefix

@@ -170,5 +170,3 @@ class S3ShardWriter:
             if self.upload_id:
                 await mpu_abort(self.s3_client, self.dest_bucket, self.shard_key, self.upload_id)
             raise
-
-

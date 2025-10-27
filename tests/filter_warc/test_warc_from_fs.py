@@ -12,7 +12,7 @@ def test_fetch_warc_record_from_http():
         'digest': 'D5K3FUWDRAOMMTJC2CTWV7L2ABFIJ5BP',
         'length': '9754',
         'offset': '111440525',
-        'filename': 'crawl-data/CC-MAIN-2024-30/segments/1720763514759.37/warc/CC-MAIN-20240716142214-20240716172214-00337.warc.gz',
+        'filename': 'crawl-data/CC-MAIN-2024-30/segments/1720763514759.37/warc/CC-MAIN-20240716142214-20240716172214-00337.warc.gz',  # noqa: E501
         'charset': 'UTF-8',
         'languages': 'fra',
         'timestamp': '20240716153155',
@@ -38,7 +38,7 @@ def test_fetch_warc_record_from_s3():
         'digest': 'D5K3FUWDRAOMMTJC2CTWV7L2ABFIJ5BP',
         'length': '9754',
         'offset': '111440525',
-        'filename': 'crawl-data/CC-MAIN-2024-30/segments/1720763514759.37/warc/CC-MAIN-20240716142214-20240716172214-00337.warc.gz',
+        'filename': 'crawl-data/CC-MAIN-2024-30/segments/1720763514759.37/warc/CC-MAIN-20240716142214-20240716172214-00337.warc.gz',  # noqa: E501
         'charset': 'UTF-8',
         'languages': 'fra',
         'timestamp': '20240716153155',

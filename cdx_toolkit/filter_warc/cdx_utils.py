@@ -33,7 +33,9 @@ def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int]:
     if len(cols) == 3:
         # NOTE: We assume the following format (CC-CDX format): <surt> <timestamp> <json_data>
         #
-        # IA follows a different CDX specification from https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+        # IA follows a different CDX specification:
+        # https://iipc.github.io/warc-specifications/specifications/cdx-format/cdx-2015/
+        #
         # > The default first line of a CDX file is:
         # > CDX A b e a m s c k r V v D d g M n
         data = json.loads(cols[2])

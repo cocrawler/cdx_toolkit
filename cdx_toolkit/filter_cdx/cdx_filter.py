@@ -26,7 +26,6 @@ def _filter_single_cdx_file(
     logger.info('Writing filter output to %s', output_path)
 
     try:
-
         # Input/output from local or remote file system
         input_fs, input_fs_path = fsspec.url_to_fs(input_path)
         output_fs, output_fs_path = fsspec.url_to_fs(output_path)
@@ -61,7 +60,7 @@ def _filter_single_cdx_file(
                             logger.info(f'Lines completed: {i:,} (matched: {included_n:,}) from {input_path}')
 
                     except Exception as e:
-                        logger.error(f"Line processing error: {e}")
+                        logger.error(f'Line processing error: {e}')
                         errors_n += 1
 
         # Delete file if empty
@@ -70,7 +69,7 @@ def _filter_single_cdx_file(
             output_fs.rm(output_fs_path)
 
     except Exception as e:
-        logger.error(f"File processing error: {e}")
+        logger.error(f'File processing error: {e}')
         errors_n += 1
 
     return input_path, output_path, lines_n, included_n, errors_n
@@ -99,10 +98,10 @@ def filter_cdx(
     logger.info('Filtering with %i processes in parallel (limit: %i)', n_parallel, limit)
 
     # Prepare arguments for each task (input_path, output_path, matcher, limit)
-    task_args = [dict(
-                    input_path=input_path, 
-                    output_path=output_path, matcher=matcher, limit=limit, log_every_n=log_every_n)
-                 for input_path, output_path in zip(input_paths, output_paths)]
+    task_args = [
+        dict(input_path=input_path, output_path=output_path, matcher=matcher, limit=limit, log_every_n=log_every_n)
+        for input_path, output_path in zip(input_paths, output_paths)
+    ]
 
     pool = None
     try:
@@ -129,6 +128,6 @@ def filter_cdx(
             pool.close()
             pool.join()
 
-    logger.warning(f"Filter CDX errors: {total_errors_n}")
+    logger.warning(f'Filter CDX errors: {total_errors_n}')
 
     return total_lines_n, total_included_n, total_errors_n

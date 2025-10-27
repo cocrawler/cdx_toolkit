@@ -42,7 +42,7 @@ invalid_line_here_that_will_cause_error
 org,test)/ 20240102130000 {"url": "http://test.org/", "filename": "test2.warc.gz", "offset": "600", "length": "300"}
 another_bad_line
 org,valid)/ 20240103140000 {"url": "http://valid.org/", "filename": "test3.warc.gz", "offset": "900", "length": "200"}
-""".strip()
+""".strip()  # noqa: E501
 
     fd, tmp_file_path = tempfile.mkstemp(suffix='.cdx.gz')
     try:

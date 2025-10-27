@@ -124,7 +124,10 @@ def main(args=None):
     warc.add_argument('url')
     warc.set_defaults(func=warcer)
 
-    warc_by_cdx = subparsers.add_parser('warc_by_cdx', help='iterate over capture content based on an CDX index file, creating a warc')
+    warc_by_cdx = subparsers.add_parser(
+        'warc_by_cdx',
+        help='iterate over capture content based on an CDX index file, creating a warc'
+    )
     add_warcer_by_cdx_args(warc_by_cdx)
     warc_by_cdx.set_defaults(func=run_warcer_by_cdx)
 
@@ -165,7 +168,6 @@ def set_loglevel(cmd):
     logging.basicConfig(level=loglevel)
 
     LOGGER.info('set loglevel to %s', str(loglevel))
-
 
 
 def winnow_fields(cmd, fields, obj):

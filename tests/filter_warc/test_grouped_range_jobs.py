@@ -1,13 +1,5 @@
-import fsspec
-import pytest
-from cdx_toolkit.filter_warc.cdx_utils import get_index_as_string_from_path, read_cdx_line, iter_cdx_index_from_path
+from cdx_toolkit.filter_warc.cdx_utils import iter_cdx_index_from_path
 from tests.conftest import TEST_DATA_PATH
-
-import tempfile
-import gzip
-import os
-from unittest.mock import patch
-
 
 
 def test_iter_cdx_index_from_test_data():
@@ -28,7 +20,7 @@ def test_iter_cdx_index_from_test_data():
         current_chunk = [items[0]]
 
         for i in range(1, len(items)):
-            prev_url, prev_offset, prev_length = items[i-1]
+            prev_url, prev_offset, prev_length = items[i - 1]
             curr_url, curr_offset, curr_length = items[i]
 
             # Check if current item is a neighbor (same URL and contiguous)
@@ -48,4 +40,5 @@ def test_iter_cdx_index_from_test_data():
 
 
 def test_grouped_ranges():
-    cdx_path = ""
+    # cdx_path = ''
+    pass

@@ -9,6 +9,8 @@ import os.path
 import json
 import logging
 
+from cdx_toolkit.settings import get_mock_time
+
 from .myrequests import myrequests_get
 from .timeutils import (
     time_to_timestamp,

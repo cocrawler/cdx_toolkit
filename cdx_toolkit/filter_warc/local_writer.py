@@ -3,13 +3,8 @@ import aiofiles
 
 class LocalFileWriter:
     """Async writer for local file system using aiofiles."""
-    
-    def __init__(
-        self,
-        file_path: str,
-        buffer_size: int = 8192,
-        mode: str = 'wb'
-    ):
+
+    def __init__(self, file_path: str, buffer_size: int = 8192, mode: str = 'wb'):
         self.file_path = file_path
         self.buffer_size = buffer_size
         self.mode = mode

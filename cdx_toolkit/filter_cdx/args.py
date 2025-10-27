@@ -5,7 +5,7 @@ def add_filter_cdx_args(parser: argparse.ArgumentParser):
     """Add command line arguments."""
     parser.add_argument(
         'input_base_path',
-        help='Base directory path on the local file system or remote URL for one or multiple CDX files (e.g., URL to S3 bucket)',
+        help='Base directory path on the local file system or remote URL for one or multiple CDX files (e.g., URL to S3 bucket)',  # noqa: E501
     )
     parser.add_argument(
         'filter_file',

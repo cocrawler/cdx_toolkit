@@ -33,7 +33,7 @@ def resolve_paths(input_base_path: str, input_glob: Optional[str], output_base_p
     input_file_paths = []
     for input_path in input_fs_file_paths:
         # Get relative path from input_base_path without last slash
-        rel_path = input_path[len(input_fs_base_path) + 1 :]
+        rel_path = input_path[len(input_fs_base_path)+1:]
 
         # Create corresponding full input and output path
         # Use forward slashes for URL paths (S3, HTTP, etc.) to ensure cross-platform compatibility

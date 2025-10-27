@@ -8,9 +8,9 @@ import os
 
 def test_resolve_s3_paths_without_glob():
     input_files, output_files = resolve_paths(
-        input_base_path="s3://commoncraw/cc-index/collections/CC-MAIN-2016-30/indexes/cdx-00001.gz", 
-        input_glob=None, 
-        output_base_path=f"s3://{TEST_S3_BUCKET}/output",
+        input_base_path='s3://commoncraw/cc-index/collections/CC-MAIN-2016-30/indexes/cdx-00001.gz',
+        input_glob=None,
+        output_base_path=f's3://{TEST_S3_BUCKET}/output',
     )
     assert len(input_files) == 1
     assert len(output_files) == len(input_files)
@@ -20,10 +20,10 @@ def test_validate_resolved_paths_with_makedirs():
     with tempfile.TemporaryDirectory() as tmpdir:
         validate_resolved_paths(
             output_paths=[
-                os.path.join(tmpdir, "1"),
-                os.path.join(tmpdir, "2"),
+                os.path.join(tmpdir, '1'),
+                os.path.join(tmpdir, '2'),
             ],
-            overwrite=False
+            overwrite=False,
         )
 
 
