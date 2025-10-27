@@ -1,6 +1,6 @@
 - 0.9.38
 	+ deprecated support for py3.7 and py.3.8
-	+ added support for py3.13
+	+ added support for py3.13 and py3.14
 	+ fixed deprecation warning from pkg_resources
 	+ refactored CI to use mocked remote requests
 
