@@ -20,6 +20,7 @@ TEST_DATA_PATH = Path(__file__).parent / 'data'
 TEST_S3_BUCKET = os.environ.get('CDXT_TEST_S3_BUCKET', 'commoncrawl-ci-temp')
 TEST_ATHENA_S3_LOCATION = 's3://commoncrawl-ci-temp/athena-results/'
 TEST_ATHENA_DATABASE = 'ccindex'
+DISABLE_ATHENA_TESTS = bool(os.environ.get('CDXT_DISABLE_ATHENA_TESTS', False))
 DISABLE_S3_TESTS = bool(os.environ.get('CDXT_DISABLE_S3_TESTS', False))
 
 TEST_DATA_BASE_PATH = Path(__file__).parent / 'data'
@@ -116,9 +117,11 @@ def check_aws_athena_access():
 
 def requires_aws_athena(func):
     """Pytest decorator that skips test if AWS Athena access is not available."""
-    return pytest.mark.skipif(
-        not check_aws_athena_access(), reason='AWS Athena access not available (no credentials or permissions)'
-    )(func)
+    return pytest.mark.skipif(DISABLE_ATHENA_TESTS, reason='AWS Athena access is disabled via environment variable.')(
+        pytest.mark.skipif(
+            not check_aws_athena_access(), reason='AWS Athena access not available (no credentials or permissions)'
+        )(func)
+    )
 
 
 @pytest.fixture
