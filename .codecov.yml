@@ -1,0 +1,3 @@
+coverage:
+  ignore:
+    - "cdx_toolkit/filter_warc/athena_job_generator.py"  # Athena is disabled in CI

@@ -20,23 +20,15 @@ def run_warcer_by_cdx(args, cmdline):
     Approach:
     - Iterate over one or more CDX files to extract capture object (file, offset, length)
     - Fetch WARC record based on capture object
-    - Write to new WARC file with metadata including resource record with index.
-    - The CDX resource record is written to the WARC directly before for response records that matches to the CDX.
+    - Write to new WARC file including metadata records with index.
+    - The CDX metadata record is written to the WARC directly before for response records that matches to the CDX.
     """
     logger.info('Filtering WARC files based on CDX')
 
     # Start timing
     start_time = time.time()
 
-    write_paths_as_resource_records = args.write_paths_as_resource_records
-    write_paths_as_resource_records_metadata = args.write_paths_as_resource_records_metadata
-
-    if write_paths_as_resource_records and write_paths_as_resource_records_metadata:
-        if len(write_paths_as_resource_records) != len(write_paths_as_resource_records_metadata):
-            raise ValueError('Number of paths to resource records must be equal to metadata paths.')
-
-    if not write_paths_as_resource_records and write_paths_as_resource_records_metadata:
-        raise ValueError('Metadata paths are set but resource records paths are missing.')
+    write_paths_as_metadata_records = args.write_paths_as_metadata_records
 
     if args.is_part_of:
         ispartof = args.is_part_of
@@ -57,11 +49,6 @@ def run_warcer_by_cdx(args, cmdline):
         info['creator'] = args.creator
     if args.operator:
         info['operator'] = args.operator
-
-    # writer_kwargs = {}
-    # if 'size' in kwargs:
-    #     writer_kwargs['size'] = kwargs['size']
-    #     del kwargs['size']
 
     n_parallel = args.parallel
     log_every_n = args.log_every_n
@@ -93,8 +80,7 @@ def run_warcer_by_cdx(args, cmdline):
         prefix_path=prefix_path,
         writer_info=info,
         writer_subprefix=args.subprefix,
-        write_paths_as_resource_records=write_paths_as_resource_records,
-        write_paths_as_resource_records_metadata=write_paths_as_resource_records_metadata,
+        write_paths_as_metadata_records=write_paths_as_metadata_records,
         record_limit=limit,
         log_every_n=log_every_n,
         warc_download_prefix=args.warc_download_prefix,

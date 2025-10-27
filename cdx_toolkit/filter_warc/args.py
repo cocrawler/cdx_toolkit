@@ -73,14 +73,9 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         default='https://data.commoncrawl.org',
     )
     parser.add_argument(
-        '--write-paths-as-resource-records',  # --write-index-as-record
+        '--write-paths-as-metadata-records',
         nargs='*',
-        help='Paths to multiple files. File content is written to as a resource record to each the WARC file',
-    )
-    parser.add_argument(
-        '--write-paths-as-resource-records-metadata',
-        nargs='*',
-        help='Paths to multiple metadata files (JSON) for resource records from `--write-paths-as-resource-records`',
+        help='Paths to multiple files. File content is written to as a metadata record to each the WARC file',
     )
     parser.add_argument(
         '--parallel',

@@ -23,7 +23,7 @@ def assert_cli_warc_by_cdx(
 ):
     # test cli and check output
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
-    resource_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
+    metadata_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
 
     base_prefix = str(base_prefix)
 
@@ -36,8 +36,8 @@ def assert_cli_warc_by_cdx(
             '--limit=10',
             'warc_by_cdx',
             f'--cdx-path={str(index_path)}',
-            '--write-paths-as-resource-records',
-            str(resource_record_path),
+            '--write-paths-as-metadata-records',
+            str(metadata_record_path),
             f'--prefix={base_prefix}/TEST_warc_by_index',
             '--creator=foo',
             '--operator=bob',
@@ -59,8 +59,8 @@ def assert_cli_warc_by_cdx(
     response_records = []
     response_contents = []
 
-    resource_record = None
-    resource_record_content = None
+    metadata_record = None
+    metadata_record_content = None
 
     with fsspec.open(warc_path, 'rb') as stream:
         for record in ArchiveIterator(stream):
@@ -71,9 +71,9 @@ def assert_cli_warc_by_cdx(
                 response_records.append(record)
                 response_contents.append(record.content_stream().read().decode('utf-8', errors='ignore'))
 
-            if record.rec_type == 'resource':
-                resource_record = record
-                resource_record_content = record.content_stream().read().decode('utf-8')
+            if record.rec_type == 'metadata':
+                metadata_record = record
+                metadata_record_content = record.content_stream().read().decode('utf-8')
 
     assert len(response_records) == 10, 'Invalid record count'
 
@@ -83,20 +83,20 @@ def assert_cli_warc_by_cdx(
     assert 'Catalogue en ligne Mission de France' in response_contents[0], 'Invalid response content'
     assert 'dojo/dijit/themes/tundra/tundra' in response_contents[9], 'Invalid response content'
 
-    assert resource_record is not None, 'Resource record not set'
+    assert metadata_record is not None, 'Metadata record not set'
 
-    assert resource_record_content[:10] == 'example.co', 'Invalid resource record'
+    assert metadata_record_content[:10] == 'example.co', 'Invalid metdata record'
 
     # Disabled due to OS-specific line endings
     # assert resource_record_content[-20:-1] == 'hr.fr/produit/t-837', 'Invalid resource record'
 
     # Calculate expected length based on the actual source file on current OS
-    with open(resource_record_path, 'rb') as f:
+    with open(metadata_record_path, 'rb') as f:
         expected_length = len(f.read())
 
-    assert resource_record.length == expected_length, (
-        f'Invalid resource record length {resource_record.length}, expected {expected_length} '
-        f'(computed from {resource_record_path} on current OS)'
+    assert metadata_record.length == expected_length, (
+        f'Invalid metadata record length {metadata_record.length}, expected {expected_length} '
+        f'(computed from {metadata_record_path} on current OS)'
     )
 
 
@@ -247,33 +247,6 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
     assert info_record is not None
     assert 'creator:' not in info_record
     assert 'operator:' not in info_record
-
-
-def test_resource_records_paths_mismatch():
-    # Test if mismatch of number of paths for resource records and their metdata is raised.
-    with pytest.raises(ValueError) as exc_info:
-        main(
-            args=[
-                '-v',
-                'warc_by_cdx',
-                '--cdx-path=foo/bar',
-                '--write-paths-as-resource-records',
-                'resource1',
-                'resource2',
-                '--write-paths-as-resource-records-metadata',
-                'metadata2',
-            ]
-        )
-    assert exc_info.match('Number of paths to resource records')
-
-
-def test_metadata_paths_without_resource_records_paths():
-    # Test if error of missing resource records paths is raised.
-    with pytest.raises(ValueError) as exc_info:
-        main(
-            args=['-v', 'warc_by_cdx', '--cdx-path=foo/bar', '--write-paths-as-resource-records-metadata', 'metadata2']
-        )
-    assert exc_info.match('Metadata paths are set but')
 
 
 @requires_aws_athena

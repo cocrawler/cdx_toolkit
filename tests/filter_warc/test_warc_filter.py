@@ -80,7 +80,7 @@ def test_rotate_files_rotation_needed_without_resource_records():
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=1000,  # 1KB limit
-            write_paths_as_resource_records=None,  # No resource records
+            write_paths_as_metadata_records=None,  # No resource records
         )
 
         mock_writer = AsyncMock()
@@ -129,8 +129,8 @@ def test_rotate_files_rotation_needed_without_resource_records():
     asyncio.run(run_test())
 
 
-def test_rotate_files_rotation_needed_with_resource_records():
-    """Test rotate_files when rotation is needed and resource records need to be written."""
+def test_rotate_files_rotation_needed_with_metadata_records():
+    """Test rotate_files when rotation is needed and metadata records need to be written."""
 
     async def run_test():
         warc_filter = WARCFilter(
@@ -138,7 +138,7 @@ def test_rotate_files_rotation_needed_with_resource_records():
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=1000,  # 1KB limit
-            write_paths_as_resource_records=['/fake/resource1.txt', '/fake/resource2.txt'],
+            write_paths_as_metadata_records=['/fake/resource1.txt', '/fake/resource2.txt'],
         )
 
         mock_writer = AsyncMock()
@@ -151,8 +151,8 @@ def test_rotate_files_rotation_needed_with_resource_records():
         with patch('cdx_toolkit.filter_warc.warc_filter.create_new_writer_with_header') as mock_create:
             mock_create.return_value = (mock_new_writer, 150, 'warcinfo-123')
 
-            # Mock write_resource_records
-            with patch.object(warc_filter, 'write_resource_records', return_value=75) as mock_write_resources:
+            # Mock write_metadata_records
+            with patch.object(warc_filter, 'write_metadata_records', return_value=75) as mock_write_resources:
                 # Call rotate_files
                 result_writer, result_sequence, result_size = await warc_filter.rotate_files(
                     writer=mock_writer,

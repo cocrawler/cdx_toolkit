@@ -16,7 +16,7 @@ from cdx_toolkit.filter_warc.warc_utils import create_new_writer_with_header
 from cdx_toolkit.filter_warc.cdx_utils import (
     iter_cdx_index_from_path,
 )
-from cdx_toolkit.filter_warc.warc_utils import get_bytes_from_warc_record, get_resource_record_from_path
+from cdx_toolkit.filter_warc.warc_utils import get_bytes_from_warc_record, get_metadata_record_from_path
 
 
 _STOP = object()
@@ -53,8 +53,7 @@ class WARCFilter:
         athena_hostnames: Optional[List[str]] = None,
         athena_s3_output_location: Optional[str] = None,
         writer_subprefix: Optional[str] = None,
-        write_paths_as_resource_records: Optional[List[str]] = None,
-        write_paths_as_resource_records_metadata: Optional[List[str]] = None,
+        write_paths_as_metadata_records: Optional[List[str]] = None,
         record_limit: int = 0,
         log_every_n: int = 1000,
         warc_download_prefix: Optional[str] = None,
@@ -84,8 +83,7 @@ class WARCFilter:
             prefix_path: Output path prefix for filtered WARC files.
             writer_info: Dictionary containing writer metadata.
             writer_subprefix: Optional subprefix for writer output paths.
-            write_paths_as_resource_records: Optional list of file paths to write as resource records.
-            write_paths_as_resource_records_metadata: Optional list of metadata paths for resource records.
+            write_paths_as_metadata_records: Optional list of file paths to write as metadata records.
             record_limit: Maximum number of records to process (0 for unlimited).
             log_every_n: Log progress every N records.
             warc_download_prefix: Optional prefix to prepend to WARC URLs.
@@ -112,8 +110,7 @@ class WARCFilter:
         self.prefix_path = prefix_path
         self.writer_info = writer_info
         self.writer_subprefix = writer_subprefix
-        self.write_paths_as_resource_records = write_paths_as_resource_records
-        self.write_paths_as_resource_records_metadata = write_paths_as_resource_records_metadata
+        self.write_paths_as_metadata_records = write_paths_as_metadata_records
         self.record_limit = record_limit
         self.log_every_n = log_every_n
         self.warc_download_prefix = warc_download_prefix
@@ -542,33 +539,30 @@ class WARCFilter:
 
         return {'reader_id': reader_id, 'stats': tracker.get_stats()}
 
-    async def write_resource_records(self, writer, warcinfo_id: str) -> int:
-        """Write WARC resource records based on paths"""
-        resource_records_size = 0
+    async def write_metadata_records(self, writer, warcinfo_id: str) -> int:
+        """Write WARC metadata records based on paths"""
+        records_size = 0
+        records_count = 0
 
-        logger.info(f'Writing {len(self.write_paths_as_resource_records)} resource records to WARC ... ')
+        logger.info(f'Writing {len(self.write_paths_as_metadata_records)} metadata records to WARC ... ')
 
-        # Resource records are written at the beginning the WARC file.
-        for i, resource_record_path in enumerate(self.write_paths_as_resource_records):
-            logger.info(f'Writing resource record from {resource_record_path} ...')
-            resource_record = get_resource_record_from_path(
+        # Metadata records are written at the beginning each WARC file.
+        for i, resource_record_path in enumerate(self.write_paths_as_metadata_records):
+            logger.info(f'Writing metadata record from {resource_record_path} ...')
+            record = get_metadata_record_from_path(
                 file_path=resource_record_path,
-                metadata_path=(
-                    self.write_paths_as_resource_records_metadata[i]
-                    if self.write_paths_as_resource_records_metadata
-                    else None
-                ),
                 warcinfo_id=warcinfo_id,
             )
-            record_data = get_bytes_from_warc_record(resource_record, warc_version=self.warc_version, gzip=self.gzip)
+            record_data = get_bytes_from_warc_record(record, warc_version=self.warc_version, gzip=self.gzip)
             await writer.write(record_data)
 
             # Keep track but do not rotate resource records
-            resource_records_size += len(record_data)
+            records_size += len(record_data)
+            records_count += 1
 
-        logger.info(f'Resource records added: {len(self.write_paths_as_resource_records)}')
+        logger.info(f'Metadata records added: {records_count}')
 
-        return resource_records_size
+        return records_size
 
     async def write_warc_records(
         self,
@@ -616,8 +610,8 @@ class WARCFilter:
         counter = 0
 
         # Resource records
-        if self.write_paths_as_resource_records:
-            current_file_size += await self.write_resource_records(writer, warcinfo_id=warcinfo_id)
+        if self.write_paths_as_metadata_records:
+            current_file_size += await self.write_metadata_records(writer, warcinfo_id=warcinfo_id)
 
         # Response records
         try:
@@ -712,7 +706,7 @@ class WARCFilter:
             logger.info(f'Rotated to new WARC file sequence {current_file_sequence} due to size limit')
 
             # Resource records also to new files
-            if self.write_paths_as_resource_records:
-                current_file_size += await self.write_resource_records(writer, warcinfo_id=warcinfo_id)
+            if self.write_paths_as_metadata_records:
+                current_file_size += await self.write_metadata_records(writer, warcinfo_id=warcinfo_id)
 
         return writer, current_file_sequence, current_file_size
