@@ -105,7 +105,7 @@ def _wait_for_query_completion(client, query_execution_id: str, max_wait_time: i
 
 
 def _get_query_results(client, query_execution_id: str, warc_download_prefix: str) -> Iterable[RangeJob]:
-    """Retrieve query results and convert to pandas DataFrame"""
+    """Retrieve query results and convert to RangeJob"""
     # Get query results
     paginator = client.get_paginator('get_query_results')
     page_iterator = paginator.paginate(QueryExecutionId=query_execution_id)
