@@ -7,7 +7,7 @@ from cdx_toolkit.cli import main
 import pytest
 from warcio.archiveiterator import ArchiveIterator
 
-from tests.conftest import requires_aws_s3, TEST_DATA_PATH
+from tests.conftest import requires_aws_athena, requires_aws_s3, TEST_DATA_PATH
 
 
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
@@ -276,6 +276,7 @@ def test_metadata_paths_without_resource_records_paths():
     assert exc_info.match('Metadata paths are set but')
 
 
+@requires_aws_athena
 def test_cli_warc_by_athena(
     tmpdir,
     caplog,
