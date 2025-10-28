@@ -19,19 +19,20 @@ jobs:
         ]
         os: [ubuntu-latest]
         EXTRA: [false]  # used to force includes to get included
+        # EXTRA runs should be either the oldest or the newest python.
         include:
           - python-version: '3.9'
             os: ubuntu-22.04  # oldest version on github actions
             EXTRA: true
-          - python-version: '3.13'
+          - python-version: '3.14'
             os: ubuntu-latest
             env:
               LOGLEVEL=DEBUG
             EXTRA: true
-          - python-version: '3.13'
+          - python-version: '3.14'
             os: macos-latest
             EXTRA: true
-          - python-version: '3.13'
+          - python-version: '3.14'
             os: windows-latest
             EXTRA: true
 
