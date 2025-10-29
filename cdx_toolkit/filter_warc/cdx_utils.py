@@ -81,10 +81,17 @@ def get_cdx_paths(index_path: str, index_glob: Optional[str] = None) -> List[str
 
         # Fetch multiple indicies via glob
         full_glob = index_fs_path + index_glob
-
-        logger.info('glob pattern from %s (%s)', full_glob, index_fs.protocol)
-
         index_paths = sorted(index_fs.glob(full_glob))
+
+        # Get the protocol - might be a string or list
+        protocol = index_fs.protocol
+        if isinstance(protocol, (list, tuple)):
+            protocol = protocol[0]  # Use the first protocol if multiple
+
+        logger.info('glob pattern from %s (%s)', full_glob, protocol)
+
+        # Add protocol prefix
+        index_paths = [f"{protocol}://{path}" for path in index_paths]
 
         logger.info('glob pattern found %i index files in %s', len(index_paths), index_fs_path)
 
