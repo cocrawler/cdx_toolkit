@@ -83,7 +83,7 @@ def generate_warc_filename(
     file_name = dest_prefix + '-'
     if writer_subprefix is not None:
         file_name += writer_subprefix + '-'
-    file_name += f'{writer_id:06d}-{sequence:03d}.warc'
+    file_name += f'{writer_id:06d}-{sequence:03d}.warc'  # TODO default warc command uses ".extracted.warc"
     if gzip:
         file_name += '.gz'
 
