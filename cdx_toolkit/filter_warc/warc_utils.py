@@ -5,6 +5,8 @@ import fsspec
 from warcio.recordloader import ArcWarcRecord
 from warcio import WARCWriter
 
+from warcio.recordbuilder import RecordBuilder
+
 from typing import Dict, Optional, Tuple, Union
 
 import mimetypes
@@ -44,13 +46,13 @@ def get_metadata_record_from_path(
         file_bytes = BytesIO(f.read())
 
     warc_content_type = mimetypes.guess_type(file_path)[0]
-    warc_headers_dict = {
-    }
+    warc_headers_dict = {}
 
     # Set WARC-Warcinfo-ID
     warc_headers_dict['WARC-Warcinfo-ID'] = warcinfo_id
 
-    return WARCWriter(None).create_warc_record(
+    rb = RecordBuilder()
+    record = rb.create_warc_record(
         uri=None,
         record_type='metadata',
         payload=file_bytes,
@@ -58,6 +60,16 @@ def get_metadata_record_from_path(
         warc_content_type=warc_content_type,
         warc_headers_dict=warc_headers_dict,
     )
+    # WARC specifications:
+    # > The WARC-Payload-Digest field may be used on WARC records with a well-defined payload
+    # > and shall not be used on records without a well-defined payload.
+    #
+    # However, create_warc_record() is calling ensure_digest(record, block=False, payload=True),
+    # thus we need to rewrite the digests:
+    record.rec_headers.remove_header('WARC-Payload-Digest')
+    rb.ensure_digest(record, block=True, payload=False)
+
+    return record
 
 
 def generate_warc_filename(
@@ -67,11 +79,11 @@ def generate_warc_filename(
     writer_subprefix: Optional[str] = None,
     gzip: bool = False,
 ) -> str:
-    """Generate a WARC file name."""
+    """Generate a WARC file name based a on prefix (can be a full path), write ID and sequence index."""
     file_name = dest_prefix + '-'
     if writer_subprefix is not None:
         file_name += writer_subprefix + '-'
-    file_name += '{:06d}-{:03d}'.format(writer_id, sequence) + '.extracted.warc'
+    file_name += f'{writer_id:06d}-{sequence:03d}.warc'
     if gzip:
         file_name += '.gz'
 
@@ -96,7 +108,7 @@ async def create_new_writer_with_header(
     if is_s3_url(output_path_prefix):
         dest_bucket, dest_prefix = parse_s3_uri(output_path_prefix)
 
-        filename = generate_warc_filename(
+        warc_file_path = generate_warc_filename(
             dest_prefix=dest_prefix,
             writer_id=writer_id,
             sequence=sequence,
@@ -106,7 +118,7 @@ async def create_new_writer_with_header(
 
         new_writer = S3ShardWriter(
             s3_client,
-            filename,
+            warc_file_path,
             dest_bucket,
             content_type,
             min_part_size,
@@ -116,7 +128,7 @@ async def create_new_writer_with_header(
 
     else:
         # local file system
-        filename = generate_warc_filename(
+        warc_file_path = generate_warc_filename(
             dest_prefix=output_path_prefix,
             writer_id=writer_id,
             sequence=sequence,
@@ -125,18 +137,22 @@ async def create_new_writer_with_header(
         )
 
         new_writer = LocalFileWriter(
-            file_path=filename,
+            file_path=warc_file_path,
         )
 
-    logger.debug('Initialzing new WARC writer for {filename}')
+    logger.debug('Initialzing new WARC writer for %s', warc_file_path)
 
     # Initialize writer
     await new_writer.start()
 
     # Write WARC header
+    warc_file_name = warc_file_path.split('/')[-1]
     buffer = BytesIO()
     warc_writer = WARCWriter(buffer, gzip=gzip, warc_version=warc_version)
-    warcinfo = warc_writer.create_warcinfo_record(filename, writer_info)
+    warcinfo = warc_writer.create_warcinfo_record(
+        filename=warc_file_name,  # only the file name and not the full path
+        info=writer_info,
+    )
     warc_writer.write_record(warcinfo)
     header_data = buffer.getvalue()
     await new_writer.write(header_data)

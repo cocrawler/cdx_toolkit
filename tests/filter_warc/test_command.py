@@ -18,8 +18,8 @@ def assert_cli_warc_by_cdx(
     base_prefix,
     caplog,
     extra_args: Optional[List[str]] = None,
-    # warc_filename: str = 'TEST_warc_by_index-000000.extracted.warc.gz',
-    warc_filename: str = 'TEST_warc_by_index-000000-001.extracted.warc.gz',  # due to parallel writer
+    # warc_filename: str = 'TEST_warc_by_index-000000.warc.gz',
+    warc_filename: str = 'TEST_warc_by_index-000000-001.warc.gz',  # due to parallel writer
 ):
     # test cli and check output
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
@@ -56,16 +56,19 @@ def assert_cli_warc_by_cdx(
         warc_path = os.path.join(base_prefix, warc_filename)
 
     info_record = None
+    info_record_headers = None
     response_records = []
     response_contents = []
 
     metadata_record = None
+    metadata_record_headers = None
     metadata_record_content = None
 
     with fsspec.open(warc_path, 'rb') as stream:
         for record in ArchiveIterator(stream):
             if record.rec_type == 'warcinfo':
                 info_record = record.content_stream().read().decode('utf-8')
+                info_record_headers = record.rec_headers
 
             if record.rec_type == 'response':
                 response_records.append(record)
@@ -74,8 +77,11 @@ def assert_cli_warc_by_cdx(
             if record.rec_type == 'metadata':
                 metadata_record = record
                 metadata_record_content = record.content_stream().read().decode('utf-8')
+                metadata_record_headers = record.rec_headers
 
     assert len(response_records) == 10, 'Invalid record count'
+
+    assert info_record_headers.get('WARC-Filename') == warc_filename
 
     assert info_record is not None, 'Invalid info record'
     assert 'operator: bob' in info_record, 'Invalid info record'
@@ -84,8 +90,11 @@ def assert_cli_warc_by_cdx(
     assert 'dojo/dijit/themes/tundra/tundra' in response_contents[9], 'Invalid response content'
 
     assert metadata_record is not None, 'Metadata record not set'
-
     assert metadata_record_content[:10] == 'example.co', 'Invalid metdata record'
+
+    assert metadata_record_headers.get('WARC-Block-Digest') == 'sha1:VXA2A5YUS3TAY36AUO6MACRMNOH5RXG2', (
+        'Invalid metadata block digest'
+    )
 
     # Disabled due to OS-specific line endings
     # assert resource_record_content[-20:-1] == 'hr.fr/produit/t-837', 'Invalid resource record'
@@ -202,7 +211,7 @@ def test_warc_by_cdx_subprefix_and_metadata(tmpdir):
     )
 
     # Check that WARC file was created with subprefix
-    warc_path = os.path.join(tmpdir, 'TEST-SUB-000000-001.extracted.warc.gz')
+    warc_path = os.path.join(tmpdir, 'TEST-SUB-000000-001.warc.gz')
     assert os.path.exists(warc_path)
 
     # Validate metadata in warcinfo record
@@ -233,7 +242,7 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
     )
 
     # Check that WARC file was created
-    warc_path = os.path.join(tmpdir, 'TEST_NO_META-000000-001.extracted.warc.gz')
+    warc_path = os.path.join(tmpdir, 'TEST_NO_META-000000-001.warc.gz')
     assert os.path.exists(warc_path)
 
     # Validate that creator/operator are not in warcinfo record

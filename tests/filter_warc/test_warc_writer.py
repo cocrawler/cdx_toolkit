@@ -46,7 +46,7 @@ def test_write_to_local(prefix, gzip, tmpdir):
     writer.close()
 
     # Check that WARC file was created
-    warc_path = fs_prefix_path + '-000000.extracted.warc'
+    warc_path = fs_prefix_path + '-000000.warc'
     if gzip:
         warc_path += '.gz'
 
@@ -97,7 +97,7 @@ def test_write_to_s3(s3_tmpdir):
     writer.close()
 
     # Check that WARC file was created
-    warc_path = fs_prefix_path + '-000000.extracted.warc.gz'
+    warc_path = fs_prefix_path + '-000000.warc.gz'
     assert fs.exists(warc_path)
 
     # Validate that creator/operator are not in warcinfo record
