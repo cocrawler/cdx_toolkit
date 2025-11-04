@@ -92,7 +92,7 @@ def assert_cli_warc_by_cdx(
     assert metadata_record is not None, 'Metadata record not set'
     assert metadata_record_content[:10] == 'example.co', 'Invalid metdata record'
 
-    assert metadata_record_headers.get('WARC-Block-Digest') == 'sha1:VXA2A5YUS3TAY36AUO6MACRMNOH5RXG2', (
+    assert metadata_record_headers.get('WARC-Payload-Digest') == 'sha1:VXA2A5YUS3TAY36AUO6MACRMNOH5RXG2', (
         'Invalid metadata block digest'
     )
 

@@ -11,5 +11,4 @@ def test_get_metadata_record_from_path():
     record_headers = dict(record.rec_headers.headers)
 
     assert record_headers["WARC-Warcinfo-ID"] == "abc123", "Invalid Warcinfo-ID"
-    assert record_headers["WARC-Block-Digest"] == "sha1:VXA2A5YUS3TAY36AUO6MACRMNOH5RXG2", "Invalid block digest"
-    assert "WARC-Payload-Digest" not in record_headers, "Metadata record should not have payload digest"
+    assert record_headers["WARC-Payload-Digest"] == "sha1:VXA2A5YUS3TAY36AUO6MACRMNOH5RXG2", "Invalid payload digest"

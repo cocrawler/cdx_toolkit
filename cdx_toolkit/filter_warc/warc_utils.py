@@ -60,14 +60,6 @@ def get_metadata_record_from_path(
         warc_content_type=warc_content_type,
         warc_headers_dict=warc_headers_dict,
     )
-    # WARC specifications:
-    # > The WARC-Payload-Digest field may be used on WARC records with a well-defined payload
-    # > and shall not be used on records without a well-defined payload.
-    #
-    # However, create_warc_record() is calling ensure_digest(record, block=False, payload=True),
-    # thus we need to rewrite the digests:
-    record.rec_headers.remove_header('WARC-Payload-Digest')
-    rb.ensure_digest(record, block=True, payload=False)
 
     return record
 
