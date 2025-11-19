@@ -8,10 +8,16 @@ on:
     - cron: '0 9 * * 1'
   workflow_dispatch:  # Allows manual triggering
   # pull_request:  # Run automatically for PRs
+  push:
+    branches:
+      - 'feat/**'  # Trigger on feature branches
+    paths:
+      - 'tests/cc_server_check.py'
+      - '.github/workflows/cc-server-check.yaml'
 
 jobs:
   check:
-    runs-on: ubuntu-latest  
+    runs-on: ubuntu-latest
 
     steps:
       - name: checkout
@@ -20,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12' 
+          python-version: '3.12'
 
       - name: Get Runner IP
         run: |
@@ -29,12 +35,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install requests
-      
+
       - name: Run external API tests
         id: api_test
         run: |
-          python tests/test_fail2ban.py
-      
+          python tests/cc_server_check.py
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -42,4 +48,3 @@ jobs:
           name: fail2ban-test-results-${{ github.run_number }}
           path: fail2ban_test_results.json
           retention-days: 14
-
