@@ -1,9 +1,18 @@
+from typing import Optional
 import requests
 import logging
 import time
 from urllib.parse import urlparse
 
 from . import __version__
+from .settings import (
+    DEFAULT_MIN_RETRY_INTERVAL,
+    CC_DATA_MIN_RETRY_INTERVAL,
+    CC_INDEX_MIN_RETRY_INTERVAL,
+    IA_MIN_RETRY_INTERVAL,
+    MAX_ERRORS,
+    WARNING_AFTER_N_ERRORS,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,19 +32,19 @@ def dns_fatal(hostname):
 retry_info = {
     'default': {
         'next_fetch': 0,
-        'minimum_interval': 3.0,
+        'minimum_interval': DEFAULT_MIN_RETRY_INTERVAL,
     },
     'index.commoncrawl.org': {
         'next_fetch': 0,
-        'minimum_interval': 1.0,
+        'minimum_interval': CC_INDEX_MIN_RETRY_INTERVAL,
     },
     'data.commoncrawl.org': {
         'next_fetch': 0,
-        'minimum_interval': 0.55,
+        'minimum_interval': CC_DATA_MIN_RETRY_INTERVAL,
     },
     'web.archive.org': {
         'next_fetch': 0,
-        'minimum_interval': 6.0,
+        'minimum_interval': IA_MIN_RETRY_INTERVAL,
     },
 }
 
@@ -60,11 +69,17 @@ def myrequests_get(
     headers=None,
     cdx=False,
     allow404=False,
-    raise_error_after_n_errors: int = 100,
-    raise_warning_after_n_errors: int = 10,
+    raise_error_after_n_errors: Optional[int] = None,
+    raise_warning_after_n_errors: Optional[int] = None,
     retry_max_sec: int = 60,
 ):
     t = time.time()
+
+    if raise_error_after_n_errors is None:
+        raise_error_after_n_errors = MAX_ERRORS
+
+    if raise_warning_after_n_errors is None:
+        raise_warning_after_n_errors = WARNING_AFTER_N_ERRORS
 
     hostname = urlparse(url).hostname
     next_fetch, minimum_interval = get_retries(hostname)
