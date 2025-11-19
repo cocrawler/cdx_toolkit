@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""
-Test CDX API endpoints from external source (e.g., GitHub action ) to detect if fail2ban is working as expected.
+"""Check CDX API endpoints from external source (e.g., GitHub action) to detect if fail2ban is working as expected.
+
+NOTE: This is a dedicated script and NOT a unit test.
 
 Usage:
 
 ```bash
-python tests/test_fail2ban.py
+python tests/cc_server_check.py
 ```
 
 """
