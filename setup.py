@@ -12,13 +12,16 @@ packages = [
 # remember: keep requires synchronized with requirements.txt
 requires = ['requests', 'warcio']
 
-test_requirements = ['pytest', 'pytest-cov', 'responses']
+test_requirements = ['pytest', 'pytest-cov', 'flake8', 'responses']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
+
+dev_requirements = ['pre-commit']
 
 extras_require = {
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
+    'dev': package_requirements,
 }
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']
@@ -37,7 +40,7 @@ setup(
     author_email='lindahl@pbm.com',
     url='https://github.com/cocrawler/cdx_toolkit',
     packages=packages,
-    python_requires=">=3.7",
+    python_requires=">=3.9",
     extras_require=extras_require,
     setup_requires=['setuptools-scm'],
     install_requires=requires,
@@ -60,12 +63,12 @@ setup(
         'Programming Language :: Python',
         #'Programming Language :: Python :: 3.5',  # setuptools-scm problem
         #'Programming Language :: Python :: 3.6',  # not offered in github actions
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
+        'Programming Language :: Python :: 3.14',
         'Programming Language :: Python :: 3 :: Only',
     ],
 )

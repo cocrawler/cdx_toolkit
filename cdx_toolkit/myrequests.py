@@ -15,7 +15,7 @@ previously_seen_hostnames = {
 
 
 def dns_fatal(hostname):
-    '''We have a dns error, should we fail immediately or not?'''
+    """We have a dns error, should we fail immediately or not?"""
     if hostname not in previously_seen_hostnames:
         return True
 
@@ -43,7 +43,7 @@ retry_info = {
 def get_retries(hostname):
     if hostname not in retry_info:
         retry_info[hostname] = retry_info['default'].copy()
-        LOGGER.debug('initializing retry info for new host '+hostname)
+        LOGGER.debug('initializing retry info for new host ' + hostname)
     entry = retry_info[hostname]
     if not entry['next_fetch']:
         entry['next_fetch'] = time.time()
@@ -55,15 +55,15 @@ def update_next_fetch(hostname, next_fetch):
 
 
 def myrequests_get(
-    url, 
-    params=None, 
-    headers=None, 
-    cdx=False, 
-    allow404=False, 
-    raise_error_after_n_errors: int = 100, 
+    url,
+    params=None,
+    headers=None,
+    cdx=False,
+    allow404=False,
+    raise_error_after_n_errors: int = 100,
     raise_warning_after_n_errors: int = 10,
     retry_max_sec: int = 60,
-    ):
+):
     t = time.time()
 
     hostname = urlparse(url).hostname
@@ -89,7 +89,7 @@ def myrequests_get(
     if headers is None:
         headers = {}
     if 'user-agent' not in headers:
-        headers['User-Agent'] = 'pypi_cdx_toolkit/'+__version__
+        headers['User-Agent'] = 'pypi_cdx_toolkit/' + __version__
 
     retry = True
     retry_sec = 2 * minimum_interval
@@ -98,8 +98,7 @@ def myrequests_get(
     while retry:
         try:
             LOGGER.debug('getting %s %r', url, params)
-            resp = requests.get(url, params=params, headers=headers,
-                                timeout=(30., 30.), allow_redirects=False)
+            resp = requests.get(url, params=params, headers=headers, timeout=(30.0, 30.0), allow_redirects=False)
             if cdx and resp.status_code in {400, 404}:
                 # 400: ia html error page -- probably page= is too big -- not an error
                 # 404: pywb {'error': 'No Captures found for: www.pbxxxxxxm.com/*'} -- not an error
@@ -120,7 +119,7 @@ def myrequests_get(
                 if resp.text:
                     LOGGER.log(level, 'response body is %s', resp.text)
                 time.sleep(retry_sec)
-                retry_sec = min(retry_sec*2, retry_max_sec)
+                retry_sec = min(retry_sec * 2, retry_max_sec)
                 continue
             if resp.status_code in {400, 404}:  # pragma: no cover
                 if resp.text:
@@ -128,26 +127,31 @@ def myrequests_get(
                 raise RuntimeError('invalid url of some sort, status={} {}'.format(resp.status_code, url))
             resp.raise_for_status()
             retry = False
-        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,
-                requests.exceptions.Timeout) as e:
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.Timeout,
+        ) as e:
             connect_errors += 1
             string = '{} failures for url {} {!r}: {}'.format(connect_errors, url, params, str(e))
 
             # Check for DNS errors with different operating systems
-            if (('Name or service not known' in string)  # linux
+            if (
+                ('Name or service not known' in string)  # linux
                 or ('nodename nor servname provided, or not known' in string)  # macos
-                or ('getaddrinfo failed' in string)):  # windows
+                or ('getaddrinfo failed' in string)
+            ):  # windows
                 if dns_fatal(url):
-                    raise ValueError('invalid hostname in url '+url) from None
+                    raise ValueError('invalid hostname in url ' + url) from None
 
             if connect_errors > raise_error_after_n_errors:
                 LOGGER.error(string)
                 raise ValueError(string)
             if connect_errors > raise_warning_after_n_errors:
                 LOGGER.warning(string)
-            LOGGER.info('retrying after {:.2f}s for '.format(retry_max_sec)+str(e))
+            LOGGER.info('retrying after {:.2f}s for '.format(retry_max_sec) + str(e))
             time.sleep(retry_max_sec)  # notice the extra-long sleep
-            retry_sec = min(retry_sec*2, retry_max_sec)
+            retry_sec = min(retry_sec * 2, retry_max_sec)
         except requests.exceptions.RequestException as e:  # pragma: no cover
             LOGGER.warning('something unexpected happened, giving up after %s', str(e))
             raise

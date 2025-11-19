@@ -10,7 +10,13 @@ import json
 import logging
 
 from .myrequests import myrequests_get
-from .timeutils import time_to_timestamp, timestamp_to_time, pad_timestamp, pad_timestamp_up, cc_index_to_time, cc_index_to_time_special
+from .timeutils import (
+    time_to_timestamp,
+    timestamp_to_time,
+    pad_timestamp_up,
+    cc_index_to_time,
+    cc_index_to_time_special,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +76,10 @@ def get_cc_endpoints(cc_mirror):
         url = cc_mirror.rstrip('/') + '/collinfo.json'
         r = myrequests_get(url)
         if r.status_code != 200:
-            raise RuntimeError('error {} getting list of cc indices from {}'.format(r.status_code, collinfo))  # pragma: no cover
+            collinfo = None
+            raise RuntimeError(
+                'error {} getting list of cc indices from {}'.format(r.status_code, collinfo)
+            )  # pragma: no cover
         set_collinfo_cache(cc_mirror, r.text)
         col = r.json()
 
@@ -108,9 +117,9 @@ def apply_cc_defaults(params, crawl_present=False, now=None):
         year = 365*86400
         if params.get('from_ts') is not None:
             if params.get('to') is None:
-                #from_ts = pad_timestamp(params['from_ts'])
-                #params['to'] = time_to_timestamp(timestamp_to_time(from_ts) + year)
-                #LOGGER.info('no to, setting to=%s', params['to'])
+                # from_ts = pad_timestamp(params['from_ts'])
+                # params['to'] = time_to_timestamp(timestamp_to_time(from_ts) + year)
+                # LOGGER.info('no to, setting to=%s', params['to'])
                 LOGGER.info('from but no to, not doing anything')
         elif params.get('to') is not None:
             if params.get('from_ts') is None:

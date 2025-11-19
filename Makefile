@@ -1,4 +1,4 @@
-.PHONY: init test clean_coverage test_coverage distclean distcheck dist install
+.PHONY: init test clean_coverage test_coverage lint distclean distcheck dist install
 
 init36:
 	# packages are deprecating support, so this uses exact versions
@@ -25,6 +25,9 @@ test_coverage: clean_coverage
 	PYTHONPATH=. py.test -rA -s --doctest-modules --cov-report=xml --cov-append --cov cdx_toolkit tests -v -v
 	coverage report
 
+lint:
+	flake8 cdx_toolkit tests
+
 distclean:
 	rm -rf dist/
 
@@ -42,4 +45,5 @@ dist: distclean
 	twine upload dist/* -r pypi
 
 install:
-	pip install .
+	pip install -e ".[dev,test]"
+	pre-commit install

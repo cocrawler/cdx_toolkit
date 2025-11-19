@@ -63,8 +63,8 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None
     export DISABLE_MOCK_RESPONSES=1
     ```
 
-    If the remote APIs change, new mock data can be semi-automatically collected 
-    by setting another environment variable, running corresponding unit tests, 
+    If the remote APIs change, new mock data can be semi-automatically collected
+    by setting another environment variable, running corresponding unit tests,
     and overwriting existing mock data in `tests/data/mock_responses`:
 
     ```bash
@@ -117,7 +117,7 @@ def mock_response_from_jsonl(mock_data_name, mock_data_dir: Optional[str] = None
 def conditional_mock_responses(func):
     """Conditionally applies @responses.activate and auto-loads mock data based on DISABLE_MOCK_RESPONSES env var.
 
-    The mock data is automatically loaded from JSONL file from the tests/data directory 
+    The mock data is automatically loaded from JSONL file from the tests/data directory
     and dependinng on the test module and test function.
     """
 
