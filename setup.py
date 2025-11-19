@@ -2,15 +2,13 @@
 
 from os import path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
-packages = [
-    'cdx_toolkit',
-]
+packages = find_packages(include=['cdx_toolkit*'])
 
 # remember: keep requires synchronized with requirements.txt
-requires = ['requests', 'warcio']
+requires = ['requests', 'warcio', 'fsspec[s3]']
 
 test_requirements = ['pytest', 'pytest-cov', 'flake8', 'responses']
 
@@ -61,8 +59,8 @@ setup(
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
-        #'Programming Language :: Python :: 3.5',  # setuptools-scm problem
-        #'Programming Language :: Python :: 3.6',  # not offered in github actions
+        # 'Programming Language :: Python :: 3.5',  # setuptools-scm problem
+        # 'Programming Language :: Python :: 3.6',  # not offered in github actions
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
