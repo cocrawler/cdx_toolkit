@@ -1,16 +1,72 @@
 import json
 import os
 from pathlib import Path
+import pytest
+import boto3
+from botocore.config import Config
+from botocore.exceptions import NoCredentialsError, ClientError, EndpointConnectionError
+
 import functools
 from typing import Dict, Optional
 import requests
 import responses
 import base64
+import shutil
 
 from unittest.mock import patch
 
 
 TEST_DATA_BASE_PATH = Path(__file__).parent / 'data'
+TEST_S3_BUCKET = os.environ.get('CDXT_TEST_S3_BUCKET', 'commoncrawl-ci-temp')
+DISABLE_S3_TESTS = bool(os.environ.get('CDXT_DISABLE_S3_TESTS', False))
+
+# Cache for AWS access check to avoid repeated network calls
+_aws_s3_access_cache = None
+
+
+@pytest.fixture(scope='session', autouse=True)
+def cleanup_cache():
+    """Delete cache directory before each test to ensure clean state"""
+    cache_dir = os.path.expanduser('~/.cache/cdx_toolkit/')
+    if os.path.exists(cache_dir):
+        shutil.rmtree(cache_dir)
+
+
+@pytest.fixture(scope='session', autouse=True)
+def set_mock_time():
+    """Set CDXT_MOCK_TIME environment variable for consistent test results"""
+    # August 15, 2025 - ensures tests use CC-MAIN-2025-33 which exists in mock data
+    if 'CDXT_MOCK_TIME' not in os.environ:
+        os.environ['CDXT_MOCK_TIME'] = '1755259200'
+
+
+def check_aws_s3_access():
+    """Check if AWS S3 access is available (cached result)."""
+    global _aws_s3_access_cache
+
+    if _aws_s3_access_cache is not None:
+        return _aws_s3_access_cache
+
+    try:
+        config = Config(retries={'max_attempts': 1, 'mode': 'standard'})
+        s3_client = boto3.client('s3', config=config)
+
+        # Try list objects on test bucket
+        s3_client.list_objects_v2(Bucket=TEST_S3_BUCKET, MaxKeys=1)
+        _aws_s3_access_cache = True
+    except (NoCredentialsError, ClientError, ConnectionError, EndpointConnectionError):
+        _aws_s3_access_cache = False
+
+    return _aws_s3_access_cache
+
+
+def requires_aws_s3(func):
+    """Pytest decorator that skips test if AWS S3 access is not available or disabled."""
+    return pytest.mark.skipif(DISABLE_S3_TESTS, reason='AWS S3 access is disabled via environment variable.')(
+        pytest.mark.skipif(
+            not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'
+        )(func)
+    )
 
 
 def flexible_param_matcher(expected_params):
