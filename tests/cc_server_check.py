@@ -308,11 +308,11 @@ def main():
 
         # If we got blocked, warn and wait longer before next scenario
         if summary['blocked'] > 0:
-            print(f'\n⚠️  IP may be blocked - waiting 60s for potential unban...')
+            print('\n⚠️  IP may be blocked - waiting 60s for potential unban...')
             time.sleep(60)
         else:
-            print(f'\n⏱ Waiting 30s before next scenario...')
-            time.sleep(30)
+            print('\n⏱ Waiting 60s before next scenario...')
+            time.sleep(60)
 
     # Print summary and determine exit code
     success = print_summary(all_summaries)
