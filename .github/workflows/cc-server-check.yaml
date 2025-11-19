@@ -1,10 +1,10 @@
 # This tests if the fail2ban filtering on the CC cdx index server is too strict.
 
-name: Weekly CC server check
+name: CC server check (weekly)
 
 on:
   schedule:
-    # Every Monday at 9:00 AM UTC
+    # Weekly schedule: every Monday at 9:00 AM UTC
     - cron: '0 9 * * 1'
   workflow_dispatch:  # Allows manual triggering
   # pull_request:  # Run automatically for PRs
@@ -26,14 +26,20 @@ jobs:
         run: |
           echo "Runner IP: $(curl -s https://ipinfo.io/ip)"
 
-      - name: Install setuptools on python 3.12+
+      - name: Install dependencies
         run: |
-          pip install setuptools
-
-      - name: Install cdx_toolkit
-        run: pip install ".[test]"
-
-      - name: Run example
+          pip install requests
+      
+      - name: Run external API tests
+        id: api_test
         run: |
-          python examples/iter-and-warc.py
+          python tests/test_fail2ban.py
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fail2ban-test-results-${{ github.run_number }}
+          path: fail2ban_test_results.json
+          retention-days: 14
 
