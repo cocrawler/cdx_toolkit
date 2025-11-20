@@ -90,13 +90,13 @@ test_scenarios = [
         'delay_between': 7.0,  # 9 requests in ~63 seconds (just under 10/60s limit)
         'should_succeed': True,
     },
-    # {
-    #     'name': 'Burst detection - collinfo',
-    #     'description': 'Tests if legitimate burst triggers ban on collinfo endpoint',
-    #     'requests': [{'url': f'{API_BASE}/collinfo.json', 'params': {}} for _ in range(3)],
-    #     'delay_between': 4.0,  # 3 requests over 8 seconds (WILL trigger ban at 3/10s)
-    #     'should_succeed': False,  # This SHOULD get banned
-    # },
+    {
+        'name': 'Burst detection - collinfo',
+        'description': 'Tests if legitimate burst triggers ban on collinfo endpoint',
+        'requests': [{'url': f'{API_BASE}/collinfo.json', 'params': {}} for _ in range(3)],
+        'delay_between': 4.0,  # 3 requests over 8 seconds (WILL trigger ban at 3/10s)
+        'should_succeed': False,  # This SHOULD get banned
+    },
 ]
 
 
