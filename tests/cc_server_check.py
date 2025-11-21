@@ -84,7 +84,14 @@ test_scenarios = [
         'name': 'Edge case - near limit',
         'description': 'Tests behavior near the rate limit threshold',
         'requests': [
-            {'url': f'{API_BASE}/cc-index', 'params': {'url': DOMAINS[i], 'output': 'json', 'limit': DEFAULT_LIMIT}}
+            {
+                'url': f'{API_BASE}/cc-index',
+                'params': {
+                    'url': f'{DOMAINS[i]}/*',
+                    'output': 'json',
+                    'limit': DEFAULT_LIMIT
+                }
+            }
             for i in range(9)
         ],
         'delay_between': 7.0,  # 9 requests in ~63 seconds (just under 10/60s limit)
@@ -143,7 +150,7 @@ def make_request(url: str, params: Dict, request_num: int) -> Dict:
     except requests.exceptions.Timeout:
         result['error'] = 'Request timeout'
         result['response_time'] = time.time() - start_time
-        # Timeout could indicate blocking, but not conclusive
+        result['blocked'] = True
     except requests.exceptions.ConnectionError as e:
         result['response_time'] = time.time() - start_time
         error_str = str(e)
@@ -280,15 +287,15 @@ def print_summary(all_summaries: List[Dict]):
                 print(f'    Completed {scenario["completed_requests"]}/{scenario["total_requests"]} without ban')
             print()
 
-        print('📋 Recommendations:')
-        if too_strict:
-            print('  - Increase maxretry values')
-            print('  - Increase findtime windows')
-            print('  - Review filter patterns for false positives')
-        if too_lenient:
-            print('  - Decrease maxretry values')
-            print('  - Decrease findtime windows')
-            print('  - Verify fail2ban is running and filters are active')
+        # print('📋 Recommendations:')
+        # if too_strict:
+        #     print('  - Increase maxretry values')
+        #     print('  - Increase findtime windows')
+        #     print('  - Review filter patterns for false positives')
+        # if too_lenient:
+        #     print('  - Decrease maxretry values')
+        #     print('  - Decrease findtime windows')
+        #     print('  - Verify fail2ban is running and filters are active')
         return False
     else:
         print('✅ All test scenarios behaved as expected')
