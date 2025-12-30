@@ -158,7 +158,9 @@ def test_unique_warc_filename():
     )
 
     filename = writer._unique_warc_filename()
-    assert filename == '/tmp/test-prefix-000000.extracted.warc.gz'
+    # Use the actual file_system_prefix from the writer for cross-platform compatibility
+    expected = f'{writer.file_system_prefix}-000000.extracted.warc.gz'
+    assert filename == expected
     assert writer.segment == 0
 
     # Test case 2: Filename generation without gzip
@@ -167,7 +169,8 @@ def test_unique_warc_filename():
     )
 
     filename = writer_no_gzip._unique_warc_filename()
-    assert filename == '/tmp/test-prefix-000000.extracted.warc'
+    expected = f'{writer_no_gzip.file_system_prefix}-000000.extracted.warc'
+    assert filename == expected
     assert not filename.endswith('.gz')
 
     # Test case 3: Filename generation with subprefix
@@ -176,7 +179,8 @@ def test_unique_warc_filename():
     )
 
     filename = writer_subprefix._unique_warc_filename()
-    assert filename == '/tmp/test-prefix-mysub-000000.extracted.warc.gz'
+    expected = f'{writer_subprefix.file_system_prefix}-mysub-000000.extracted.warc.gz'
+    assert filename == expected
     assert 'mysub' in filename
 
     # Test case 4: Filename generation with subprefix and no gzip
@@ -185,7 +189,8 @@ def test_unique_warc_filename():
     )
 
     filename = writer_subprefix_no_gzip._unique_warc_filename()
-    assert filename == '/tmp/test-prefix-another-000000.extracted.warc'
+    expected = f'{writer_subprefix_no_gzip.file_system_prefix}-another-000000.extracted.warc'
+    assert filename == expected
     assert 'another' in filename
     assert not filename.endswith('.gz')
 
@@ -209,7 +214,8 @@ def test_unique_warc_filename():
 
     filename = writer_increment._unique_warc_filename()
     # Should have incremented segment twice (0 and 1 existed, 2 is free)
-    assert filename == '/tmp/test-increment-000002.extracted.warc.gz'
+    expected = f'{writer_increment.file_system_prefix}-000002.extracted.warc.gz'
+    assert filename == expected
     assert writer_increment.segment == 2
 
     # Restore original
@@ -222,5 +228,6 @@ def test_unique_warc_filename():
     writer_multi.segment = 5
 
     filename = writer_multi._unique_warc_filename()
-    assert filename == '/tmp/test-multi-batch1-000005.extracted.warc.gz'
+    expected = f'{writer_multi.file_system_prefix}-batch1-000005.extracted.warc.gz'
+    assert filename == expected
     assert '000005' in filename
