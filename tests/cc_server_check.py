@@ -10,7 +10,7 @@ python tests/cc_server_check.py
 ```
 
 """
-
+import os
 import requests
 import time
 import sys
@@ -18,9 +18,9 @@ import json
 from datetime import datetime
 from typing import List, Dict
 
-API_BASE = 'https://index.commoncrawl.org'  # Update with your actual domain
-USER_AGENT = 'pypi_cdx_toolkit/fail2ban-monitor'
-CRAWL_ID = 'CC-MAIN-2025-43'
+API_BASE = os.environ.get('CDXT_API_BASE', 'https://index.commoncrawl.org')
+USER_AGENT = os.environ.get('CDXT_USER_AGENT', 'pypi_cdx_toolkit/fail2ban-monitor')
+CRAWL_ID = os.environ.get('CDXT_CRAWL_ID', 'CC-MAIN-2025-43')
 DEFAULT_LIMIT = 1
 
 DOMAINS = [
