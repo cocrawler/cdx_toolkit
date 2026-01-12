@@ -51,7 +51,7 @@ def test_get_fake_wb_warc_status_code(caplog):
     assert record.rec_type == 'response'
     assert 'revisit record vivified' not in caplog.text
     assert 'redirect capture came back 200' not in caplog.text
-    assert 'surprised that status code' not in caplog.text
+    assert 'status code is now' not in caplog.text
 
     # Test case 2: Revisit record vivified (200 response, '-' status in capture)
     caplog.clear()
@@ -107,7 +107,7 @@ def test_get_fake_wb_warc_status_code(caplog):
     # No warnings for this case - it's expected behavior
     assert 'revisit record vivified' not in caplog.text
     assert 'redirect capture came back 200' not in caplog.text
-    assert 'surprised that status code' not in caplog.text
+    assert 'status code is now' not in caplog.text
 
     # Test case 5: 302 response with 307 capture status - should use 307
     caplog.clear()
@@ -125,7 +125,7 @@ def test_get_fake_wb_warc_status_code(caplog):
     # No warnings for this case either
     assert 'revisit record vivified' not in caplog.text
     assert 'redirect capture came back 200' not in caplog.text
-    assert 'surprised that status code' not in caplog.text
+    assert 'status code is now' not in caplog.text
 
     # Test case 6: Mismatched status codes (not covered by special cases)
     caplog.clear()
@@ -146,7 +146,7 @@ def test_get_fake_wb_warc_status_code(caplog):
 
     assert record is not None
     # This should trigger the "surprised" warning (else case)
-    assert 'surprised that status code' in caplog.text
+    assert 'status code is now' in caplog.text
 
 
 def test_unique_warc_filename():

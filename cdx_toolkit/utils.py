@@ -1,6 +1,7 @@
 import cdx_toolkit
 from cdx_toolkit.commoncrawl import normalize_crawl
 
+from argparse import Namespace
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -10,7 +11,7 @@ def get_version():
     return cdx_toolkit.__version__
 
 
-def setup(cmd):
+def setup_cdx_fetcher_and_kwargs(cmd: Namespace):
     kwargs = {}
     kwargs['source'] = 'cc' if cmd.crawl else cmd.cc or cmd.ia or cmd.source or None
     if kwargs['source'] is None:

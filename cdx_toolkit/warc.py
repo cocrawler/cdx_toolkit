@@ -2,7 +2,6 @@ from urllib.parse import quote
 from io import BytesIO
 import datetime
 import logging
-import sys
 
 import fsspec
 from warcio import WARCWriter
@@ -52,7 +51,7 @@ def fake_wb_warc(url, wb_url, resp, capture):
                 status_reason = http_status_text[status_code]
         else:  # pragma: no cover
             LOGGER.warning(
-                'surprised that status code is now=%d orig=%s %s %s', status_code, capture['status'], url, timestamp
+                f'status code is now={status_code}, orig={capture["status"]}, {url}, {timestamp}'
             )
 
     http_headers = []
@@ -75,7 +74,7 @@ def fake_wb_warc(url, wb_url, resp, capture):
                 k = 'X-Archive-' + k
             http_headers.append((k, v))
 
-    statusline = '{} {}'.format(status_code, status_reason)
+    statusline = f'{status_code} {status_reason}'
     http_headers = StatusAndHeaders(statusline, headers=http_headers, protocol='HTTP/1.1')
 
     warc_headers_dict = {
@@ -104,7 +103,7 @@ def fetch_wb_warc(capture, wb, modifier='id_'):
     url = capture['url']
     timestamp = capture['timestamp']
 
-    wb_url = '{}/{}{}/{}'.format(wb, timestamp, modifier, quote(url))
+    wb_url = f'{wb}/{timestamp}{modifier}/{quote(url)}'
 
     kwargs = {}
     status = capture['status']
@@ -137,7 +136,7 @@ def fetch_warc_record(capture, warc_download_prefix):
             record_bytes = f.read(length)
     else:
         # fetch over HTTP
-        headers = {'Range': 'bytes={}-{}'.format(offset, offset + length - 1)}
+        headers = {'Range': f'bytes={offset}-{offset + length - 1}'}
 
         resp = myrequests_get(warc_url, headers=headers)
         record_bytes = resp.content
@@ -145,19 +144,18 @@ def fetch_warc_record(capture, warc_download_prefix):
     stream = DecompressingBufferedReader(BytesIO(record_bytes))
     record = ArcWarcRecordLoader().parse_record_stream(stream)
 
-    for header in ('WARC-Source-URI', 'WARC-Source-Range'):
-        if record.rec_headers.get_header(header):  # pragma: no cover
-            print('Surprised that {} was already set in this WARC record'.format(header), file=sys.stderr)
+    for header_field in ('WARC-Source-URI', 'WARC-Source-Range'):
+        if record.rec_headers.get_header(header_field):  # pragma: no cover
+            LOGGER.error(f'Header field {header_field} is already set in this WARC record')
 
     warc_target_uri = record.rec_headers.get_header('WARC-Target-URI')
     if url != warc_target_uri:  # pragma: no cover
-        print(
-            'Surprised that WARC-Target-URI {} is not the capture url {}'.format(warc_target_uri, url),
-            file=sys.stderr,
+        LOGGER.error(
+            f'WARC-Target-URI {warc_target_uri} is not the capture url {url}',
         )
 
     record.rec_headers.replace_header('WARC-Source-URI', warc_url)
-    record.rec_headers.replace_header('WARC-Source-Range', 'bytes={}-{}'.format(offset, offset + length - 1))
+    record.rec_headers.replace_header('WARC-Source-Range', f'bytes={offset}-{offset + length - 1}')
     return record
 
 
@@ -203,7 +201,7 @@ class CDXToolkitWARCWriter:
             name = self.file_system_prefix + '-'
             if self.subprefix is not None:
                 name += self.subprefix + '-'
-            name += '{:06d}'.format(self.segment) + '.extracted.warc'
+            name += f'{self.segment:06d}.extracted.warc'
             if self.gzip:
                 name += '.gz'
             if self.file_system.exists(name):
