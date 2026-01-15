@@ -1,6 +1,7 @@
 import cdx_toolkit.warc
 from tests.conftest import requires_aws_s3
 from unittest.mock import Mock
+import pytest
 
 
 def test_wb_redir_to_original():
@@ -231,3 +232,47 @@ def test_unique_warc_filename():
     expected = f'{writer_multi.file_system_prefix}-batch1-000005.extracted.warc.gz'
     assert filename == expected
     assert '000005' in filename
+
+
+def test_is_s3_url():
+    assert cdx_toolkit.warc._is_s3_url('s3://bucket/key')
+    assert cdx_toolkit.warc._is_s3_url('s3:bucket/key')
+    assert not cdx_toolkit.warc._is_s3_url('https://example.com/file.warc.gz')
+
+
+def test_url_to_fs_local_without_fsspec(monkeypatch, tmp_path):
+    monkeypatch.setattr(cdx_toolkit.warc, '_HAS_FSSPEC', False)
+    monkeypatch.setattr(cdx_toolkit.warc, 'fsspec', None)
+
+    fs, prefix = cdx_toolkit.warc._url_to_fs(str(tmp_path))
+
+    assert isinstance(fs, cdx_toolkit.warc._LocalFileSystem)
+    assert prefix == str(tmp_path)
+
+    test_file = tmp_path / 'local.warc'
+    with fs.open(str(test_file), 'wb') as handle:
+        handle.write(b'test')
+    assert fs.exists(str(test_file))
+
+
+def test_url_to_fs_requires_deps_for_s3(monkeypatch):
+    monkeypatch.setattr(cdx_toolkit.warc, '_HAS_FSSPEC', False)
+    monkeypatch.setattr(cdx_toolkit.warc, 'fsspec', None)
+
+    with pytest.raises(RuntimeError, match=r'cdx_toolkit\[s3\]'):
+        cdx_toolkit.warc._url_to_fs('s3://bucket/key')
+
+
+def test_fetch_warc_record_requires_s3_deps(monkeypatch):
+    monkeypatch.setattr(cdx_toolkit.warc, '_HAS_FSSPEC', False)
+    monkeypatch.setattr(cdx_toolkit.warc, 'fsspec', None)
+
+    capture = {
+        'url': 'http://example.com',
+        'filename': 'dummy.warc.gz',
+        'offset': 0,
+        'length': 1,
+    }
+
+    with pytest.raises(RuntimeError, match=r'cdx_toolkit\[s3\]'):
+        cdx_toolkit.warc.fetch_warc_record(capture, warc_download_prefix='s3://bucket')
