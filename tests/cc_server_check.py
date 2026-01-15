@@ -135,7 +135,12 @@ def make_request(url: str, params: Dict, request_num: int) -> Dict:
 
     start_time = time.time()
     try:
-        response = requests.get(url, params=params, timeout=15, headers={'User-Agent': 'fail2ban-monitor/1.0'})
+        response = requests.get(
+            url,
+            params=params,
+            timeout=15,
+            headers={'User-Agent': USER_AGENT},
+        )
         result['response_time'] = time.time() - start_time
         result['status_code'] = response.status_code
 
