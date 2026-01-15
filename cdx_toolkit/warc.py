@@ -2,8 +2,14 @@ from urllib.parse import quote
 from io import BytesIO
 import datetime
 import logging
+import os
 
-import fsspec
+try:
+    import fsspec
+    _HAS_FSSPEC = True
+except ImportError:  # pragma: no cover - exercised in minimal installs
+    fsspec = None
+    _HAS_FSSPEC = False
 from warcio import WARCWriter
 from warcio.recordloader import ArcWarcRecordLoader
 from warcio.bufferedreaders import DecompressingBufferedReader
@@ -13,6 +19,35 @@ from .myrequests import myrequests_get
 from .timeutils import http_date_to_datetime, datetime_to_iso_date
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _is_s3_url(url):
+    return url.startswith('s3://') or url.startswith('s3:')
+
+
+def _require_s3_deps():
+    if not _HAS_FSSPEC:
+        raise RuntimeError(
+            'Remote filesystem (S3) support requires optional dependencies. Install cdx_toolkit[s3].'
+        )
+
+
+class _LocalFileSystem:
+    def open(self, filename, mode):
+        return open(filename, mode)
+
+    def exists(self, filename):
+        return os.path.exists(filename)
+
+
+def _url_to_fs(prefix):
+    if _HAS_FSSPEC:
+        return fsspec.url_to_fs(prefix)
+
+    if _is_s3_url(prefix) or '://' in prefix:
+        _require_s3_deps()
+
+    return _LocalFileSystem(), prefix
 
 
 def wb_redir_to_original(location):
@@ -129,8 +164,9 @@ def fetch_warc_record(capture, warc_download_prefix):
 
     warc_url = warc_download_prefix + '/' + filename
 
-    if warc_url.startswith('s3:'):
+    if _is_s3_url(warc_url):
         # fetch from S3
+        _require_s3_deps()
         with fsspec.open(warc_url, 'rb') as f:
             f.seek(offset)
             record_bytes = f.read(length)
@@ -174,7 +210,7 @@ class CDXToolkitWARCWriter:
         self.segment = 0
         self.writer = None
         self.file_handler = None
-        self.file_system, self.file_system_prefix = fsspec.url_to_fs(self.prefix)
+        self.file_system, self.file_system_prefix = _url_to_fs(self.prefix)
         self._file_context = None
 
     def write_record(self, *args, **kwargs):

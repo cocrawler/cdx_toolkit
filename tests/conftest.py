@@ -2,9 +2,25 @@ import json
 import os
 from pathlib import Path
 import pytest
-import boto3
-from botocore.config import Config
-from botocore.exceptions import NoCredentialsError, ClientError, EndpointConnectionError
+
+from cdx_toolkit.settings import CACHE_DIR
+
+try:
+    import botocore.session
+    from botocore.config import Config
+    from botocore.exceptions import NoCredentialsError, ClientError, EndpointConnectionError
+    _HAS_BOTOCORE = True
+except ImportError:  # pragma: no cover - exercised in minimal installs
+    botocore = None
+    Config = None
+    NoCredentialsError = ClientError = EndpointConnectionError = Exception
+    _HAS_BOTOCORE = False
+
+try:
+    import fsspec  # noqa: F401
+    _HAS_FSSPEC = True
+except ImportError:  # pragma: no cover - exercised in minimal installs
+    _HAS_FSSPEC = False
 
 import functools
 from typing import Dict, Optional
@@ -27,7 +43,7 @@ _aws_s3_access_cache = None
 @pytest.fixture(scope='session', autouse=True)
 def cleanup_cache():
     """Delete cache directory before each test to ensure clean state"""
-    cache_dir = os.path.expanduser('~/.cache/cdx_toolkit/')
+    cache_dir = os.path.expanduser(CACHE_DIR)
     if os.path.exists(cache_dir):
         shutil.rmtree(cache_dir)
 
@@ -44,12 +60,16 @@ def check_aws_s3_access():
     """Check if AWS S3 access is available (cached result)."""
     global _aws_s3_access_cache
 
+    if not _HAS_BOTOCORE:
+        return False
+
     if _aws_s3_access_cache is not None:
         return _aws_s3_access_cache
 
     try:
         config = Config(retries={'max_attempts': 1, 'mode': 'standard'})
-        s3_client = boto3.client('s3', config=config)
+        session = botocore.session.Session()
+        s3_client = session.create_client('s3', config=config)
 
         # Try list objects on test bucket
         s3_client.list_objects_v2(Bucket=TEST_S3_BUCKET, MaxKeys=1)
@@ -62,6 +82,11 @@ def check_aws_s3_access():
 
 def requires_aws_s3(func):
     """Pytest decorator that skips test if AWS S3 access is not available or disabled."""
+    if not _HAS_BOTOCORE or not _HAS_FSSPEC:
+        return pytest.mark.skipif(
+            True, reason='S3 dependencies are not installed; install warcio[s3] to enable S3 tests.'
+        )(func)
+
     return pytest.mark.skipif(DISABLE_S3_TESTS, reason='AWS S3 access is disabled via environment variable.')(
         pytest.mark.skipif(
             not check_aws_s3_access(), reason='AWS S3 access not available (no credentials or permissions)'

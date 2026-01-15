@@ -3,8 +3,10 @@
 
 requests>=2.25.1
 warcio==1.7.4
+
+# optional S3 dependencies (install via cdx_toolkit[s3])
 fsspec[s3]
-boto3
+botocore
 
 # used by Makefile
 pytest>=6.2.4

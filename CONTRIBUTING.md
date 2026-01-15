@@ -10,6 +10,18 @@ Clone the repository, setup a virtual environment, and run the following command
 make install
 ```
 
+For S3-related features or tests, install optional dependencies:
+
+```bash
+pip install -e ".[s3]"
+```
+
+To install everything (dev/test/S3), use:
+
+```bash
+pip install -e ".[all]"
+```
+
 ## Tests
 
 To test code changes, please run our test suite before submitting pull requests:
@@ -33,14 +45,14 @@ If the remote APIs change, new mock data can be semi-automatically collected by 
 ```bash
 # set environment variable (DISABLE_MOCK_RESPONSES should not be set)
 export SAVE_MOCK_RESPONSES=./tmp/mock_responses
-    
+
 # run the test for what mock data should be saved to $SAVE_MOCK_RESPONSES/<test_file>/<test_func>.jsonl
 pytest tests/test_cli.py::test_basics
 ```
 
 ## Code format & linting
 
-Please following the definitions from `.editorconfig` and `.flake8`. 
+Please following the definitions from `.editorconfig` and `.flake8`.
 
 To test the linting, run this command:
 
