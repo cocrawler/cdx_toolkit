@@ -9,6 +9,8 @@ import os.path
 import json
 import logging
 
+from cdx_toolkit.settings import CACHE_DIR, get_mock_time
+
 from .myrequests import myrequests_get
 from .timeutils import (
     time_to_timestamp,
@@ -34,7 +36,7 @@ def normalize_crawl(crawl):
 
 
 def get_cache_names(cc_mirror):
-    cache = os.path.expanduser('~/.cache/cdx_toolkit/')
+    cache = os.path.expanduser(CACHE_DIR)
     filename = re.sub(r'[^\w]', '_', cc_mirror.replace('https://', ''))
     return cache, filename
 
@@ -128,9 +130,13 @@ def apply_cc_defaults(params, crawl_present=False, now=None):
                 LOGGER.info('to but no from_ts, setting from_ts=%s', params['from_ts'])
         else:
             if not now:
-                # now is passed in by tests. if not set, use actual now.
-                # XXX could be changed to mock
-                now = time.time()
+                # Check for test/override time first
+                mock_time = get_mock_time()
+                if mock_time:
+                    now = mock_time
+                else:
+                    # now is passed in by tests. if not set, use actual now.
+                    now = time.time()
             params['from_ts'] = time_to_timestamp(now - year)
             LOGGER.info('no from or to, setting default 1 year ago from_ts=%s', params['from_ts'])
     else:
