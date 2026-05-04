@@ -1,0 +1,195 @@
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: "Semver component to bump (patch/minor/major)"
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: "Dry run: publish only to TestPyPI (with .devN suffix); do not tag, do not publish to PyPI, do not create GitHub release."
+        type: boolean
+        required: true
+        default: true
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  bump-and-build:
+    name: Compute version, build, and (if real) tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout (full history + tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure tags are present
+        run: git fetch --tags --force --prune
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade build twine packaging
+
+      - name: Compute next version
+        id: version
+        env:
+          BUMP: ${{ inputs.version_bump }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          LATEST="$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
+          if [ -z "${LATEST}" ]; then
+            LATEST="0.0.0"
+          fi
+          echo "Latest semver tag: ${LATEST}"
+          IFS=. read -r MAJOR MINOR PATCH <<< "${LATEST}"
+          case "${BUMP}" in
+            patch) NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+            minor) NEXT="${MAJOR}.$((MINOR + 1)).0" ;;
+            major) NEXT="$((MAJOR + 1)).0.0" ;;
+            *) echo "Unknown bump: ${BUMP}" >&2; exit 1 ;;
+          esac
+          if [ "${DRY_RUN}" = "true" ]; then
+            VERSION="${NEXT}.dev${RUN_NUMBER}"
+          else
+            VERSION="${NEXT}"
+          fi
+          python -c "from packaging.version import Version; Version('${VERSION}')"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Computed version: ${VERSION}"
+
+      - name: Build sdist + wheel
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION_FOR_CDX_TOOLKIT: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          rm -rf dist/
+          python -m build
+          ls -l dist/
+
+      - name: twine check
+        run: twine check dist/*
+
+      - name: Verify built version matches computed version
+        env:
+          EXPECTED: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          ls dist/cdx_toolkit-"${EXPECTED}".tar.gz
+          ls dist/cdx_toolkit-"${EXPECTED}"-*.whl
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+      - name: Create and push annotated tag (real release only)
+        if: ${{ inputs.dry_run != true }}
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${VERSION}" -m "Release ${VERSION}"
+          git push origin "${VERSION}"
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: bump-and-build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/cdx-toolkit/${{ needs.bump-and-build.outputs.version }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [bump-and-build, publish-testpypi]
+    if: ${{ inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/project/cdx-toolkit/${{ needs.bump-and-build.outputs.version }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub Release
+    needs: [bump-and-build, publish-pypi]
+    if: ${{ inputs.dry_run != true }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-and-build.outputs.version }}
+          fetch-depth: 0
+
+      - name: Download dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.bump-and-build.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "${VERSION}" dist/* \
+            --title "${VERSION}" \
+            --generate-notes \
+            --verify-tag
