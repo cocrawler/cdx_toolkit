@@ -155,7 +155,7 @@ def test_unique_warc_filename():
 
     # Test case 1: Basic filename generation with gzip and no subprefix
     writer = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix=None, info='test info', gzip=True
+        prefix='/tmp/test-prefix', subprefix=None, info={'software': 'test'}, gzip=True
     )
 
     filename = writer._unique_warc_filename()
@@ -166,7 +166,7 @@ def test_unique_warc_filename():
 
     # Test case 2: Filename generation without gzip
     writer_no_gzip = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix=None, info='test info', gzip=False
+        prefix='/tmp/test-prefix', subprefix=None, info={'software': 'test'}, gzip=False
     )
 
     filename = writer_no_gzip._unique_warc_filename()
@@ -176,7 +176,7 @@ def test_unique_warc_filename():
 
     # Test case 3: Filename generation with subprefix
     writer_subprefix = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix='mysub', info='test info', gzip=True
+        prefix='/tmp/test-prefix', subprefix='mysub', info={'software': 'test'}, gzip=True
     )
 
     filename = writer_subprefix._unique_warc_filename()
@@ -186,7 +186,7 @@ def test_unique_warc_filename():
 
     # Test case 4: Filename generation with subprefix and no gzip
     writer_subprefix_no_gzip = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix='another', info='test info', gzip=False
+        prefix='/tmp/test-prefix', subprefix='another', info={'software': 'test'}, gzip=False
     )
 
     filename = writer_subprefix_no_gzip._unique_warc_filename()
@@ -197,7 +197,7 @@ def test_unique_warc_filename():
 
     # Test case 5: Handling of existing files - should increment segment
     writer_increment = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-increment', subprefix=None, info='test info', gzip=True
+        prefix='/tmp/test-increment', subprefix=None, info={'software': 'test'}, gzip=True
     )
 
     # Mock the file_system.exists to simulate existing files
@@ -224,7 +224,7 @@ def test_unique_warc_filename():
 
     # Test case 6: Multiple segments with subprefix
     writer_multi = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-multi', subprefix='batch1', info='test info', gzip=True
+        prefix='/tmp/test-multi', subprefix='batch1', info={'software': 'test'}, gzip=True
     )
     writer_multi.segment = 5
 
@@ -276,3 +276,58 @@ def test_fetch_warc_record_requires_s3_deps(monkeypatch):
 
     with pytest.raises(RuntimeError, match=r'cdx_toolkit\[s3\]'):
         cdx_toolkit.warc.fetch_warc_record(capture, warc_download_prefix='s3://bucket')
+
+
+def _make_fake_record():
+    mock_resp = Mock()
+    mock_resp.status_code = 200
+    mock_resp.reason = 'OK'
+    mock_resp.headers = {'Content-Type': 'text/html'}
+    mock_resp.content = b'<html>test</html>'
+    capture = {'url': 'http://example.com', 'timestamp': '20240101120000', 'status': '200'}
+    return cdx_toolkit.warc.fake_wb_warc(
+        url='http://example.com',
+        wb_url='https://web.archive.org/web/20240101120000id_/http://example.com',
+        resp=mock_resp,
+        capture=capture,
+    )
+
+
+def test_warc_writer_context_manager_basic(tmp_path):
+    """The writer must work as a context manager and flush its file on exit."""
+    prefix = str(tmp_path / 'ctx')
+    with cdx_toolkit.warc.get_writer(prefix, None, {'software': 'test'}) as writer:
+        writer.write_record(_make_fake_record())
+        filename = writer.filename
+
+    assert writer._file_context is None
+    written = list(tmp_path.glob('ctx-*.warc.gz'))
+    assert len(written) == 1
+    assert written[0].stat().st_size > 0
+    assert written[0].name == filename.rsplit('/', 1)[-1]
+
+
+def test_warc_writer_context_manager_returns_self(tmp_path):
+    writer = cdx_toolkit.warc.get_writer(str(tmp_path / 'ret'), None, {'software': 'test'})
+    with writer as entered:
+        assert entered is writer
+
+
+def test_warc_writer_context_manager_propagates_exceptions(tmp_path):
+    """Exceptions inside the with block must propagate, and cleanup must still run."""
+    writer = cdx_toolkit.warc.get_writer(str(tmp_path / 'boom'), None, {'software': 'test'})
+    with pytest.raises(RuntimeError, match='boom'):
+        with writer:
+            writer.write_record(_make_fake_record())
+            raise RuntimeError('boom')
+    assert writer._file_context is None
+    assert writer.file_handler is None
+
+
+def test_warc_writer_close_idempotent(tmp_path):
+    """Calling close() twice (e.g. explicit close then __exit__) must not raise."""
+    writer = cdx_toolkit.warc.get_writer(str(tmp_path / 'idem'), None, {'software': 'test'})
+    with writer:
+        writer.write_record(_make_fake_record())
+        writer.close()
+    writer.close()

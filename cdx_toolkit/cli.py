@@ -214,27 +214,24 @@ def warcer(cmd: Namespace, cmdline: str):
         kwargs_writer['size'] = kwargs['size']
         del kwargs['size']
 
-    writer = cdx_toolkit.warc.get_writer(cmd.prefix, cmd.subprefix, info, **kwargs_writer)
-
-    for obj in cdx.iter(cmd.url, **kwargs):
-        url = obj['url']
-        if cmd.url_fgrep and cmd.url_fgrep not in url:
-            LOGGER.debug('not warcing due to fgrep: %s', url)
-            continue
-        if cmd.url_fgrepv and cmd.url_fgrepv in url:
-            LOGGER.debug('not warcing due to fgrepv: %s', url)
-            continue
-        timestamp = obj['timestamp']
-        try:
-            record = obj.fetch_warc_record()
-        except RuntimeError:  # pragma: no cover
-            LOGGER.warning('skipping capture for RuntimeError 404: %s %s', url, timestamp)
-            continue
-        if obj.is_revisit():
-            LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
-        writer.write_record(record)
-
-    writer.close()
+    with cdx_toolkit.warc.get_writer(cmd.prefix, cmd.subprefix, info, **kwargs_writer) as writer:
+        for obj in cdx.iter(cmd.url, **kwargs):
+            url = obj['url']
+            if cmd.url_fgrep and cmd.url_fgrep not in url:
+                LOGGER.debug('not warcing due to fgrep: %s', url)
+                continue
+            if cmd.url_fgrepv and cmd.url_fgrepv in url:
+                LOGGER.debug('not warcing due to fgrepv: %s', url)
+                continue
+            timestamp = obj['timestamp']
+            try:
+                record = obj.fetch_warc_record()
+            except RuntimeError:  # pragma: no cover
+                LOGGER.warning('skipping capture for RuntimeError 404: %s %s', url, timestamp)
+                continue
+            if obj.is_revisit():
+                LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
+            writer.write_record(record)
 
 
 def sizer(cmd: Namespace, cmdline):
