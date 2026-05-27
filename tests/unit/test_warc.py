@@ -155,7 +155,7 @@ def test_unique_warc_filename():
 
     # Test case 1: Basic filename generation with gzip and no subprefix
     writer = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix=None, info={'software': 'test'}, gzip=True
+        prefix='/tmp/test-prefix', subprefix=None, info='test info', gzip=True
     )
 
     filename = writer._unique_warc_filename()
@@ -166,7 +166,7 @@ def test_unique_warc_filename():
 
     # Test case 2: Filename generation without gzip
     writer_no_gzip = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix=None, info={'software': 'test'}, gzip=False
+        prefix='/tmp/test-prefix', subprefix=None, info='test info', gzip=False
     )
 
     filename = writer_no_gzip._unique_warc_filename()
@@ -176,7 +176,7 @@ def test_unique_warc_filename():
 
     # Test case 3: Filename generation with subprefix
     writer_subprefix = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix='mysub', info={'software': 'test'}, gzip=True
+        prefix='/tmp/test-prefix', subprefix='mysub', info='test info', gzip=True
     )
 
     filename = writer_subprefix._unique_warc_filename()
@@ -186,7 +186,7 @@ def test_unique_warc_filename():
 
     # Test case 4: Filename generation with subprefix and no gzip
     writer_subprefix_no_gzip = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-prefix', subprefix='another', info={'software': 'test'}, gzip=False
+        prefix='/tmp/test-prefix', subprefix='another', info='test info', gzip=False
     )
 
     filename = writer_subprefix_no_gzip._unique_warc_filename()
@@ -197,7 +197,7 @@ def test_unique_warc_filename():
 
     # Test case 5: Handling of existing files - should increment segment
     writer_increment = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-increment', subprefix=None, info={'software': 'test'}, gzip=True
+        prefix='/tmp/test-increment', subprefix=None, info='test info', gzip=True
     )
 
     # Mock the file_system.exists to simulate existing files
@@ -224,7 +224,7 @@ def test_unique_warc_filename():
 
     # Test case 6: Multiple segments with subprefix
     writer_multi = cdx_toolkit.warc.CDXToolkitWARCWriter(
-        prefix='/tmp/test-multi', subprefix='batch1', info={'software': 'test'}, gzip=True
+        prefix='/tmp/test-multi', subprefix='batch1', info='test info', gzip=True
     )
     writer_multi.segment = 5
 
