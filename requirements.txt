@@ -8,6 +8,10 @@ surt>=0.3.1
 tqdm>=4.67.1
 url-is-in>=0.1.1
 
+# optional S3 dependencies (install via cdx_toolkit[s3])
+fsspec[s3]
+botocore
+
 # used by Makefile
 pytest>=6.2.4
 pytest-cov>=2.12.1

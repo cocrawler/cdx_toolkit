@@ -1,5 +1,7 @@
 import os
 
+CACHE_DIR = os.environ.get('CDXT_CACHE_DIR', '~/.cache/cdx_toolkit/')
+
 MAX_ERRORS = int(os.environ.get('CDXT_MAX_ERRORS', 100))
 WARNING_AFTER_N_ERRORS = int(os.environ.get('CDXT_WARNING_AFTER_N_ERRORS', 10))
 

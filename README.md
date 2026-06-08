@@ -24,6 +24,13 @@ $ pip install cdx_toolkit
 
 or clone this repo and use `pip install .`
 
+Optional extras:
+
+```
+$ pip install cdx_toolkit[s3]   # enable S3 and other remote filesystem support
+$ pip install cdx_toolkit[all]  # install all optional dependencies
+```
+
 ## Command-line tools
 
 ```
@@ -381,7 +388,7 @@ cdx_toolkit has reached the beta-testing stage of development.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on contributing
 and running tests.
 
 ## License

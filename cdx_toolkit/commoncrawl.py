@@ -9,7 +9,7 @@ import os.path
 import json
 import logging
 
-from cdx_toolkit.settings import get_mock_time
+from cdx_toolkit.settings import CACHE_DIR, get_mock_time
 
 from .myrequests import myrequests_get
 from .timeutils import (
@@ -36,7 +36,7 @@ def normalize_crawl(crawl):
 
 
 def get_cache_names(cc_mirror):
-    cache = os.path.expanduser('~/.cache/cdx_toolkit/')
+    cache = os.path.expanduser(CACHE_DIR)
     filename = re.sub(r'[^\w]', '_', cc_mirror.replace('https://', ''))
     return cache, filename
 

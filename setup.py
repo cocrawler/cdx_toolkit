@@ -11,15 +11,18 @@ packages = find_packages(include=['cdx_toolkit*'])
 requires = ['requests', 'warcio', 'fsspec[s3]', 'aioboto3', 'surt', 'tqdm', 'url-is-in>=0.1.1']
 
 test_requirements = ['pytest', 'pytest-cov', 'flake8', 'responses']
+optional_s3_requirements = ['fsspec[s3]', 'botocore']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
 dev_requirements = ['pre-commit']
 
 extras_require = {
+    's3': optional_s3_requirements,
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
     'dev': package_requirements,
+    'all': test_requirements + package_requirements + dev_requirements + optional_s3_requirements,
 }
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']
@@ -59,8 +62,8 @@ setup(
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
-        #'Programming Language :: Python :: 3.5',  # setuptools-scm problem
-        #'Programming Language :: Python :: 3.6',  # not offered in github actions
+        # 'Programming Language :: Python :: 3.5',  # setuptools-scm problem
+        # 'Programming Language :: Python :: 3.6',  # not offered in github actions
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',

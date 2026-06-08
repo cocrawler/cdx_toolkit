@@ -1,4 +1,4 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 import logging
 import csv
 import sys
@@ -7,7 +7,7 @@ import os
 
 import cdx_toolkit
 
-from cdx_toolkit.utils import get_version, setup
+from cdx_toolkit.utils import get_version, setup_cdx_fetcher_and_kwargs
 
 from cdx_toolkit.filter_cdx.command import run_filter_cdx
 from cdx_toolkit.filter_cdx.args import add_filter_cdx_args
@@ -154,7 +154,7 @@ def main(args=None):
     cmd.func(cmd, cmdline)
 
 
-def set_loglevel(cmd):
+def set_loglevel(cmd: Namespace):
     loglevel = os.getenv('LOGLEVEL') or 'WARNING'
     if cmd.verbose:
         if cmd.verbose > 0:
@@ -170,7 +170,7 @@ def set_loglevel(cmd):
     LOGGER.info('set loglevel to %s', str(loglevel))
 
 
-def winnow_fields(cmd, fields, obj):
+def winnow_fields(cmd: Namespace, fields, obj):
     if cmd.all_fields:
         printme = obj
     else:
@@ -178,7 +178,7 @@ def winnow_fields(cmd, fields, obj):
     return printme
 
 
-def print_line(cmd, writer, printme):
+def print_line(cmd: Namespace, writer, printme):
     if cmd.jsonl:
         print(json.dumps(printme, sort_keys=True))
     elif writer:
@@ -187,8 +187,8 @@ def print_line(cmd, writer, printme):
         print(', '.join([' '.join((k, printme[k])) for k in sorted(printme.keys())]))
 
 
-def iterator(cmd, cmdline):
-    cdx, kwargs = setup(cmd)
+def iterator(cmd: Namespace, cmdline):
+    cdx, kwargs = setup_cdx_fetcher_and_kwargs(cmd)
     fields = set(cmd.fields.split(','))
     if cmd.csv:
         writer = csv.DictWriter(sys.stdout, fieldnames=sorted(list(fields)))
@@ -208,8 +208,8 @@ def iterator(cmd, cmdline):
         print_line(cmd, writer, printme)
 
 
-def warcer(cmd, cmdline):
-    cdx, kwargs = setup(cmd)
+def warcer(cmd: Namespace, cmdline: str):
+    cdx, kwargs = setup_cdx_fetcher_and_kwargs(cmd)
 
     ispartof = cmd.prefix
     if cmd.subprefix:
@@ -231,31 +231,30 @@ def warcer(cmd, cmdline):
         kwargs_writer['size'] = kwargs['size']
         del kwargs['size']
 
-    writer = cdx_toolkit.warc.get_writer(cmd.prefix, cmd.subprefix, info, **kwargs_writer)
-
-    for obj in cdx.iter(cmd.url, **kwargs):
-        url = obj['url']
-        if cmd.url_fgrep and cmd.url_fgrep not in url:
-            LOGGER.debug('not warcing due to fgrep: %s', url)
-            continue
-        if cmd.url_fgrepv and cmd.url_fgrepv in url:
-            LOGGER.debug('not warcing due to fgrepv: %s', url)
-            continue
-        timestamp = obj['timestamp']
-        try:
-            record = obj.fetch_warc_record()
-        except RuntimeError:  # pragma: no cover
-            LOGGER.warning('skipping capture for RuntimeError 404: %s %s', url, timestamp)
-            continue
-        if obj.is_revisit():
-            LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
-        writer.write_record(record)
+    with cdx_toolkit.warc.get_writer(cmd.prefix, cmd.subprefix, info, **kwargs_writer) as writer:
+        for obj in cdx.iter(cmd.url, **kwargs):
+            url = obj['url']
+            if cmd.url_fgrep and cmd.url_fgrep not in url:
+                LOGGER.debug('not warcing due to fgrep: %s', url)
+                continue
+            if cmd.url_fgrepv and cmd.url_fgrepv in url:
+                LOGGER.debug('not warcing due to fgrepv: %s', url)
+                continue
+            timestamp = obj['timestamp']
+            try:
+                record = obj.fetch_warc_record()
+            except RuntimeError:  # pragma: no cover
+                LOGGER.warning('skipping capture for RuntimeError 404: %s %s', url, timestamp)
+                continue
+            if obj.is_revisit():
+                LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
+            writer.write_record(record)
 
     writer.close()
 
 
-def sizer(cmd, cmdline):
-    cdx, kwargs = setup(cmd)
+def sizer(cmd: Namespace, cmdline):
+    cdx, kwargs = setup_cdx_fetcher_and_kwargs(cmd)
 
     size = cdx.get_size_estimate(cmd.url, **kwargs)
     print(size)
