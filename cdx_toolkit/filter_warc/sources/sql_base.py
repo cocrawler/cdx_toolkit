@@ -31,18 +31,30 @@ def escape_sql_literal(value: str) -> str:
     return "'" + value + "'"
 
 
-def build_where_sql(url_host_names: List[str], crawls: Optional[List[str]] = None) -> str:
+def build_where_sql(
+    url_host_names: Optional[List[str]] = None,
+    crawls: Optional[List[str]] = None,
+    url_host_registered_domains: Optional[List[str]] = None,
+) -> str:
     """Build the WHERE body (without the `WHERE` keyword) shared by all SQL engines.
 
-    If `crawls` is a non-empty list of crawl names (e.g. ['CC-MAIN-2025-33']), a
-    `crawl IN (...)` partition filter is added -- the main lever for reducing scan
+    The guided filter matches on `url_host_name` (exact host, e.g. www.example.com)
+    and/or `url_host_registered_domain` (e.g. example.com, which also covers its
+    subdomains); predicates are OR-ed together. At least one host or domain is
+    required. If `crawls` is a non-empty list of crawl names (e.g. ['CC-MAIN-2025-33']),
+    a `crawl IN (...)` partition filter is added -- the main lever for reducing scan
     cost. Engines differ only in their FROM clause (see build_sql)."""
-    if not url_host_names:
-        raise ValueError('an index query requires at least one hostname')
+    url_host_names = url_host_names or []
+    domains = url_host_registered_domains or []
+    if not url_host_names and not domains:
+        raise ValueError('an index query requires at least one hostname or registered domain')
 
-    tlds = sorted({h.split('.')[-1] for h in url_host_names})
+    tlds = sorted({v.split('.')[-1] for v in (list(url_host_names) + list(domains))})
     query_tlds = ' OR '.join(f'url_host_tld = {escape_sql_literal(t)}' for t in tlds)
-    query_hosts = ' OR '.join(f'url_host_name = {escape_sql_literal(h)}' for h in url_host_names)
+
+    host_predicates = [f'url_host_name = {escape_sql_literal(h)}' for h in url_host_names]
+    host_predicates += [f'url_host_registered_domain = {escape_sql_literal(d)}' for d in domains]
+    query_hosts = ' OR '.join(host_predicates)
 
     clauses = [
         "subset = 'warc'",
@@ -59,15 +71,16 @@ def build_where_sql(url_host_names: List[str], crawls: Optional[List[str]] = Non
 
 def build_sql(
     from_clause: str,
-    url_host_names: List[str],
+    url_host_names: Optional[List[str]] = None,
     crawls: Optional[List[str]] = None,
     limit: int = 0,
+    url_host_registered_domains: Optional[List[str]] = None,
 ) -> str:
     """Assemble a full SELECT for the columnar index.
 
     `from_clause` is the text following FROM (e.g. `ccindex` for Athena, or a
     `read_parquet(...)` expression for DuckDB)."""
-    where_sql = build_where_sql(url_host_names, crawls)
+    where_sql = build_where_sql(url_host_names, crawls, url_host_registered_domains=url_host_registered_domains)
     limit_sql = f'\n    LIMIT {limit}' if limit and limit > 0 else ''
 
     return f"""
@@ -78,13 +91,17 @@ def build_sql(
 
 
 def build_athena_query(
-    url_host_names: List[str],
+    url_host_names: Optional[List[str]] = None,
     crawls: Optional[List[str]] = None,
     limit: int = 0,
     table: str = 'ccindex',
+    url_host_registered_domains: Optional[List[str]] = None,
 ) -> str:
-    """Athena flavour of build_sql (FROM <table>). Kept for the athena_job_generator shim."""
-    return build_sql(table, url_host_names, crawls=crawls, limit=limit)
+    """Athena flavour of build_sql (FROM <table>)."""
+    return build_sql(
+        table, url_host_names, crawls=crawls, limit=limit,
+        url_host_registered_domains=url_host_registered_domains,
+    )
 
 
 def validate_result_columns(column_names) -> None:

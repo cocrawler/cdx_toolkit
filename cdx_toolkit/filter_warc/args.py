@@ -32,9 +32,19 @@ def add_repackage_args(parser: argparse.ArgumentParser):
         type=str,
         nargs='+',
         default=None,
-        help=('Hostnames to filter for (whitelist) via the SQL index. Use this OR '
-              '--query/--query-file (mutually exclusive). Combine with the global --crawl to '
-              'restrict the scan to specific crawls (strongly recommended for cost).'),
+        help=('Exact hostnames (url_host_name, e.g. www.example.com) to filter for via the SQL '
+              'index. Combine with --domains; mutually exclusive with --query/--query-file. '
+              'Combine with the global --crawl to restrict the scan to specific crawls '
+              '(strongly recommended for cost).'),
+    )
+    parser.add_argument(
+        '--domains',
+        type=str,
+        nargs='+',
+        default=None,
+        help=('Registered domains (url_host_registered_domain, e.g. example.com) to filter for via '
+              'the SQL index; also matches subdomains. Combine with --hostnames; mutually exclusive '
+              'with --query/--query-file.'),
     )
     parser.add_argument(
         '--query',

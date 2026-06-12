@@ -33,11 +33,12 @@ def make_source(args, *, warc_download_prefix: Optional[str], record_limit: int)
     raise ValueError(f'Invalid target source: {target} (available: cdx, sql, csv)')
 
 
-def _resolve_sql_query_spec(args) -> Tuple[Optional[str], Optional[list], Optional[list]]:
-    """Validate the query-defining flags and return (raw_sql, hostnames, crawls).
+def _resolve_sql_query_spec(args) -> Tuple[Optional[str], Optional[list], Optional[list], Optional[list]]:
+    """Validate the query-defining flags and return (raw_sql, hostnames, domains, crawls).
 
-    Exactly one of {--hostnames} / {--query|--query-file} must be given. For the
-    guided (hostnames) path, --crawl is resolved to concrete crawl names."""
+    The guided path (--hostnames and/or --domains) and a raw query
+    (--query/--query-file) are mutually exclusive. For the guided path, --crawl is
+    resolved to concrete crawl names."""
     raw_sql = args.query
     if args.query_file:
         if raw_sql:
@@ -45,16 +46,17 @@ def _resolve_sql_query_spec(args) -> Tuple[Optional[str], Optional[list], Option
         with open(args.query_file) as f:
             raw_sql = f.read()
 
-    if raw_sql and args.hostnames:
-        raise ValueError('--query/--query-file are mutually exclusive with --hostnames')
-    if not raw_sql and not args.hostnames:
-        raise ValueError('the sql target requires either --hostnames or --query/--query-file')
+    has_guided = bool(args.hostnames) or bool(args.domains)
+    if raw_sql and has_guided:
+        raise ValueError('--query/--query-file are mutually exclusive with --hostnames/--domains')
+    if not raw_sql and not has_guided:
+        raise ValueError('the sql target requires --hostnames, --domains, or --query/--query-file')
 
     if raw_sql:
-        return raw_sql, None, None
+        return raw_sql, None, None, None
 
     crawls = resolve_crawl_names(args.crawl) if args.crawl else None
-    return None, args.hostnames, crawls
+    return None, args.hostnames, args.domains, crawls
 
 
 def _make_sql_source(args, warc_download_prefix, record_limit) -> RangeJobSource:
@@ -62,7 +64,7 @@ def _make_sql_source(args, warc_download_prefix, record_limit) -> RangeJobSource
     if not engine:
         raise ValueError('--engine is required for --target-source sql (choices: athena, duckdb)')
 
-    raw_sql, hostnames, crawls = _resolve_sql_query_spec(args)
+    raw_sql, hostnames, domains, crawls = _resolve_sql_query_spec(args)
     limit = 0 if record_limit is None else record_limit
 
     if engine == 'athena':
@@ -70,7 +72,9 @@ def _make_sql_source(args, warc_download_prefix, record_limit) -> RangeJobSource
         if not args.athena_s3_output:
             raise ValueError('--athena-s3-output is required for --engine athena')
         database = args.athena_database or 'ccindex'
-        query = raw_sql if raw_sql else build_athena_query(hostnames, crawls=crawls, limit=limit)
+        query = raw_sql if raw_sql else build_athena_query(
+            hostnames, crawls=crawls, limit=limit, url_host_registered_domains=domains,
+        )
         n_crawls = None if raw_sql else (len(crawls) if crawls else None)
         return AthenaSource(
             query=query,
@@ -85,6 +89,7 @@ def _make_sql_source(args, warc_download_prefix, record_limit) -> RangeJobSource
         return DuckDbSource(
             query=raw_sql,
             hostnames=hostnames,
+            domains=domains,
             crawls=crawls,
             index_path=args.duckdb_index_path,
             warc_download_prefix=warc_download_prefix,

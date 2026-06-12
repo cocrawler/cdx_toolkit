@@ -15,6 +15,7 @@ def make_args(**kw):
         target_source='cdx',
         engine=None,
         hostnames=None,
+        domains=None,
         query=None,
         query_file=None,
         athena_database=None,
@@ -71,9 +72,37 @@ def test_sql_query_and_query_file_mutually_exclusive(tmp_path):
         build(target_source='sql', engine='athena', query='SELECT 1', query_file=str(f))
 
 
-def test_sql_neither_hostnames_nor_query():
+def test_sql_neither_hostnames_domains_nor_query():
     with pytest.raises(ValueError):
         build(target_source='sql', engine='athena')
+
+
+def test_sql_domains_and_query_mutually_exclusive():
+    with pytest.raises(ValueError):
+        build(target_source='sql', engine='athena', domains=['example.com'], query='SELECT 1')
+
+
+def test_athena_domains_only():
+    src = build(target_source='sql', engine='athena', domains=['example.com'])
+    assert isinstance(src, AthenaSource)
+    assert 'url_host_registered_domain = \'example.com\'' in src.query
+    assert 'url_host_name' not in src.query
+
+
+def test_athena_hostnames_and_domains_combined():
+    src = build(target_source='sql', engine='athena', hostnames=['www.example.com'], domains=['example.org'])
+    assert "url_host_name = 'www.example.com'" in src.query
+    assert "url_host_registered_domain = 'example.org'" in src.query
+    # TLDs from both hostnames and domains
+    assert "url_host_tld = 'com'" in src.query
+    assert "url_host_tld = 'org'" in src.query
+
+
+def test_duckdb_domains_only():
+    src = build(target_source='sql', engine='duckdb', domains=['commoncrawl.org'])
+    q = src._build_query()
+    assert "url_host_registered_domain = 'commoncrawl.org'" in q
+    assert 'read_parquet' in q
 
 
 # --- athena ---

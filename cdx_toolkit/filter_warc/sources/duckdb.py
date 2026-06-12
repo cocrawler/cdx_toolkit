@@ -40,6 +40,7 @@ class DuckDbSource(RangeJobSource):
         *,
         query: Optional[str] = None,
         hostnames: Optional[List[str]] = None,
+        domains: Optional[List[str]] = None,
         crawls: Optional[List[str]] = None,
         index_path: str,
         warc_download_prefix: Optional[str],
@@ -48,6 +49,7 @@ class DuckDbSource(RangeJobSource):
     ):
         self.raw_query = query
         self.hostnames = hostnames
+        self.domains = domains
         self.crawls = crawls
         self.index_path = index_path
         self.warc_download_prefix = warc_download_prefix
@@ -64,7 +66,10 @@ class DuckDbSource(RangeJobSource):
             return self.raw_query
         from_clause = _build_from_clause(self.index_path, self.crawls)
         # crawl pruning is done in the FROM glob, so no crawl IN (...) in the WHERE
-        return build_sql(from_clause, self.hostnames, crawls=None, limit=self.limit)
+        return build_sql(
+            from_clause, self.hostnames, crawls=None, limit=self.limit,
+            url_host_registered_domains=self.domains,
+        )
 
     def iter_range_jobs(self) -> Iterator[RangeJob]:
         if not _HAS_DUCKDB:
@@ -79,6 +84,12 @@ class DuckDbSource(RangeJobSource):
         try:
             con.execute('INSTALL httpfs; LOAD httpfs;')
             con.execute(f"SET s3_region='{self.region_name}';")
+            # Be resilient to transient S3 read timeouts on large parquet partitions.
+            for stmt in ('SET http_timeout=120000;', 'SET http_retries=5;'):
+                try:
+                    con.execute(stmt)
+                except Exception as e:  # pragma: no cover - setting unsupported on this duckdb
+                    logger.debug('duckdb setting skipped: %s (%r)', stmt, e)
             cur = con.execute(query)
 
             col_names = [d[0] for d in cur.description]

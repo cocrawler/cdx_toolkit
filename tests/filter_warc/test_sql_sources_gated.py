@@ -84,3 +84,22 @@ def test_repackage_sql_duckdb_e2e(tmpdir):
             '--confirm-cost',
         ],
     )
+
+
+@requires_aws_s3
+@requires_duckdb
+def test_repackage_sql_duckdb_domain_e2e(tmpdir):
+    # Domain filtering (url_host_registered_domain) also matches subdomains; bound it
+    # with --limit to keep the live verification cheap.
+    _produce_and_consume(
+        tmpdir,
+        [
+            '--crawl', CRAWL,
+            '--limit', '10',
+            'repackage',
+            '--target-source=sql',
+            '--engine=duckdb',
+            '--domains', HOST,
+            '--confirm-cost',
+        ],
+    )
