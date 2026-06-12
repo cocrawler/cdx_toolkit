@@ -23,7 +23,22 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         type=str,
         nargs="+",
         default=None,
-        help='Hostnames to filter for via Athena (whitelist). Required if target source is set to `athena`.',
+        help=('Hostnames to filter for via Athena (whitelist). Use this OR --athena-query/'
+              '--athena-query-file (mutually exclusive) when target source is `athena`.'),
+    )
+    parser.add_argument(
+        '--athena-query',
+        type=str,
+        default=None,
+        help=('Raw Athena SQL to run instead of the hostname-based query (power users). The query '
+              'must SELECT the columns warc_filename, warc_record_offset, warc_record_length. '
+              'Mutually exclusive with --athena-hostnames and --athena-query-file.'),
+    )
+    parser.add_argument(
+        '--athena-query-file',
+        type=str,
+        default=None,
+        help='Path to a file containing the raw Athena SQL (alternative to --athena-query).',
     )
     parser.add_argument(
         '--athena-database',
@@ -36,6 +51,12 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         type=str,
         default=None,
         help='Athena S3 output location. Required if target source is set to `athena`.',
+    )
+    parser.add_argument(
+        '--confirm-athena-cost',
+        action='store_true',
+        help=('Skip the Athena cost-confirmation prompt and run even unpartitioned / large-scan '
+              'queries. Athena bills per TB scanned; restrict with --crawl to reduce cost.'),
     )
     parser.add_argument('--prefix', default='TEST', help='prefix for the output warc filename')
     parser.add_argument(
@@ -105,6 +126,8 @@ def add_warcer_by_cdx_args(parser: argparse.ArgumentParser):
         '--target-source',
         action='store',
         default='cdx',
-        help='Source from that the filter targets are loaded (available options: `cdx`, `athena`; defaults to `cdx`)',
+        help=('Source from that the filter targets are loaded (available options: `cdx`, `athena`; '
+              'defaults to `cdx`). For `athena`, use the global --crawl to restrict the scan to '
+              'specific crawls (strongly recommended; Athena bills per TB scanned).'),
     )
     return parser

@@ -283,6 +283,7 @@ def test_cli_warc_by_athena(
             '--athena-hostnames',
             'oceancolor.sci.gsfc.nasa.gov',
             'example.com',
+            '--confirm-athena-cost',
             f'--prefix={base_prefix}/TEST_warc_by_index',
             '--creator=foo',
             '--operator=bob',

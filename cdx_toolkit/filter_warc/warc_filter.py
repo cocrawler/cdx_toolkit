@@ -50,7 +50,7 @@ class WARCFilter:
         target_source: TargetSourceType = 'cdx',
         cdx_paths: Optional[List[str]] = None,
         athena_database: Optional[str] = None,
-        athena_hostnames: Optional[List[str]] = None,
+        athena_query: Optional[str] = None,
         athena_s3_output_location: Optional[str] = None,
         writer_subprefix: Optional[str] = None,
         write_paths_as_metadata_records: Optional[List[str]] = None,
@@ -78,7 +78,7 @@ class WARCFilter:
             target_source: Source of filter targets (Athena query or CDX files).
             cdx_paths: List of paths to CDX index files.
             athena_database: Database for Athena query.
-            athena_hostnames: Hostnames for Athena query.
+            athena_query: Prepared Athena SQL string to execute (built by the caller).
             athena_s3_output_location: S3 output location for Athena query.
             prefix_path: Output path prefix for filtered WARC files.
             writer_info: Dictionary containing writer metadata.
@@ -106,7 +106,7 @@ class WARCFilter:
         self.target_source: TargetSourceType = target_source
         self.athena_database = athena_database
         self.athena_s3_output_location = athena_s3_output_location
-        self.athena_hostnames = athena_hostnames
+        self.athena_query = athena_query
         self.prefix_path = prefix_path
         self.writer_info = writer_info
         self.writer_subprefix = writer_subprefix
@@ -314,14 +314,13 @@ class WARCFilter:
             job_generators = asyncio.create_task(
                 get_range_jobs_from_athena(
                     client=job_aws_client,
+                    query=self.athena_query,
                     database=self.athena_database,
                     s3_output_location=self.athena_s3_output_location,
                     job_queue=range_jobs_queue,
                     queue_stop_object=_STOP,
-                    url_host_names=self.athena_hostnames,
                     warc_download_prefix=self.warc_download_prefix,
                     num_fetchers=self.num_readers,
-                    limit=self.record_limit,
                 )
             )
         else:
