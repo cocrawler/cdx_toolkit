@@ -12,6 +12,7 @@ requires = ['requests', 'warcio', 'fsspec[s3]', 'aioboto3', 'surt', 'tqdm', 'url
 
 test_requirements = ['pytest', 'pytest-cov', 'flake8', 'responses']
 optional_s3_requirements = ['fsspec[s3]', 'botocore']
+optional_duckdb_requirements = ['duckdb']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
@@ -19,10 +20,14 @@ dev_requirements = ['pre-commit']
 
 extras_require = {
     's3': optional_s3_requirements,
+    'duckdb': optional_duckdb_requirements,
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
     'dev': package_requirements,
-    'all': test_requirements + package_requirements + dev_requirements + optional_s3_requirements,
+    'all': (
+        test_requirements + package_requirements + dev_requirements
+        + optional_s3_requirements + optional_duckdb_requirements
+    ),
 }
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']

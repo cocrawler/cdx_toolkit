@@ -1,12 +1,12 @@
 import pytest
 
-from cdx_toolkit.filter_warc.athena_job_generator import (
+from cdx_toolkit.filter_warc.sources.sql_base import (
     build_athena_query,
     escape_sql_literal,
     validate_result_columns,
     join_warc_url,
-    run_athena_query,
 )
+from cdx_toolkit.filter_warc.sources.athena import run_athena_query
 
 
 class _FakeAthenaClient:

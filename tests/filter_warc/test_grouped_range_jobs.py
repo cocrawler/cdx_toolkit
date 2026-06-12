@@ -5,7 +5,7 @@ from tests.conftest import TEST_DATA_PATH
 def test_iter_cdx_index_from_test_data():
     cdx_path = TEST_DATA_PATH / 'warc_by_cdx/filtered_CC-MAIN-2024-30_cdx-00187.gz'
     results = list(iter_cdx_index_from_path(str(cdx_path), 'http://warc-prefix'))
-    # [(url, offset, length)]
+    # [(url, offset, length, filename)]
 
     # sort results by offsets
     results.sort(key=lambda x: x[1])
@@ -20,8 +20,8 @@ def test_iter_cdx_index_from_test_data():
         current_chunk = [items[0]]
 
         for i in range(1, len(items)):
-            prev_url, prev_offset, prev_length = items[i - 1]
-            curr_url, curr_offset, curr_length = items[i]
+            prev_url, prev_offset, prev_length = items[i - 1][:3]
+            curr_url, curr_offset, curr_length = items[i][:3]
 
             # Check if current item is a neighbor (same URL and contiguous)
             if curr_url == prev_url and curr_offset == prev_offset + prev_length + 4:

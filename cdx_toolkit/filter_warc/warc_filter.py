@@ -2,28 +2,24 @@ import asyncio
 import logging
 import statistics
 import sys
-from typing import List, Literal, Optional, Dict
+from typing import List, Optional, Dict
 
 
 from botocore.config import Config
 
-from cdx_toolkit.filter_warc.athena_job_generator import get_range_jobs_from_athena
 from cdx_toolkit.filter_warc.s3_utils import (
     is_s3_url,
 )
 from cdx_toolkit.filter_warc.data_classes import RangeJob, RangePayload, ThroughputTracker
 from cdx_toolkit.filter_warc.warc_utils import create_new_writer_with_header
-from cdx_toolkit.filter_warc.cdx_utils import (
-    iter_cdx_index_from_path,
-)
+from cdx_toolkit.filter_warc.sources.base import RangeJobSource
+from cdx_toolkit.filter_warc.sources.csv import RangeJobCsvWriter
 from cdx_toolkit.filter_warc.warc_utils import get_bytes_from_warc_record, get_metadata_record_from_path
 
 
 _STOP = object()
 
 logger = logging.getLogger(__name__)
-
-TargetSourceType = Literal['cdx', 'athena']
 
 
 class WARCFilter:
@@ -47,11 +43,10 @@ class WARCFilter:
         self,
         prefix_path: str,
         writer_info: Dict,
-        target_source: TargetSourceType = 'cdx',
-        cdx_paths: Optional[List[str]] = None,
-        athena_database: Optional[str] = None,
-        athena_query: Optional[str] = None,
-        athena_s3_output_location: Optional[str] = None,
+        source: RangeJobSource,
+        range_jobs_output: Optional[str] = None,
+        no_fetch: bool = False,
+        csv_self_contained: bool = False,
         writer_subprefix: Optional[str] = None,
         write_paths_as_metadata_records: Optional[List[str]] = None,
         record_limit: int = 0,
@@ -75,11 +70,13 @@ class WARCFilter:
         """Initialize the WARC filter.
 
         Args:
-            target_source: Source of filter targets (Athena query or CDX files).
-            cdx_paths: List of paths to CDX index files.
-            athena_database: Database for Athena query.
-            athena_query: Prepared Athena SQL string to execute (built by the caller).
-            athena_s3_output_location: S3 output location for Athena query.
+            source: RangeJobSource that yields the WARC ranges to repackage.
+            range_jobs_output: Optional path; if set, each generated RangeJob is
+                written to this CSV (materialization).
+            no_fetch: If True, only generate range jobs (and write range_jobs_output);
+                skip fetching/writing WARC records entirely.
+            csv_self_contained: If True, range_jobs_output stores full URLs instead of
+                relative filenames.
             prefix_path: Output path prefix for filtered WARC files.
             writer_info: Dictionary containing writer metadata.
             writer_subprefix: Optional subprefix for writer output paths.
@@ -102,11 +99,10 @@ class WARCFilter:
             min_part_size: Minimum part byte size for multipart uploads (default: 5 MiB).
             max_file_size: Maximum byte size for individual WARC files (default: 1 GiB).
         """
-        self.cdx_paths = cdx_paths
-        self.target_source: TargetSourceType = target_source
-        self.athena_database = athena_database
-        self.athena_s3_output_location = athena_s3_output_location
-        self.athena_query = athena_query
+        self.source = source
+        self.range_jobs_output = range_jobs_output
+        self.no_fetch = no_fetch
+        self.csv_self_contained = csv_self_contained
         self.prefix_path = prefix_path
         self.writer_info = writer_info
         self.writer_subprefix = writer_subprefix
@@ -131,7 +127,6 @@ class WARCFilter:
             else max(int(self.num_readers / self.fetcher_to_consumer_ratio), 1)
         )
 
-        # self.gzip = self.cdx_paths[0].endswith('.gz') if self.cdx_paths else False
         self.gzip = True
 
         self.warc_version = warc_version
@@ -153,17 +148,15 @@ class WARCFilter:
         return -1
 
     def needs_aws(self) -> bool:
-        """Returns true if AWS (S3/Athena) is needed at any stage.
+        """Returns true if the read/write (stage 2/3) S3 clients are needed.
 
-        Returns:
-            bool: True if AWS client is needed for any operation.
+        Sources own their own stage-1 resource (Athena client / DuckDB connection /
+        fsspec), so this only concerns WARC reads and output writes. With no_fetch
+        there are no reads/writes at all.
         """
-        return (
-            self.target_source == 'athena'  # stage 1
-            or (self.cdx_paths is not None and len(self.cdx_paths) > 0 and is_s3_url(self.cdx_paths[0]))  # stage 1
-            or is_s3_url(self.warc_download_prefix)  # stage 3
-            or is_s3_url(self.prefix_path)  # stage 3
-        )
+        if self.no_fetch:
+            return False
+        return is_s3_url(self.warc_download_prefix) or is_s3_url(self.prefix_path)
 
     def get_boto3_base_config(self) -> Dict:
         """Get boto3 base configuration for AWS client.
@@ -184,10 +177,10 @@ class WARCFilter:
         )
 
     async def get_aws_clients(self) -> Optional[Dict]:
-        """Return S3/Athena clients for job/read/write if needed.
+        """Return async S3 clients for WARC reads/writes if needed.
 
-        Returns:
-            Optional[aioboto3.Session.client]: S3/Athena client context manager if S3/Athena is needed, None otherwise.
+        Stage-1 clients/connections are owned by the source, so this only builds the
+        read/write S3 clients used to fetch WARC ranges and write output.
 
         Raises:
             SystemExit: If S3 is needed but Python version is < 3.9.
@@ -198,22 +191,8 @@ class WARCFilter:
                 sys.exit(1)
 
             import aioboto3
-            import boto3
 
             session = aioboto3.Session()
-
-            # Lightweight config for CDX index reads
-            job_config = Config(
-                max_pool_connections=5,
-                read_timeout=60,
-                **self.get_boto3_base_config(),
-            )
-
-            if self.target_source == 'athena':
-                # Athena does not need an async client
-                job_client = boto3.client('athena', config=job_config)
-            else:
-                job_client = session.client('s3', config=job_config)
 
             # High-throughput config for range reads
             read_config = Config(
@@ -232,7 +211,6 @@ class WARCFilter:
             )
 
             return {
-                'job': job_client,
                 'read': session.client('s3', config=read_config),
                 'write': session.client('s3', config=write_config),
             }
@@ -245,86 +223,99 @@ class WARCFilter:
         Returns:
             int: Number of records written.
         """
+        # Materialize-only: just drain the source into the range-jobs CSV.
+        if self.no_fetch:
+            return await self._run_materialize_only()
+
         range_jobs_queue: asyncio.Queue = asyncio.Queue(maxsize=self.range_jobs_queue_size)
         warc_records_queue: asyncio.Queue = asyncio.Queue(maxsize=self.warc_records_queue_size)
 
         if self.needs_aws():
             clients = await self.get_aws_clients()
-
-            # Handle mixed async/sync clients - Athena client is sync, S3 clients are async
-            if self.target_source == 'athena':
-                job_aws_client = clients['job']  # Sync client, no context manager needed
-                async with clients['read'] as read_aws_client, clients['write'] as write_aws_client:
-                    return await self._run_filter_pipeline(
-                        range_jobs_queue=range_jobs_queue,
-                        warc_records_queue=warc_records_queue,
-                        job_aws_client=job_aws_client,
-                        read_s3_client=read_aws_client,
-                        write_s3_client=write_aws_client,
-                    )
-            else:
-                async with clients['job'] as job_aws_client, clients['read'] as read_aws_client, clients[
-                    'write'
-                ] as write_aws_client:
-                    return await self._run_filter_pipeline(
-                        range_jobs_queue=range_jobs_queue,
-                        warc_records_queue=warc_records_queue,
-                        job_aws_client=job_aws_client,
-                        read_s3_client=read_aws_client,
-                        write_s3_client=write_aws_client,
-                    )
+            async with clients['read'] as read_aws_client, clients['write'] as write_aws_client:
+                return await self._run_filter_pipeline(
+                    range_jobs_queue=range_jobs_queue,
+                    warc_records_queue=warc_records_queue,
+                    read_s3_client=read_aws_client,
+                    write_s3_client=write_aws_client,
+                )
         else:
             return await self._run_filter_pipeline(
                 range_jobs_queue=range_jobs_queue,
                 warc_records_queue=warc_records_queue,
             )
 
+    def _make_csv_writer(self) -> Optional[RangeJobCsvWriter]:
+        if self.range_jobs_output is None:
+            return None
+        return RangeJobCsvWriter(self.range_jobs_output, self_contained=self.csv_self_contained)
+
+    async def _produce_range_jobs(self, range_jobs_queue: Optional[asyncio.Queue], csv_writer) -> int:
+        """Drive the (sync) source in a worker thread, feeding the async queue.
+
+        Owns counting, the record limit, and (when a queue is present) emitting one
+        _STOP sentinel per reader in a finally -- so readers never hang even if the
+        source raises mid-iteration."""
+        loop = asyncio.get_running_loop()
+        count = 0
+
+        def drain() -> int:
+            nonlocal count
+            for job in self.source.iter_range_jobs():
+                if csv_writer is not None:
+                    csv_writer.write(job)
+                if range_jobs_queue is not None:
+                    asyncio.run_coroutine_threadsafe(range_jobs_queue.put(job), loop).result()
+                count += 1
+                if self.record_limit and count >= self.record_limit:
+                    logger.warning('Limit reached at %i', count)
+                    break
+            return count
+
+        try:
+            await asyncio.to_thread(drain)
+        finally:
+            if csv_writer is not None:
+                csv_writer.close()
+            if range_jobs_queue is not None:
+                for _ in range(self.num_readers):
+                    await range_jobs_queue.put(_STOP)
+
+        logger.info('Generated %d range jobs', count)
+        return count
+
+    async def _run_materialize_only(self) -> int:
+        """--no-fetch: generate range jobs and write only the range-jobs CSV."""
+        csv_writer = self._make_csv_writer()
+        if csv_writer is None:
+            logger.warning('--no-fetch set without --range-jobs-output: nothing to do')
+        count = await self._produce_range_jobs(range_jobs_queue=None, csv_writer=csv_writer)
+        logger.info('Materialized %d range jobs (no WARC fetch)', count)
+        return count
+
     async def _run_filter_pipeline(
         self,
         range_jobs_queue: asyncio.Queue,
         warc_records_queue: asyncio.Queue,
-        job_aws_client=None,
         read_s3_client=None,
         write_s3_client=None,
     ) -> int:
         """Run the actual filter pipeline with or without S3 client.
 
         Args:
-            range_jobs_queue: Queue for range jobs from CDX index.
+            range_jobs_queue: Queue for range jobs from the source.
             warc_records_queue: Queue for WARC record payloads.
-            job_aws_client: Optional AWS (S3/Athena) client for jobs generation.
             read_s3_client: Optional S3 client for reads from S3.
             write_s3_client: Optional S3 client for writes S3.
 
         Returns:
             int: Number of records written.
         """
-        # Fetch file paths and ranges (offset, length) from index files
         logger.info('Starting job generator, %d WARC readers, %d WARC writers', self.num_readers, self.num_writers)
 
-        # Generate range jobs from different target sources
-        if self.target_source == 'cdx':
-            job_generators = asyncio.create_task(
-                self.generate_range_jobs_from_cdx(
-                    range_jobs_queue,
-                    s3_client=job_aws_client,
-                )
-            )
-        elif self.target_source == 'athena':
-            job_generators = asyncio.create_task(
-                get_range_jobs_from_athena(
-                    client=job_aws_client,
-                    query=self.athena_query,
-                    database=self.athena_database,
-                    s3_output_location=self.athena_s3_output_location,
-                    job_queue=range_jobs_queue,
-                    queue_stop_object=_STOP,
-                    warc_download_prefix=self.warc_download_prefix,
-                    num_fetchers=self.num_readers,
-                )
-            )
-        else:
-            raise ValueError(f'Invalid target source: {self.target_source}')
+        # Generate range jobs from the configured source (bridged sync->async in a thread).
+        csv_writer = self._make_csv_writer()
+        job_generators = asyncio.create_task(self._produce_range_jobs(range_jobs_queue, csv_writer))
 
         # Read WARC records based on file paths and ranges
         warc_readers = [
@@ -413,66 +404,6 @@ class WARCFilter:
         # Send stop signals to all writers
         for _ in range(self.num_writers):
             await warc_records_queue.put(_STOP)
-
-    async def generate_range_jobs_from_single_cdx(
-        self,
-        cdx_path: str,
-        range_jobs_queue: asyncio.Queue,
-        count: int = 0,
-    ) -> int:
-        """Read a CDX file and generate range jobs based on URLs and offsets."""
-        for warc_url, offset, length in iter_cdx_index_from_path(
-            cdx_path, warc_download_prefix=self.warc_download_prefix
-        ):
-            # Convert the CDX record back to a RangeJob
-            job = RangeJob(url=warc_url, offset=offset, length=length, records_count=1)
-            await range_jobs_queue.put(job)
-            count += 1
-
-            if self.record_limit > 0 and count >= self.record_limit:
-                logger.warning('Index limit reached at %i', count)
-                break
-
-        return count
-
-    async def generate_range_jobs_from_cdx(
-        self,
-        range_jobs_queue: asyncio.Queue,
-        s3_client=None,
-    ):
-        """Read the CDX paths, parse lines -> RangeJob (WARC files and offets) -> key_queue.
-
-        Args:
-            range_jobs_queue: Queue to put RangeJob objects into.
-            s3_client: Optional S3 client for reading CDX indexes from S3.
-        """
-
-        logger.info('Range index limit: %i', self.record_limit)
-        count = 0
-
-        # Iterate over index files
-        # TODO this could be done in parallel
-        for index_path in self.cdx_paths:
-            # Fetch range queries from index
-            try:
-                count += await self.generate_range_jobs_from_single_cdx(
-                    cdx_path=index_path,
-                    range_jobs_queue=range_jobs_queue,
-                    count=count,
-                )
-
-            except Exception as e:
-                logger.error('Failed to read CDX index from %s: %s', index_path, e)
-
-            if self.record_limit > 0 and count >= self.record_limit:
-                logger.warning('Limit reached at %i', count)
-                break
-
-        # signal fetchers to stop
-        for _ in range(self.num_readers):
-            await range_jobs_queue.put(_STOP)
-
-        logger.info('Enqueued %d jobs from %s', count, index_path)
 
     async def read_warc_records(
         self,

@@ -34,7 +34,7 @@ def assert_cli_warc_by_cdx(
         args=[
             '-v',
             '--limit=10',
-            'warc_by_cdx',
+            'repackage',
             f'--cdx-path={str(index_path)}',
             '--write-paths-as-metadata-records',
             str(metadata_record_path),
@@ -119,6 +119,121 @@ def test_cli_warc_by_cdx_over_http_in_parallel(tmpdir, caplog):
     )
 
 
+def _produce_range_jobs_csv(tmpdir, csv_name, self_contained=False):
+    """Run `repackage` over the CDX fixture with --no-fetch to materialize a range-jobs CSV."""
+    import csv as _csv
+
+    index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
+    csv_path = os.path.join(str(tmpdir), csv_name)
+
+    args = [
+        '--limit=10',
+        'repackage',
+        '--target-source=cdx',
+        f'--cdx-path={str(index_path)}',
+        f'--range-jobs-output={csv_path}',
+        '--no-fetch',
+    ]
+    if self_contained:
+        args.append('--csv-self-contained')
+    main(args=args)
+
+    with open(csv_path, newline='') as f:
+        rows = list(_csv.DictReader(f))
+    return csv_path, rows
+
+
+def _assert_repackaged_warc(warc_path, metadata_record_path):
+    """Inspect a repackaged WARC and assert the expected fixture content."""
+    response_records = []
+    response_contents = []
+    metadata_record = None
+    metadata_record_headers = None
+
+    with fsspec.open(warc_path, 'rb') as stream:
+        for record in ArchiveIterator(stream):
+            if record.rec_type == 'response':
+                response_records.append(record)
+                response_contents.append(record.content_stream().read().decode('utf-8', errors='ignore'))
+            if record.rec_type == 'metadata':
+                metadata_record = record
+                metadata_record_headers = record.rec_headers
+
+    assert len(response_records) == 10, 'Invalid record count'
+    assert 'Catalogue en ligne Mission de France' in response_contents[0], 'Invalid response content'
+    assert 'dojo/dijit/themes/tundra/tundra' in response_contents[9], 'Invalid response content'
+    assert metadata_record is not None, 'Metadata record not set'
+    assert metadata_record_headers.get('WARC-Payload-Digest') == 'sha1:VXA2A5YUS3TAY36AUO6MACRMNOH5RXG2', (
+        'Invalid metadata block digest'
+    )
+
+
+def test_repackage_csv_materialize_filename(tmpdir):
+    """--no-fetch produces a filename-based range-jobs CSV without fetching WARCs."""
+    csv_path, rows = _produce_range_jobs_csv(tmpdir, 'ranges.csv')
+    assert set(rows[0].keys()) == {'filename', 'offset', 'length'}
+    assert len(rows) == 10
+    # No WARC was written for the default --prefix
+    assert not any(name.endswith('.warc.gz') for name in os.listdir(str(tmpdir)))
+
+
+def test_repackage_csv_materialize_self_contained(tmpdir):
+    """--csv-self-contained produces a url-based range-jobs CSV."""
+    csv_path, rows = _produce_range_jobs_csv(tmpdir, 'ranges_url.csv', self_contained=True)
+    assert set(rows[0].keys()) == {'url', 'offset', 'length'}
+    assert len(rows) == 10
+    assert rows[0]['url'].startswith('https://data.commoncrawl.org/')
+
+
+def test_cli_repackage_csv_roundtrip(tmpdir):
+    """End-to-end: produce a filename-based ranges CSV, then consume it and fetch over HTTP."""
+    metadata_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
+    csv_path, rows = _produce_range_jobs_csv(tmpdir, 'ranges.csv')
+
+    base_prefix = str(tmpdir)
+    main(
+        args=[
+            '-v',
+            'repackage',
+            '--target-source=csv',
+            f'--csv-path={csv_path}',
+            '--write-paths-as-metadata-records',
+            str(metadata_record_path),
+            f'--prefix={base_prefix}/TEST_warc_by_index',
+            '--creator=foo',
+            '--operator=bob',
+            '--warc-download-prefix=https://data.commoncrawl.org',
+        ]
+    )
+
+    warc_path = os.path.join(base_prefix, 'TEST_warc_by_index-000000-001.warc.gz')
+    _assert_repackaged_warc(warc_path, metadata_record_path)
+
+
+def test_cli_repackage_csv_roundtrip_self_contained(tmpdir):
+    """End-to-end with self-contained URLs: header auto-detected on read; no prefix needed."""
+    metadata_record_path = TEST_DATA_PATH / 'filter_cdx/whitelist_10_urls.txt'
+    csv_path, rows = _produce_range_jobs_csv(tmpdir, 'ranges_url.csv', self_contained=True)
+
+    base_prefix = str(tmpdir)
+    main(
+        args=[
+            '-v',
+            'repackage',
+            '--target-source=csv',
+            f'--csv-path={csv_path}',
+            '--write-paths-as-metadata-records',
+            str(metadata_record_path),
+            f'--prefix={base_prefix}/TEST_warc_by_index',
+            '--creator=foo',
+            '--operator=bob',
+        ]
+    )
+
+    warc_path = os.path.join(base_prefix, 'TEST_warc_by_index-000000-001.warc.gz')
+    _assert_repackaged_warc(warc_path, metadata_record_path)
+
+
 @requires_aws_s3
 def test_cli_warc_by_cdx_over_s3(tmpdir, caplog):
     assert_cli_warc_by_cdx('s3://commoncrawl', base_prefix=tmpdir, caplog=caplog)
@@ -182,7 +297,7 @@ def test_warc_by_cdx_no_index_files_found_exits(tmpdir, caplog):
         main(
             args=[
                 '-v',
-                'warc_by_cdx',
+                'repackage',
                 f'--cdx-path={str(tmpdir)}',
                 f'--prefix={str(tmpdir)}/TEST',
                 '--cdx-glob=/nonexistent-pattern-*.gz',
@@ -201,7 +316,7 @@ def test_warc_by_cdx_subprefix_and_metadata(tmpdir):
         args=[
             '-v',
             '--limit=1',
-            'warc_by_cdx',
+            'repackage',
             f'--cdx-path={str(index_path)}',
             f'--prefix={str(tmpdir)}/TEST',
             '--subprefix=SUB',
@@ -235,7 +350,7 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
         args=[
             '-v',
             '--limit=1',
-            'warc_by_cdx',
+            'repackage',
             f'--cdx-path={str(index_path)}',
             f'--prefix={str(tmpdir)}/TEST_NO_META',
         ]
@@ -276,14 +391,15 @@ def test_cli_warc_by_athena(
         args=[
             '-v',
             '--limit=10',
-            'warc_by_cdx',
-            '--target-source=athena',
+            'repackage',
+            '--target-source=sql',
+            '--engine=athena',
             '--athena-database=ccindex',
             '--athena-s3-output=s3://commoncrawl-ci-temp/athena-results/',
-            '--athena-hostnames',
+            '--hostnames',
             'oceancolor.sci.gsfc.nasa.gov',
             'example.com',
-            '--confirm-athena-cost',
+            '--confirm-cost',
             f'--prefix={base_prefix}/TEST_warc_by_index',
             '--creator=foo',
             '--operator=bob',

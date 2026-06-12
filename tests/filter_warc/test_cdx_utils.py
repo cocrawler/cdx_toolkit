@@ -67,9 +67,9 @@ org,valid)/ 20240103140000 {"url": "http://valid.org/", "filename": "test3.warc.
             # Should have 3 valid results despite 2 invalid lines being skipped
             assert len(results) == 3
 
-            # Verify the valid results
-            assert results[0] == ('http://warc-prefix/test.warc.gz', 100, 500)
-            assert results[1] == ('http://warc-prefix/test2.warc.gz', 600, 300)
-            assert results[2] == ('http://warc-prefix/test3.warc.gz', 900, 200)
+            # Verify the valid results (url, offset, length, filename)
+            assert results[0] == ('http://warc-prefix/test.warc.gz', 100, 500, 'test.warc.gz')
+            assert results[1] == ('http://warc-prefix/test2.warc.gz', 600, 300, 'test2.warc.gz')
+            assert results[2] == ('http://warc-prefix/test3.warc.gz', 900, 200, 'test3.warc.gz')
     finally:
         os.unlink(tmp_file_path)

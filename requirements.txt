@@ -12,6 +12,9 @@ url-is-in>=0.1.1
 fsspec[s3]
 botocore
 
+# optional DuckDB SQL engine (install via cdx_toolkit[duckdb])
+duckdb
+
 # used by Makefile
 pytest>=6.2.4
 pytest-cov>=2.12.1

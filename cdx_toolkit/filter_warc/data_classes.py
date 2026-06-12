@@ -2,7 +2,7 @@ import time
 from dataclasses import dataclass
 
 from cdx_toolkit.filter_warc.s3_utils import is_s3_url, parse_s3_uri, with_retries
-from typing import Tuple
+from typing import Optional, Tuple
 
 from cdx_toolkit.myrequests import myrequests_get
 
@@ -47,6 +47,10 @@ class RangeJob:
     offset: int
     length: int
     records_count: int = 1
+    # Relative WARC filename (e.g. crawl-data/...warc.gz) as known by the source,
+    # used when materializing a non-self-contained range-jobs CSV. `url` stays
+    # authoritative for fetching.
+    filename: Optional[str] = None
 
     def is_s3(self):
         return is_s3_url(self.url)
