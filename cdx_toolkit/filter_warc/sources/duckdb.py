@@ -50,6 +50,7 @@ class DuckDbSource(RangeJobSource):
         index_path: str,
         warc_download_prefix: Optional[str],
         limit: int = 0,
+        sort: bool = True,
         region_name: str = 'us-east-1',
     ):
         self.raw_query = query
@@ -59,6 +60,7 @@ class DuckDbSource(RangeJobSource):
         self.index_path = index_path
         self.warc_download_prefix = warc_download_prefix
         self.limit = limit
+        self.sort = sort
         self.region_name = region_name
 
     def estimate_cost(self) -> CostEstimate:
@@ -73,7 +75,7 @@ class DuckDbSource(RangeJobSource):
         # crawl pruning is done in the FROM glob, so no crawl IN (...) in the WHERE
         return build_sql(
             from_clause, self.hostnames, crawls=None, limit=self.limit,
-            url_host_registered_domains=self.domains,
+            url_host_registered_domains=self.domains, order_by=self.sort,
         )
 
     def iter_range_jobs(self) -> Iterator[RangeJob]:

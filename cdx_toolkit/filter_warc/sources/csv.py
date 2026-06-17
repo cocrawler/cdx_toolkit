@@ -87,17 +87,24 @@ class CsvSource(RangeJobSource):
     (used as-is); a `warc_filename` column => the WARC download prefix is prepended.
     If both are present, a warning is logged and `warc_url` is used. Any other
     columns round-trip onto RangeJob.extra. TSV is detected from a `.tsv`/`.tsv.gz`
-    extension; `.gz` inputs are decompressed."""
+    extension; `.gz` inputs are decompressed.
 
-    def __init__(self, path: str, warc_download_prefix: Optional[str]):
+    With `sort` (the default), jobs are sorted by (WARC file, record offset) before
+    being emitted -- grouping same-file records with ascending offsets for better S3
+    range-read locality. This buffers all rows in memory; pass sort=False to stream
+    an already-sorted file without buffering."""
+
+    def __init__(self, path: str, warc_download_prefix: Optional[str], sort: bool = True):
         self.path = path
         self.warc_download_prefix = warc_download_prefix
+        self.sort = sort
 
     def iter_range_jobs(self) -> Iterator[RangeJob]:
         path = str(self.path)
         delimiter = '\t' if path.endswith(('.tsv', '.tsv.gz')) else ','
         compression = 'gzip' if path.endswith('.gz') else None
 
+        buffered = [] if self.sort else None
         with fsspec.open(self.path, 'rt', newline='', compression=compression) as fh:
             reader = csv.DictReader(fh, delimiter=delimiter)
             fields = set(reader.fieldnames or [])
@@ -129,7 +136,17 @@ class CsvSource(RangeJobSource):
                     filename = row['warc_filename']
                     url = join_warc_url(self.warc_download_prefix, filename)
                 extra = {k: v for k, v in row.items() if k not in _KNOWN_FIELDS}
-                yield RangeJob(
+                job = RangeJob(
                     url=url, offset=offset, length=length,
                     filename=filename, extra=extra or None,
                 )
+                if buffered is None:
+                    yield job
+                else:
+                    buffered.append(job)
+
+        if buffered is not None:
+            # Group by WARC file (filename when available, else the full url) then offset.
+            buffered.sort(key=lambda j: (j.filename or j.url or '', j.offset))
+            for job in buffered:
+                yield job

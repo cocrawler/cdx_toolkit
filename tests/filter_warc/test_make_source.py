@@ -25,6 +25,7 @@ def make_args(**kw):
         cdx_path=None,
         cdx_glob=None,
         crawl=None,
+        no_sort_ranges=False,
     )
     defaults.update(kw)
     return Namespace(**defaults)
@@ -159,3 +160,38 @@ def test_duckdb_no_crawl_unbounded():
     src = build(target_source='sql', engine='duckdb', hostnames=['commoncrawl.org'])
     assert src.estimate_cost().n_crawls is None
     assert 'crawl=*' in src._build_query()
+
+
+# --- sort by (warc_filename, warc_record_offset) ---
+
+def test_athena_built_query_orders_by_default():
+    src = build(target_source='sql', engine='athena', hostnames=['example.com'])
+    assert 'ORDER BY warc_filename, warc_record_offset' in src.query
+
+
+def test_athena_built_query_no_sort():
+    src = build(target_source='sql', engine='athena', hostnames=['example.com'], no_sort_ranges=True)
+    assert 'ORDER BY' not in src.query
+
+
+def test_athena_raw_query_not_reordered():
+    # a raw query is the user's responsibility; we must not inject ORDER BY
+    src = build(target_source='sql', engine='athena', query='SELECT warc_filename FROM x')
+    assert 'ORDER BY' not in src.query
+
+
+def test_duckdb_built_query_orders_by_default():
+    src = build(target_source='sql', engine='duckdb', hostnames=['commoncrawl.org'])
+    assert 'ORDER BY warc_filename, warc_record_offset' in src._build_query()
+
+
+def test_duckdb_built_query_no_sort():
+    src = build(target_source='sql', engine='duckdb', hostnames=['commoncrawl.org'], no_sort_ranges=True)
+    assert 'ORDER BY' not in src._build_query()
+
+
+def test_csv_source_sort_flag():
+    src = build(target_source='csv', csv_path='/tmp/ranges.csv')
+    assert src.sort is True
+    src = build(target_source='csv', csv_path='/tmp/ranges.csv', no_sort_ranges=True)
+    assert src.sort is False

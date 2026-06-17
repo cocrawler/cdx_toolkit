@@ -73,6 +73,20 @@ def test_build_query_limit():
     assert 'LIMIT' not in build_athena_query(['example.com'], limit=0)
 
 
+def test_build_query_orders_by_default():
+    q = build_athena_query(['example.com'])
+    assert 'ORDER BY warc_filename, warc_record_offset' in q
+
+
+def test_build_query_order_by_false():
+    assert 'ORDER BY' not in build_athena_query(['example.com'], order_by=False)
+
+
+def test_build_query_order_by_precedes_limit():
+    q = build_athena_query(['example.com'], limit=10)
+    assert q.index('ORDER BY') < q.index('LIMIT')
+
+
 def test_build_query_requires_hostnames():
     with pytest.raises(ValueError):
         build_athena_query([])

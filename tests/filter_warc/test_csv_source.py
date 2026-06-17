@@ -130,6 +130,48 @@ def test_writer_empty_writes_base_header(tmp_path):
     assert rows == []
 
 
+def test_csv_source_sorts_by_filename_then_offset(tmp_path):
+    path = str(tmp_path / 'ranges.csv')
+    with open(path, 'w') as f:
+        f.write('warc_filename,warc_record_offset,warc_record_length\n')
+        # deliberately out of order: file b before a, and offsets descending
+        f.write('b.warc.gz,50,1\n')
+        f.write('a.warc.gz,200,1\n')
+        f.write('a.warc.gz,10,1\n')
+    jobs = list(CsvSource(path, 'https://data.commoncrawl.org').iter_range_jobs())
+    assert [(j.filename, j.offset) for j in jobs] == [
+        ('a.warc.gz', 10), ('a.warc.gz', 200), ('b.warc.gz', 50),
+    ]
+
+
+def test_csv_source_no_sort_preserves_order(tmp_path):
+    path = str(tmp_path / 'ranges.csv')
+    with open(path, 'w') as f:
+        f.write('warc_filename,warc_record_offset,warc_record_length\n')
+        f.write('b.warc.gz,50,1\n')
+        f.write('a.warc.gz,200,1\n')
+        f.write('a.warc.gz,10,1\n')
+    jobs = list(CsvSource(path, 'https://data.commoncrawl.org', sort=False).iter_range_jobs())
+    assert [(j.filename, j.offset) for j in jobs] == [
+        ('b.warc.gz', 50), ('a.warc.gz', 200), ('a.warc.gz', 10),
+    ]
+
+
+def test_csv_source_sorts_self_contained_by_url(tmp_path):
+    path = str(tmp_path / 'ranges.csv')
+    with open(path, 'w') as f:
+        f.write('warc_url,warc_record_offset,warc_record_length\n')
+        f.write('s3://commoncrawl/b.warc.gz,5,1\n')
+        f.write('s3://commoncrawl/a.warc.gz,9,1\n')
+        f.write('s3://commoncrawl/a.warc.gz,2,1\n')
+    jobs = list(CsvSource(path, 'https://ignored').iter_range_jobs())
+    assert [(j.url, j.offset) for j in jobs] == [
+        ('s3://commoncrawl/a.warc.gz', 2),
+        ('s3://commoncrawl/a.warc.gz', 9),
+        ('s3://commoncrawl/b.warc.gz', 5),
+    ]
+
+
 def test_csv_source_both_url_and_filename_warns(tmp_path, caplog):
     import logging
     path = str(tmp_path / 'both.csv')

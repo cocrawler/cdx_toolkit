@@ -69,25 +69,34 @@ def build_where_sql(
     return '\n        AND '.join(clauses)
 
 
+# Sorting range jobs by (warc_filename, warc_record_offset) groups records of the
+# same WARC file with ascending offsets, which improves S3 range-read locality (and
+# enables coalescing adjacent ranges) at fetch time.
+ORDER_BY_SQL = 'ORDER BY warc_filename, warc_record_offset'
+
+
 def build_sql(
     from_clause: str,
     url_host_names: Optional[List[str]] = None,
     crawls: Optional[List[str]] = None,
     limit: int = 0,
     url_host_registered_domains: Optional[List[str]] = None,
+    order_by: bool = True,
 ) -> str:
     """Assemble a full SELECT for the columnar index.
 
     `from_clause` is the text following FROM (e.g. `ccindex` for Athena, or a
-    `read_parquet(...)` expression for DuckDB)."""
+    `read_parquet(...)` expression for DuckDB). When `order_by` is set, results are
+    sorted by (warc_filename, warc_record_offset) for fetch-time read locality."""
     where_sql = build_where_sql(url_host_names, crawls, url_host_registered_domains=url_host_registered_domains)
+    order_sql = f'\n    {ORDER_BY_SQL}' if order_by else ''
     limit_sql = f'\n    LIMIT {limit}' if limit and limit > 0 else ''
 
     return f"""
     SELECT
         warc_filename, warc_record_offset, warc_record_length
     FROM {from_clause}
-    WHERE {where_sql}{limit_sql}"""
+    WHERE {where_sql}{order_sql}{limit_sql}"""
 
 
 def build_athena_query(
@@ -96,11 +105,13 @@ def build_athena_query(
     limit: int = 0,
     table: str = 'ccindex',
     url_host_registered_domains: Optional[List[str]] = None,
+    order_by: bool = True,
 ) -> str:
     """Athena flavour of build_sql (FROM <table>)."""
     return build_sql(
         table, url_host_names, crawls=crawls, limit=limit,
         url_host_registered_domains=url_host_registered_domains,
+        order_by=order_by,
     )
 
 

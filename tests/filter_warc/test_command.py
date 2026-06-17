@@ -160,8 +160,10 @@ def _assert_repackaged_warc(warc_path, metadata_record_path):
                 metadata_record_headers = record.rec_headers
 
     assert len(response_records) == 10, 'Invalid record count'
-    assert 'Catalogue en ligne Mission de France' in response_contents[0], 'Invalid response content'
-    assert 'dojo/dijit/themes/tundra/tundra' in response_contents[9], 'Invalid response content'
+    # CsvSource sorts by (warc_filename, offset) by default, so assert content
+    # presence independent of record order.
+    assert any('Catalogue en ligne Mission de France' in c for c in response_contents), 'Invalid response content'
+    assert any('dojo/dijit/themes/tundra/tundra' in c for c in response_contents), 'Invalid response content'
     assert metadata_record is not None, 'Metadata record not set'
     assert metadata_record_headers.get('WARC-Payload-Digest') == 'sha1:VXA2A5YUS3TAY36AUO6MACRMNOH5RXG2', (
         'Invalid metadata block digest'

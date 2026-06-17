@@ -106,7 +106,16 @@ def add_repackage_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         '--csv-self-contained',
         action='store_true',
-        help='Write full URLs (url,offset,length) to --range-jobs-output instead of relative filenames.',
+        help='Write full URLs (warc_url,...) to --range-jobs-output instead of relative filenames.',
+    )
+    parser.add_argument(
+        '--no-sort-ranges',
+        action='store_true',
+        help=('Do not sort range jobs by (warc_filename, warc_record_offset) before fetching. '
+              'Sorting (the default) groups records of the same WARC file with ascending offsets '
+              'for better S3 range-read locality; it adds an ORDER BY to a guided SQL query and '
+              'buffers a CSV source in memory. Disable for an already-sorted or very large CSV, or '
+              'to preserve a raw query/CSV order.'),
     )
     parser.add_argument('--prefix', default='TEST', help='prefix for the output warc filename')
     parser.add_argument(

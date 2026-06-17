@@ -15,6 +15,10 @@ def make_source(args, *, warc_download_prefix: Optional[str], record_limit: int)
     Centralises all source/engine validation (engine required iff sql;
     hostnames/query/query-file mutual exclusivity; required connection options)."""
     target = args.target_source
+    # Sort range jobs by (warc_filename, warc_record_offset) for fetch-time read
+    # locality unless explicitly disabled. Applies to the guided SQL query (ORDER BY)
+    # and to CSV loading; cdx files are out of scope (already SURT-ordered).
+    sort = not getattr(args, 'no_sort_ranges', False)
 
     if target == 'cdx':
         from cdx_toolkit.filter_warc.sources.cdx import CdxSource
@@ -25,10 +29,10 @@ def make_source(args, *, warc_download_prefix: Optional[str], record_limit: int)
         from cdx_toolkit.filter_warc.sources.csv import CsvSource
         if not args.csv_path:
             raise ValueError('--csv-path is required for --target-source csv')
-        return CsvSource(args.csv_path, warc_download_prefix)
+        return CsvSource(args.csv_path, warc_download_prefix, sort=sort)
 
     if target == 'sql':
-        return _make_sql_source(args, warc_download_prefix, record_limit)
+        return _make_sql_source(args, warc_download_prefix, record_limit, sort=sort)
 
     raise ValueError(f'Invalid target source: {target} (available: cdx, sql, csv)')
 
@@ -59,7 +63,7 @@ def _resolve_sql_query_spec(args) -> Tuple[Optional[str], Optional[list], Option
     return None, args.hostnames, args.domains, crawls
 
 
-def _make_sql_source(args, warc_download_prefix, record_limit) -> RangeJobSource:
+def _make_sql_source(args, warc_download_prefix, record_limit, *, sort: bool = True) -> RangeJobSource:
     engine = args.engine
     if not engine:
         raise ValueError('--engine is required for --target-source sql (choices: athena, duckdb)')
@@ -72,8 +76,11 @@ def _make_sql_source(args, warc_download_prefix, record_limit) -> RangeJobSource
         if not args.athena_s3_output:
             raise ValueError('--athena-s3-output is required for --engine athena')
         database = args.athena_database or 'ccindex'
+        # A raw --query is the user's responsibility to order; only the guided query
+        # gets the ORDER BY (warc_filename, warc_record_offset) for read locality.
         query = raw_sql if raw_sql else build_athena_query(
             hostnames, crawls=crawls, limit=limit, url_host_registered_domains=domains,
+            order_by=sort,
         )
         n_crawls = None if raw_sql else (len(crawls) if crawls else None)
         return AthenaSource(
@@ -94,6 +101,7 @@ def _make_sql_source(args, warc_download_prefix, record_limit) -> RangeJobSource
             index_path=args.duckdb_index_path,
             warc_download_prefix=warc_download_prefix,
             limit=limit,
+            sort=sort,
         )
 
     raise ValueError(f'Invalid --engine: {engine} (choices: athena, duckdb)')
