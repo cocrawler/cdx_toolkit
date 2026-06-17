@@ -3,7 +3,12 @@ from typing import Iterator, List, Optional
 
 from cdx_toolkit.filter_warc.data_classes import RangeJob
 from cdx_toolkit.filter_warc.sources.base import RangeJobSource, CostEstimate
-from cdx_toolkit.filter_warc.sources.sql_base import build_sql, validate_result_columns, join_warc_url
+from cdx_toolkit.filter_warc.sources.sql_base import (
+    build_sql,
+    validate_result_columns,
+    join_warc_url,
+    REQUIRED_RESULT_COLUMNS,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -103,11 +108,17 @@ class DuckDbSource(RangeJobSource):
                 for row in rows:
                     warc_filename = row[idx['warc_filename']]
                     warc_url = join_warc_url(self.warc_download_prefix, warc_filename)
+                    extra = {
+                        name: row[i]
+                        for i, name in enumerate(col_names)
+                        if name not in REQUIRED_RESULT_COLUMNS
+                    }
                     yield RangeJob(
                         url=warc_url,
                         offset=int(row[idx['warc_record_offset']]),
                         length=int(row[idx['warc_record_length']]),
                         filename=warc_filename,
+                        extra=extra or None,
                     )
         finally:
             con.close()

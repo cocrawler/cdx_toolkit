@@ -17,7 +17,11 @@ def test_writer_filename_mode_and_read(tmp_path):
 
     with open(path, newline='') as f:
         rows = list(csv.DictReader(f))
-    assert rows[0] == {'filename': 'crawl-data/x.warc.gz', 'offset': '10', 'length': '20'}
+    assert rows[0] == {
+        'warc_filename': 'crawl-data/x.warc.gz',
+        'warc_record_offset': '10',
+        'warc_record_length': '20',
+    }
 
     jobs = list(CsvSource(path, 'https://data.commoncrawl.org').iter_range_jobs())
     assert jobs[0].url == 'https://data.commoncrawl.org/crawl-data/x.warc.gz'
@@ -33,7 +37,11 @@ def test_writer_self_contained_mode_and_read(tmp_path):
 
     with open(path, newline='') as f:
         rows = list(csv.DictReader(f))
-    assert rows[0] == {'url': 's3://commoncrawl/crawl-data/x.warc.gz', 'offset': '5', 'length': '7'}
+    assert rows[0] == {
+        'warc_url': 's3://commoncrawl/crawl-data/x.warc.gz',
+        'warc_record_offset': '5',
+        'warc_record_length': '7',
+    }
 
     # url used as-is regardless of the (ignored) prefix
     jobs = list(CsvSource(path, 'https://ignored').iter_range_jobs())
@@ -59,8 +67,78 @@ def test_csv_source_missing_columns(tmp_path):
 def test_csv_source_tsv(tmp_path):
     path = str(tmp_path / 'ranges.tsv')
     with open(path, 'w') as f:
-        f.write('filename\toffset\tlength\n')
+        f.write('warc_filename\twarc_record_offset\twarc_record_length\n')
         f.write('crawl-data/x.warc.gz\t10\t20\n')
     jobs = list(CsvSource(path, 'https://data.commoncrawl.org').iter_range_jobs())
     assert jobs[0].url == 'https://data.commoncrawl.org/crawl-data/x.warc.gz'
     assert jobs[0].offset == 10 and jobs[0].length == 20
+
+
+def test_writer_extra_columns_filename_mode(tmp_path):
+    path = str(tmp_path / 'ranges.csv')
+    w = RangeJobCsvWriter(path, self_contained=False)
+    w.write(RangeJob(
+        url='https://data.commoncrawl.org/crawl-data/x.warc.gz',
+        offset=10, length=20, filename='crawl-data/x.warc.gz',
+        extra={'content_languages': 'eng', 'url': 'https://example.com/page'},
+    ))
+    w.close()
+
+    with open(path, newline='') as f:
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == [
+            'warc_filename', 'warc_record_offset', 'warc_record_length',
+            'content_languages', 'url',
+        ]
+        rows = list(reader)
+    assert rows[0]['content_languages'] == 'eng'
+    assert rows[0]['url'] == 'https://example.com/page'
+
+    # extras round-trip back onto RangeJob.extra
+    jobs = list(CsvSource(path, 'https://data.commoncrawl.org').iter_range_jobs())
+    assert jobs[0].extra == {'content_languages': 'eng', 'url': 'https://example.com/page'}
+    assert jobs[0].filename == 'crawl-data/x.warc.gz'
+
+
+def test_writer_extra_columns_self_contained_mode(tmp_path):
+    path = str(tmp_path / 'ranges_url.csv')
+    w = RangeJobCsvWriter(path, self_contained=True)
+    w.write(RangeJob(
+        url='https://data.commoncrawl.org/crawl-data/x.warc.gz',
+        offset=1, length=2, filename='crawl-data/x.warc.gz',
+        extra={'content_languages': 'fra'},
+    ))
+    w.close()
+
+    with open(path, newline='') as f:
+        reader = csv.DictReader(f)
+        assert reader.fieldnames == [
+            'warc_url', 'warc_record_offset', 'warc_record_length', 'content_languages',
+        ]
+        rows = list(reader)
+    assert rows[0]['content_languages'] == 'fra'
+
+
+def test_writer_empty_writes_base_header(tmp_path):
+    path = str(tmp_path / 'empty.csv')
+    w = RangeJobCsvWriter(path, self_contained=False)
+    w.close()
+    with open(path, newline='') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert reader.fieldnames == ['warc_filename', 'warc_record_offset', 'warc_record_length']
+    assert rows == []
+
+
+def test_csv_source_both_url_and_filename_warns(tmp_path, caplog):
+    import logging
+    path = str(tmp_path / 'both.csv')
+    with open(path, 'w') as f:
+        f.write('warc_url,warc_filename,warc_record_offset,warc_record_length\n')
+        f.write('s3://commoncrawl/crawl-data/x.warc.gz,crawl-data/x.warc.gz,5,7\n')
+    with caplog.at_level(logging.WARNING):
+        jobs = list(CsvSource(path, 'https://ignored').iter_range_jobs())
+    assert 'both' in caplog.text.lower()
+    # warc_url wins for fetching
+    assert jobs[0].url == 's3://commoncrawl/crawl-data/x.warc.gz'
+    assert jobs[0].filename == 'crawl-data/x.warc.gz'

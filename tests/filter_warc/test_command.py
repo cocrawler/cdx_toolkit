@@ -171,7 +171,7 @@ def _assert_repackaged_warc(warc_path, metadata_record_path):
 def test_repackage_csv_materialize_filename(tmpdir):
     """--no-fetch produces a filename-based range-jobs CSV without fetching WARCs."""
     csv_path, rows = _produce_range_jobs_csv(tmpdir, 'ranges.csv')
-    assert set(rows[0].keys()) == {'filename', 'offset', 'length'}
+    assert set(rows[0].keys()) == {'warc_filename', 'warc_record_offset', 'warc_record_length'}
     assert len(rows) == 10
     # No WARC was written for the default --prefix
     assert not any(name.endswith('.warc.gz') for name in os.listdir(str(tmpdir)))
@@ -180,9 +180,9 @@ def test_repackage_csv_materialize_filename(tmpdir):
 def test_repackage_csv_materialize_self_contained(tmpdir):
     """--csv-self-contained produces a url-based range-jobs CSV."""
     csv_path, rows = _produce_range_jobs_csv(tmpdir, 'ranges_url.csv', self_contained=True)
-    assert set(rows[0].keys()) == {'url', 'offset', 'length'}
+    assert set(rows[0].keys()) == {'warc_url', 'warc_record_offset', 'warc_record_length'}
     assert len(rows) == 10
-    assert rows[0]['url'].startswith('https://data.commoncrawl.org/')
+    assert rows[0]['warc_url'].startswith('https://data.commoncrawl.org/')
 
 
 def test_cli_repackage_csv_roundtrip(tmpdir):

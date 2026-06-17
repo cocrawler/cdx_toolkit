@@ -39,7 +39,7 @@ def test_no_fetch_materializes_csv(tmp_path):
     with open(out, newline='') as f:
         rows = list(csv.DictReader(f))
     assert len(rows) == 3
-    assert set(rows[0].keys()) == {'filename', 'offset', 'length'}
+    assert set(rows[0].keys()) == {'warc_filename', 'warc_record_offset', 'warc_record_length'}
 
 
 def test_producer_emits_stops_even_when_source_raises(tmp_path):

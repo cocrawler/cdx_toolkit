@@ -4,7 +4,11 @@ from typing import Iterator, Iterable, Optional
 
 from cdx_toolkit.filter_warc.data_classes import RangeJob
 from cdx_toolkit.filter_warc.sources.base import RangeJobSource, CostEstimate
-from cdx_toolkit.filter_warc.sources.sql_base import validate_result_columns, join_warc_url
+from cdx_toolkit.filter_warc.sources.sql_base import (
+    validate_result_columns,
+    join_warc_url,
+    REQUIRED_RESULT_COLUMNS,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -162,12 +166,14 @@ def iter_range_jobs(client, query_execution_id: str, warc_download_prefix: Optio
 
             warc_filename = row['warc_filename']
             warc_url = join_warc_url(warc_download_prefix, warc_filename)
+            extra = {k: v for k, v in row.items() if k not in REQUIRED_RESULT_COLUMNS}
 
             yield RangeJob(
                 url=warc_url,
                 offset=int(row['warc_record_offset']),
                 length=int(row['warc_record_length']),
                 filename=warc_filename,
+                extra=extra or None,
             )
 
 

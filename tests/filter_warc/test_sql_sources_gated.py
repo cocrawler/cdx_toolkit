@@ -88,6 +88,38 @@ def test_repackage_sql_duckdb_e2e(tmpdir):
 
 @requires_aws_s3
 @requires_duckdb
+def test_repackage_sql_duckdb_extra_columns_e2e(tmpdir):
+    # A raw --query that SELECTs an extra analysis column (content_languages) should
+    # carry that column through to the materialized range-jobs CSV. Single crawl +
+    # LIMIT keeps the scan cheap.
+    csv_path = os.path.join(str(tmpdir), 'ranges.csv')
+    query = (
+        'SELECT warc_filename, warc_record_offset, warc_record_length, content_languages '
+        "FROM read_parquet("
+        f"'s3://commoncrawl/cc-index/table/cc-main/warc/crawl={CRAWL}/subset=warc/*.parquet', "
+        'hive_partitioning=true) '
+        f"WHERE url_host_registered_domain = '{HOST}' LIMIT 10"
+    )
+    main(args=[
+        'repackage',
+        '--target-source=sql',
+        '--engine=duckdb',
+        f'--query={query}',
+        f'--range-jobs-output={csv_path}',
+        '--no-fetch',
+        '--confirm-cost',
+    ])
+
+    with open(csv_path, newline='') as f:
+        reader = csv.DictReader(f)
+        assert 'content_languages' in (reader.fieldnames or [])
+        rows = list(reader)
+    assert len(rows) > 0
+    assert any(r.get('content_languages') for r in rows), 'expected a content_languages value'
+
+
+@requires_aws_s3
+@requires_duckdb
 def test_repackage_sql_duckdb_domain_e2e(tmpdir):
     # Domain filtering (url_host_registered_domain) also matches subdomains; bound it
     # with --limit to keep the live verification cheap.

@@ -1,5 +1,5 @@
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from cdx_toolkit.filter_warc.s3_utils import is_s3_url, parse_s3_uri, with_retries
 from typing import Optional, Tuple
@@ -51,6 +51,10 @@ class RangeJob:
     # used when materializing a non-self-contained range-jobs CSV. `url` stays
     # authoritative for fetching.
     filename: Optional[str] = None
+    # Extra columns from a raw SQL --query (e.g. content_languages), kept only for
+    # CSV materialization / analysis. Never used for fetching. Excluded from
+    # equality/hash so RangeJob stays hashable despite the dict value.
+    extra: Optional[dict] = field(default=None, compare=False)
 
     def is_s3(self):
         return is_s3_url(self.url)

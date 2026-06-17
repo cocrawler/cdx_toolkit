@@ -6,7 +6,7 @@ from cdx_toolkit.filter_warc.sources.sql_base import (
     validate_result_columns,
     join_warc_url,
 )
-from cdx_toolkit.filter_warc.sources.athena import run_athena_query
+from cdx_toolkit.filter_warc.sources.athena import run_athena_query, iter_range_jobs
 
 
 class _FakeAthenaClient:
@@ -128,6 +128,56 @@ def test_join_warc_url_empty_prefix():
 def test_join_warc_url_absolute_filename_passthrough():
     assert join_warc_url('https://data.commoncrawl.org', 's3://cc/x.warc.gz') == 's3://cc/x.warc.gz'
     assert join_warc_url('', 'https://host/x.warc.gz') == 'https://host/x.warc.gz'
+
+
+class _FakePaginator:
+    """Yields Athena get_query_results-style pages (first row is the header)."""
+
+    def __init__(self, pages):
+        self._pages = pages
+
+    def paginate(self, **kwargs):
+        return iter(self._pages)
+
+
+class _FakeResultsClient:
+    def __init__(self, pages):
+        self._pages = pages
+
+    def get_paginator(self, name):
+        assert name == 'get_query_results'
+        return _FakePaginator(self._pages)
+
+
+def _athena_page(columns, *value_rows):
+    header = {'Data': [{'VarCharValue': c} for c in columns]}
+    data = [{'Data': [{'VarCharValue': v} for v in row]} for row in value_rows]
+    return {'ResultSet': {'Rows': [header] + data}}
+
+
+def test_iter_range_jobs_carries_extra_columns():
+    pages = [_athena_page(
+        ['warc_filename', 'warc_record_offset', 'warc_record_length', 'content_languages', 'url'],
+        ['crawl-data/x.warc.gz', '100', '200', 'eng', 'https://example.com/page'],
+    )]
+    client = _FakeResultsClient(pages)
+    jobs = list(iter_range_jobs(client, 'qid', 'https://data.commoncrawl.org'))
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.url == 'https://data.commoncrawl.org/crawl-data/x.warc.gz'
+    assert job.offset == 100 and job.length == 200
+    assert job.filename == 'crawl-data/x.warc.gz'
+    # extra carries only the non-required columns (page URL distinct from warc URL)
+    assert job.extra == {'content_languages': 'eng', 'url': 'https://example.com/page'}
+
+
+def test_iter_range_jobs_no_extra_columns_is_none():
+    pages = [_athena_page(
+        ['warc_filename', 'warc_record_offset', 'warc_record_length'],
+        ['crawl-data/x.warc.gz', '1', '2'],
+    )]
+    jobs = list(iter_range_jobs(_FakeResultsClient(pages), 'qid', 'https://data.commoncrawl.org'))
+    assert jobs[0].extra is None
 
 
 def test_run_athena_query_logs_sql(caplog):
