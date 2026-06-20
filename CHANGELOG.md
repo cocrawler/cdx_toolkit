@@ -1,3 +1,10 @@
+- unreleased (feat/warc-range-sources)
+	+ new `repackage` command: extract a WARC subset from pluggable sources (cdx / sql{athena,duckdb} / csv), reading source WARCs over HTTP or S3 and writing verbatim
+	+ `--processes N` multi-process fetching (one event loop per core); range jobs are sharded by WARC filename and the shards are merged into a single `<prefix>.warc.gz` with one warcinfo record (server-side on S3 / streamed locally). `--keep-shards` keeps the shards
+	+ one writer per process (removed the multi-writer-per-process fan-out); `--parallel_readers` sets async readers per process
+	+ optional uvloop event loop via `CDXT_UVLOOP=1`
+	+ see docs/notes/warc-fetcher-performance.md for benchmarks and tuning
+
 - 0.9.38
 	+ deprecated support for py3.7 and py.3.8
 	+ added support for py3.13 and py3.14

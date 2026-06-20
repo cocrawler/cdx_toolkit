@@ -95,9 +95,12 @@ Run a sample and watch `htop`/`mpstat` during the fetch:
 - **`LocalFileWriter`** (`local_writer.py`) is `aiofiles` with an 8 KiB buffer and a
   `flush()` per write — on a fast read stream the per-flush overhead + EBS limits are the
   more likely bottleneck (prefer writing to `s3://` on a c5n).
-- Writers are **few** (`num_readers/6`, e.g. 5) and batch into 5 MiB parts, so the CPU
-  hot spot is the **read side** (many small GETs + TLS), not the write side. More output
-  shards cannot relieve a read/TLS-bound core.
+- **[done] One writer per process.** Because writing is a cheap verbatim copy that one
+  coroutine sustains, the old `num_writers = num_readers/6` multi-writer fan-out (multiple
+  shards on one event loop) bought nothing but scheduling overhead and was removed. Each
+  process now has exactly one writer = one output shard; multi-core scaling and sharding
+  come from `--processes` (multiple event loops), and shards are merged into one file. The
+  CPU hot spot is the **read side** (many small GETs + TLS), not the write side.
 
 The flip side: the shard model makes **multi-process essentially free on the output
 side** — shards are independent files with no cross-shard state and no merge step, so N
@@ -127,24 +130,33 @@ Assume parallelism is already configured (`--parallel` high) and reads go to
    absorbs the gap bytes. Extreme case: a **density heuristic** — when a large fraction of
    a ~1 GB file is needed, GET the whole file once and slice.
 
-3. **[proposed] Use all cores via multi-process sharding** — *only if a sample shows
-   single-core CPU-bound.* Split the sorted job file by `warc_filename` into N worker
-   processes, each with its own event loop, S3 client, and output shards. Multiplies the
-   request-rate ceiling ~linearly with cores. Coalescing (2) may keep you network-bound
-   and make this unnecessary — measure first.
+3. **[done] Use all cores via multi-process sharding** — confirmed single-core CPU-bound
+   (a single loop saturates one core at ~450 small GET/s; one process pins ~1 core at
+   `--parallel 96`). Implemented natively as `cdxt repackage --processes N`
+   (`filter_warc/multiprocess.py`): the source is drained once and sharded by
+   `warc_filename`, one worker process per core fetches its shard
+   (`--parallel_readers R`, one writer each → one shard/proc), and the shards are merged
+   into a single `<prefix>.warc.gz` (`filter_warc/merge.py`: server-side S3
+   `UploadPartCopy`, or fsspec streaming locally). Measured on c5n.xlarge (4 vCPU):
+   ~457 → ~1130 rec/s fetch (2.6×, cores ~97 %) for a ~1 GiB / 35.7 k-record homepages job;
+   ~60 s end-to-end including source sharding and the merge. Sublinear because each
+   process's producer thread (CSV sort + per-row cross-thread enqueue) competes with its
+   event loop for the GIL — see latent issues.
 
-4. **[proposed] uvloop.** Cheap single-core lift for the request-rate-bound regime;
-   stacks under multi-process.
+4. **[done] uvloop.** Gated by `CDXT_UVLOOP=1` in `WARCFilter.filter` (`warc_filter.py`).
+   Measured ~+8 % single-core; stacks under multi-process.
 
 5. **[proposed] Bound coalesced read size / watch RAM.** A c5n.xlarge has 10.5 GiB;
    whole-file (~1 GB) reads × many readers will OOM. Cap superrange size and gap
    threshold; revisit `warc_records_queue_size` (`warc_filter.py:~62`, default 200) since
    each buffered payload is larger after coalescing.
 
-6. **[proposed] Write output to `s3://` in-region, not local EBS.** c5n.xlarge is
-   EBS-only; gp3 baseline (~125 MB/s) can bottleneck writers at multi-Gbps read rates.
-   The `S3ShardWriter` MPU path keeps everything in-region and off EBS. Also revisit the
-   `writers = readers/6` heuristic for in-region fast reads.
+6. **[done] Write output to `s3://` in-region, not local EBS.** Measured: S3-direct MPU
+   output is within noise of local EBS at this write rate (~35 MB/s total) and skips the
+   EBS round-trip + separate upload, so prefer `--prefix s3://…`. On the writer count: at
+   in-region read rates a *single* writer per process keeps up easily (verbatim copy,
+   5 MiB parts), so `--parallel_writers 1` is both fastest-enough and gives one shard per
+   process — better than the `writers = readers/6` default for this workload.
 
 7. **[proposed] Instance selection follows the constraint.** Because the binding limit is
    request-rate/CPU (not bandwidth), **more/faster cores beat more Gbps**. c5n.xlarge's
@@ -173,10 +185,10 @@ Assume parallelism is already configured (`--parallel` high) and reads go to
 ## TL;DR
 
 1. **[done]** Sort by `(warc_filename, offset)` — locality + enables coalescing.
-2. **[proposed]** Coalesce adjacent ranges — the big request-rate win in-region.
-3. **[proposed]** Multi-process by filename — only after confirming single-core CPU-bound;
-   the output shard model already supports it.
-4. **[proposed]** uvloop, bounded read size, `s3://` output, dedup — supporting wins.
+2. **[done]** Multi-process by filename (`--processes N`) — ~2.6× on 4 cores; shards merged
+   into one file. The big confirmed win in-region.
+3. **[done]** uvloop (`CDXT_UVLOOP=1`), one writer per process, `s3://` output — supporting wins.
+4. **[proposed]** Coalesce adjacent ranges, bounded read size, dedup — remaining ideas.
 
 Always **measure the regime first** (`htop` during a sample run): in-region the limiter
 is almost always request-rate on one core, not bandwidth.

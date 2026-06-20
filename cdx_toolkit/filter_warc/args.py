@@ -158,22 +158,35 @@ def add_repackage_args(parser: argparse.ArgumentParser):
         help='Paths to multiple files. File content is written to as a metadata record to each the WARC file',
     )
     parser.add_argument(
+        '--processes',
+        type=int,
+        default=1,
+        help=('Number of worker processes for fetching (default: 1). A single asyncio loop '
+              'saturates one CPU core on many small range reads; set this to the vCPU count '
+              'to use all cores. The range jobs are sharded by WARC filename across processes '
+              'and the per-process output shards are merged into a single <prefix>.warc.gz '
+              '(one warcinfo record). Each process uses --parallel_readers async readers.'),
+    )
+    parser.add_argument(
+        '--keep-shards',
+        action='store_true',
+        help='In multi-process mode, keep the intermediate per-process shard WARCs instead of '
+             'deleting them after the merge.',
+    )
+    parser.add_argument(
         '--parallel',
         type=int,
         default=1,
-        help='Number of parallel workers for reading and writing WARC records (default: 1, sequential processing)',
+        help='Number of async readers per process for fetching WARC records (default: 1). Each '
+             'process has a single writer; combine with --processes to use multiple cores.',
     )
     parser.add_argument(
         '--parallel_readers',
         type=int,
         default=None,
-        help='Number of parallel workers for reading WARC records (default: same as `parallel`)',
-    )
-    parser.add_argument(
-        '--parallel_writers',
-        type=int,
-        default=None,
-        help='Number of parallel workers for writing WARC records (default: same as `parallel`)',
+        help='Number of async readers per process for reading WARC records (default: same as '
+             '`parallel`). Each process has a single writer; use --processes for multi-core '
+             'scaling and output sharding.',
     )
     parser.add_argument(
         '--log_every_n',

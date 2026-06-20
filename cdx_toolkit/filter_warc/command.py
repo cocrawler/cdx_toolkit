@@ -6,6 +6,7 @@ from cdx_toolkit.utils import get_version
 import fsspec
 
 
+import os
 import sys
 import time
 import logging
@@ -101,6 +102,32 @@ def run_repackage(args, cmdline):
         prefix_fs, prefix_fs_path = fsspec.url_to_fs(prefix_path)
         prefix_fs.makedirs(prefix_fs._parent(prefix_fs_path), exist_ok=True)
 
+    # Multi-process mode: shard the range jobs across processes (one event loop per core)
+    # and merge the per-process shards into a single <prefix>.warc.gz.
+    if getattr(args, 'processes', 1) and args.processes > 1 and not args.no_fetch:
+        from cdx_toolkit.filter_warc.multiprocess import run_multiprocess_repackage
+
+        readers = args.parallel_readers if args.parallel_readers is not None else args.parallel
+        records_n = run_multiprocess_repackage(
+            source=source,
+            n_processes=args.processes,
+            readers_per_process=readers,
+            prefix_path=prefix_path,
+            writer_info=info,
+            writer_subprefix=args.subprefix,
+            write_paths_as_metadata_records=write_paths_as_metadata_records,
+            log_every_n=log_every_n,
+            aws_region_name='us-east-1',
+            max_attempts=5,
+            record_limit=limit,
+            uvloop=os.environ.get('CDXT_UVLOOP') == '1',
+            warc_download_prefix=args.warc_download_prefix,
+            keep_shards=args.keep_shards,
+        )
+        logger.info('WARC records extracted: %i', records_n)
+        logger.info('Script execution time: %.3f seconds', time.time() - start_time)
+        return
+
     warc_filter = WARCFilter(
         source=source,
         range_jobs_output=args.range_jobs_output,
@@ -114,6 +141,7 @@ def run_repackage(args, cmdline):
         log_every_n=log_every_n,
         warc_download_prefix=args.warc_download_prefix,
         n_parallel=n_parallel,
+        n_parallel_readers=args.parallel_readers,
         max_file_size=args.size,
     )
     records_n = warc_filter.filter()

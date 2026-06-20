@@ -56,7 +56,6 @@ def test_rotate_files_no_rotation_needed():
             current_file_sequence=current_file_sequence,
             current_file_size=current_file_size,
             added_byte_size=added_byte_size,
-            writer_id=1,
             output_path_prefix='/fake/output',
             max_attempts=3,
             base_backoff_seconds=1.0,
@@ -103,7 +102,6 @@ def test_rotate_files_rotation_needed_without_resource_records():
                 current_file_sequence=current_file_sequence,
                 current_file_size=current_file_size,
                 added_byte_size=added_byte_size,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -122,7 +120,6 @@ def test_rotate_files_rotation_needed_without_resource_records():
             # New writer should be created
             mock_create.assert_called_once_with(
                 sequence=current_file_sequence + 1,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -163,7 +160,6 @@ def test_rotate_files_rotation_needed_with_metadata_records():
                     current_file_sequence=current_file_sequence,
                     current_file_size=current_file_size,
                     added_byte_size=added_byte_size,
-                    writer_id=1,
                     output_path_prefix='/fake/output',
                     max_attempts=3,
                     base_backoff_seconds=1.0,
@@ -210,7 +206,6 @@ def test_rotate_files_no_max_file_size_set():
             current_file_sequence=current_file_sequence,
             current_file_size=current_file_size,
             added_byte_size=added_byte_size,
-            writer_id=1,
             output_path_prefix='/fake/output',
             max_attempts=3,
             base_backoff_seconds=1.0,
@@ -251,7 +246,6 @@ def test_rotate_files_edge_case_exact_limit():
             current_file_sequence=current_file_sequence,
             current_file_size=current_file_size,
             added_byte_size=added_byte_size,
-            writer_id=1,
             output_path_prefix='/fake/output',
             max_attempts=3,
             base_backoff_seconds=1.0,
@@ -297,7 +291,6 @@ def test_rotate_files_edge_case_just_over_limit():
                 current_file_sequence=current_file_sequence,
                 current_file_size=current_file_size,
                 added_byte_size=added_byte_size,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -337,7 +330,6 @@ def test_rotate_files_kwargs_passed_through():
                 current_file_sequence=1,
                 current_file_size=800,
                 added_byte_size=300,
-                writer_id=99,
                 output_path_prefix='/custom/output',
                 max_attempts=5,
                 base_backoff_seconds=2.5,
@@ -351,7 +343,6 @@ def test_rotate_files_kwargs_passed_through():
             # Verify all kwargs are passed through
             mock_create.assert_called_once_with(
                 sequence=2,  # incremented from 1
-                writer_id=99,
                 output_path_prefix='/custom/output',
                 max_attempts=5,
                 base_backoff_seconds=2.5,
@@ -390,7 +381,6 @@ def test_rotate_files_logging(caplog):
                 current_file_sequence=5,
                 current_file_size=800,
                 added_byte_size=300,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -416,11 +406,11 @@ def test_log_writer(caplog):
         log_every_n=2,
     )
     tracker = ThroughputTracker()
-    warc_filter.log_writer(1, 0, tracker)
-    warc_filter.log_writer(1, 1, tracker)
-    warc_filter.log_writer(1, 2, tracker)
+    warc_filter.log_writer(0, tracker)
+    warc_filter.log_writer(1, tracker)
+    warc_filter.log_writer(2, tracker)
 
-    assert caplog.text.count('WARC Writer 1') == 2
+    assert caplog.text.count('WARC Writer') == 2
 
 
 def test_log_reader(caplog):

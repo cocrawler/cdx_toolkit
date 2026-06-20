@@ -66,16 +66,16 @@ def get_metadata_record_from_path(
 
 def generate_warc_filename(
     dest_prefix: str,
-    writer_id: int,
     sequence: int,
     writer_subprefix: Optional[str] = None,
     gzip: bool = False,
 ) -> str:
-    """Generate a WARC file name based a on prefix (can be a full path), write ID and sequence index."""
+    """Generate a WARC file name from a prefix (can be a full path), an optional subprefix
+    (used to distinguish per-process shards), and a sequence index (file-rotation counter)."""
     file_name = dest_prefix + '-'
     if writer_subprefix is not None:
         file_name += writer_subprefix + '-'
-    file_name += f'{writer_id:06d}-{sequence:03d}.warc'  # TODO default warc command uses ".extracted.warc"
+    file_name += f'{sequence:03d}.warc'  # TODO default warc command uses ".extracted.warc"
     if gzip:
         file_name += '.gz'
 
@@ -83,7 +83,6 @@ def generate_warc_filename(
 
 
 async def create_new_writer_with_header(
-    writer_id: int,
     sequence: int,
     output_path_prefix: str,
     max_attempts: int,
@@ -95,14 +94,27 @@ async def create_new_writer_with_header(
     gzip: bool = False,
     content_type: Optional[str] = None,
     s3_client=None,
-) -> Tuple[Union[S3ShardWriter, LocalFileWriter], int, str]:
-    """Create a new WARC writer (local or S3) including file header."""
+    warcinfo_record_id: Optional[str] = None,
+    warcinfo_filename: Optional[str] = None,
+    write_warcinfo: bool = True,
+) -> Tuple[Union[S3ShardWriter, LocalFileWriter], int, Optional[str]]:
+    """Create a new WARC writer (local or S3) including file header.
+
+    warcinfo controls (used when output is sharded across processes and merged into one
+    file afterwards):
+    - write_warcinfo: if False, no warcinfo record is written (the file starts directly
+      with response records). The shared warcinfo_record_id is still returned so any
+      metadata records link to the single warcinfo that survives the merge.
+    - warcinfo_record_id: force this WARC-Record-ID on the warcinfo record so it is
+      identical across shard processes (merged file then has one canonical warcinfo id).
+    - warcinfo_filename: value of the warcinfo `filename` field; set to the final merged
+      filename when shards are concatenated afterwards (defaults to this file's name).
+    """
     if is_s3_url(output_path_prefix):
         dest_bucket, dest_prefix = parse_s3_uri(output_path_prefix)
 
         warc_file_path = generate_warc_filename(
             dest_prefix=dest_prefix,
-            writer_id=writer_id,
             sequence=sequence,
             writer_subprefix=writer_subprefix,
             gzip=gzip,
@@ -122,7 +134,6 @@ async def create_new_writer_with_header(
         # local file system
         warc_file_path = generate_warc_filename(
             dest_prefix=output_path_prefix,
-            writer_id=writer_id,
             sequence=sequence,
             writer_subprefix=writer_subprefix,
             gzip=gzip,
@@ -137,14 +148,25 @@ async def create_new_writer_with_header(
     # Initialize writer
     await new_writer.start()
 
-    # Write WARC header
-    warc_file_name = warc_file_path.split('/')[-1]
+    if not write_warcinfo:
+        # Shard that intentionally omits the warcinfo record (a non-first shard that
+        # will be concatenated after the shard which already carries it). Return the
+        # shared id so metadata records still link to the single surviving warcinfo.
+        return new_writer, 0, warcinfo_record_id
+
+    # Write WARC header. The `filename` field names the final WARC file, which may
+    # differ from this shard's object name when shards are merged afterwards.
+    warc_file_name = warcinfo_filename or warc_file_path.split('/')[-1]
     buffer = BytesIO()
     warc_writer = WARCWriter(buffer, gzip=gzip, warc_version=warc_version)
     warcinfo = warc_writer.create_warcinfo_record(
-        filename=warc_file_name,  # only the file name and not the full path
+        filename=warc_file_name,
         info=writer_info,
     )
+    if warcinfo_record_id:
+        # Force a caller-supplied, stable WARC-Record-ID so it is identical across shard
+        # processes -- the merged file then has exactly one canonical warcinfo id.
+        warcinfo.rec_headers.replace_header('WARC-Record-ID', warcinfo_record_id)
     warc_writer.write_record(warcinfo)
     header_data = buffer.getvalue()
     await new_writer.write(header_data)

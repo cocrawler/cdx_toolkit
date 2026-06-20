@@ -41,7 +41,7 @@ def _produce_and_consume(tmpdir, produce_args):
         ]
     )
 
-    warc_path = os.path.join(base_prefix, 'TEST_sql-000000-001.warc.gz')
+    warc_path = os.path.join(base_prefix, 'TEST_sql-001.warc.gz')
     response_count = 0
     with fsspec.open(warc_path, 'rb') as stream:
         for record in ArchiveIterator(stream):

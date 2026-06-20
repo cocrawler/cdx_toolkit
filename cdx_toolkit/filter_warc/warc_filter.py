@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import statistics
 import sys
 from typing import List, Optional, Dict
@@ -54,18 +55,19 @@ class WARCFilter:
         warc_download_prefix: Optional[str] = None,
         n_parallel: int = 1,
         n_parallel_readers: Optional[int] = None,
-        n_parallel_writers: Optional[int] = None,
         max_attempts: int = 5,
         base_backoff_seconds: float = 0.5,
         # writer_kwargs: Optional[Dict] = None,
         range_jobs_queue_size: int = 1000,
         warc_records_queue_size: int = 200,
-        fetcher_to_consumer_ratio: int = 6,
         aws_region_name: str = 'us-east-1',
         warc_version: str = '1.0',
         content_type: Optional[str] = None,
         min_part_size: int = 5 * 1024 * 1024,  # 5 MiB (for upload)
         max_file_size: Optional[int] = 1 * 1024 * 1024 * 1024,  # 1 GiB (for WARC outputs)
+        warcinfo_record_id: Optional[str] = None,
+        warcinfo_filename: Optional[str] = None,
+        write_warcinfo: bool = True,
     ):
         """Initialize the WARC filter.
 
@@ -84,15 +86,13 @@ class WARCFilter:
             record_limit: Maximum number of records to process (0 for unlimited).
             log_every_n: Log progress every N records.
             warc_download_prefix: Optional prefix to prepend to WARC URLs.
-            n_parallel: Number of parallel workers (default for readers/writers).
-            n_parallel_readers: Number of parallel reader tasks (overrides n_parallel).
-            n_parallel_writers: Number of parallel writer tasks (overrides n_parallel).
+            n_parallel: Number of async readers per process (one writer per process).
+            n_parallel_readers: Number of async reader tasks (overrides n_parallel).
             max_attempts: Maximum retry attempts for failed operations.
             base_backoff_seconds: Base backoff time in seconds for retries.
             writer_kwargs: Optional additional kwargs for writers.
             range_jobs_queue_size: Maximum size of range jobs queue.
             warc_records_queue_size: Maximum size of WARC records queue.
-            fetcher_to_consumer_ratio: Ratio of readers to writers for auto-scaling.
             aws_region_name: AWS region name for S3 operations.
             warc_version: WARC format version (e.g., '1.0' or '1.1').
             content_type: Optional content type for WARC output.
@@ -115,17 +115,15 @@ class WARCFilter:
         self.range_jobs_queue_size = range_jobs_queue_size
         self.warc_records_queue_size = warc_records_queue_size
         self.aws_region_name = aws_region_name
-        self.fetcher_to_consumer_ratio = fetcher_to_consumer_ratio
         self.max_attempts = max_attempts
         self.base_backoff_seconds = base_backoff_seconds
 
+        # Many async readers feed a single writer. Writing is a cheap verbatim byte copy
+        # (+ >=5 MiB MPU parts) that one coroutine sustains easily; multi-core scaling and
+        # output sharding are handled by running multiple *processes* (see
+        # filter_warc/multiprocess.py), not multiple writers on one event loop.
         self.n_parallel = n_parallel
         self.num_readers = n_parallel_readers if n_parallel_readers is not None else n_parallel
-        self.num_writers = (
-            n_parallel_writers
-            if n_parallel_writers is not None
-            else max(int(self.num_readers / self.fetcher_to_consumer_ratio), 1)
-        )
 
         self.gzip = True
 
@@ -133,6 +131,9 @@ class WARCFilter:
         self.content_type = content_type
         self.min_part_size = min_part_size
         self.max_file_size = max_file_size
+        self.warcinfo_record_id = warcinfo_record_id
+        self.warcinfo_filename = warcinfo_filename
+        self.write_warcinfo = write_warcinfo
 
     def filter(self) -> int:
         """Perform the filtering process (calls async method via asyncio.run).
@@ -140,8 +141,17 @@ class WARCFilter:
         Returns:
             int: Number of records written, or -1 if interrupted.
         """
+        runner = asyncio.run
+        if os.environ.get('CDXT_UVLOOP') == '1':
+            try:
+                import uvloop
+
+                runner = uvloop.run
+                logger.info('Using uvloop event loop')
+            except ImportError:
+                logger.warning('CDXT_UVLOOP=1 but uvloop is not installed; using default asyncio loop')
         try:
-            return asyncio.run(self.filter_async())
+            return runner(self.filter_async())
         except KeyboardInterrupt:
             logger.warning('Interrupted by user.')
 
@@ -202,9 +212,9 @@ class WARCFilter:
                 **self.get_boto3_base_config(),
             )
 
-            # Optimized config for multipart uploads
+            # Optimized config for multipart uploads (single writer)
             write_config = Config(
-                max_pool_connections=self.num_writers * 4,
+                max_pool_connections=8,
                 read_timeout=120,
                 connect_timeout=10,
                 **self.get_boto3_base_config(),
@@ -311,7 +321,7 @@ class WARCFilter:
         Returns:
             int: Number of records written.
         """
-        logger.info('Starting job generator, %d WARC readers, %d WARC writers', self.num_readers, self.num_writers)
+        logger.info('Starting job generator, %d WARC readers, 1 WARC writer', self.num_readers)
 
         # Generate range jobs from the configured source (bridged sync->async in a thread).
         csv_writer = self._make_csv_writer()
@@ -330,27 +340,23 @@ class WARCFilter:
             for i in range(self.num_readers)
         ]
 
-        # Write WARC records
-        warc_writers = [
-            asyncio.create_task(
-                self.write_warc_records(
-                    writer_id=i,
-                    warc_records_queue=warc_records_queue,
-                    s3_client=write_s3_client,
-                )
+        # Write WARC records (a single writer owns the output shard for this process)
+        warc_writer = asyncio.create_task(
+            self.write_warc_records(
+                warc_records_queue=warc_records_queue,
+                s3_client=write_s3_client,
             )
-            for i in range(self.num_writers)
-        ]
+        )
 
         # Start writer coordination task
         writer_coordinator = asyncio.create_task(self._coordinate_writer_shutdown(warc_readers, warc_records_queue))
 
         await job_generators
-        logger.info('Range jobs submitted, monitoring readers and writers')
+        logger.info('Range jobs submitted, monitoring readers and writer')
 
         # Wait for all tasks to complete
         readers_results = await asyncio.gather(*warc_readers)
-        writers_results = await asyncio.gather(*warc_writers)
+        writer_result = await warc_writer
         await writer_coordinator
 
         readers_records = sum([result['stats']['total_records'] for result in readers_results])
@@ -364,18 +370,14 @@ class WARCFilter:
         logger.info(f'All WARC readers completed: {readers_records} records')
         logger.info(f'Total reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
 
-        writers_records = sum([result['stats']['total_records'] for result in writers_results])
-        writers_mb_per_sec = self.num_writers * statistics.mean(
-            [result['stats']['mb_per_sec'] for result in writers_results]
-        )
-        writers_records_per_sec = self.num_writers * statistics.mean(
-            [result['stats']['records_per_sec'] for result in writers_results]
+        writer_stats = writer_result['stats']
+        logger.info(f"WARC writer completed: {writer_stats['total_records']} records")
+        logger.info(
+            f"Total writer throughput: {writer_stats['mb_per_sec']:.2f} MB/s; "
+            f"{writer_stats['records_per_sec']:.2f} rec/s"
         )
 
-        logger.info(f'All WARC writers completed: {writers_records} records')
-        logger.info(f'Total writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} rec/s')
-
-        return writers_records
+        return writer_stats['total_records']
 
     async def _coordinate_writer_shutdown(self, warc_readers: List[asyncio.Task], warc_records_queue: asyncio.Queue):
         """Coordinate efficient shutdown of writers as readers complete.
@@ -398,12 +400,9 @@ class WARCFilter:
                 completed_readers = len(warc_readers) - len(pending)
                 logger.debug(f'Readers completed: {completed_readers}/{len(warc_readers)}')
 
-        # All readers completed - signal writers to stop
-        logger.info('All readers completed, signaling writers to stop')
-
-        # Send stop signals to all writers
-        for _ in range(self.num_writers):
-            await warc_records_queue.put(_STOP)
+        # All readers completed - signal the writer to stop
+        logger.info('All readers completed, signaling writer to stop')
+        await warc_records_queue.put(_STOP)
 
     async def read_warc_records(
         self,
@@ -496,19 +495,18 @@ class WARCFilter:
 
     async def write_warc_records(
         self,
-        writer_id: int,
         warc_records_queue: asyncio.Queue,
         s3_client=None,
     ) -> dict:
-        """Write WARC records. Each writer owns ONE shard MPU and appends ranges to it.
+        """Write WARC records. The single writer owns the output WARC (one shard per
+        process) and appends ranges to it, rotating by --size when set.
 
         Args:
-            writer_id: Unique identifier for this writer task.
             warc_records_queue: Queue to read RangePayload objects from.
             s3_client: Optional S3 client for writing WARC files to S3.
 
         Returns:
-            dict: Statistics dictionary with writer_id and throughput stats.
+            dict: Statistics dictionary with throughput stats.
         """
         # File rotation tracking
         current_file_sequence = 1
@@ -516,7 +514,6 @@ class WARCFilter:
 
         new_writer_kwargs = dict(
             s3_client=s3_client,
-            writer_id=writer_id,
             output_path_prefix=self.prefix_path,
             max_attempts=self.max_attempts,
             base_backoff_seconds=self.base_backoff_seconds,
@@ -526,6 +523,9 @@ class WARCFilter:
             gzip=self.gzip,
             content_type=self.content_type,
             min_part_size=self.min_part_size,
+            warcinfo_record_id=self.warcinfo_record_id,
+            warcinfo_filename=self.warcinfo_filename,
+            write_warcinfo=self.write_warcinfo,
         )
 
         # Initialize first writer with header
@@ -552,8 +552,7 @@ class WARCFilter:
                     if item is _STOP:
                         stats = tracker.get_stats()
                         logger.info(
-                            'WARC writer %d stopping. Stats: %.1fs, %d items, %.1f MB written, %.2f MB/s write speed',
-                            writer_id,
+                            'WARC writer stopping. Stats: %.1fs, %d items, %.1f MB written, %.2f MB/s write speed',
                             stats['elapsed'],
                             stats['total_requests'],
                             stats['total_bytes'] / (1024 * 1024),
@@ -579,10 +578,10 @@ class WARCFilter:
                         tracker.add(bytes_count=len(item.data), records_count=item.job.records_count)
 
                         # Log progress every N items
-                        self.log_writer(writer_id=writer_id, counter=counter, tracker=tracker)
+                        self.log_writer(counter=counter, tracker=tracker)
 
                 except Exception:
-                    logger.exception('WARC writer %d failed on %s', writer_id, getattr(item, 'job', None))
+                    logger.exception('WARC writer failed on %s', getattr(item, 'job', None))
                     should_stop = False
                 finally:
                     warc_records_queue.task_done()
@@ -592,7 +591,7 @@ class WARCFilter:
         finally:
             await writer.close()
 
-        return {'writer_id': writer_id, 'stats': tracker.get_stats()}
+        return {'stats': tracker.get_stats()}
 
     def log_reader(self, reader_id: int, counter: int, tracker: ThroughputTracker):
         """Log progress every N items."""
@@ -607,13 +606,12 @@ class WARCFilter:
                 stats['requests_per_sec'],
             )
 
-    def log_writer(self, writer_id: int, counter: int, tracker: ThroughputTracker):
+    def log_writer(self, counter: int, tracker: ThroughputTracker):
         """Log progress every N items."""
         if self.log_every_n > 0 and counter % self.log_every_n == 0:
             stats = tracker.get_stats()
             logger.info(
-                'WARC Writer %d: %d items, %.1f MB written, %.2f MB/s',
-                writer_id,
+                'WARC Writer: %d items, %.1f MB written, %.2f MB/s',
                 counter,
                 stats['total_bytes'] / (1024 * 1024),
                 stats['mb_per_sec'],

@@ -19,7 +19,7 @@ def assert_cli_warc_by_cdx(
     caplog,
     extra_args: Optional[List[str]] = None,
     # warc_filename: str = 'TEST_warc_by_index-000000.warc.gz',
-    warc_filename: str = 'TEST_warc_by_index-000000-001.warc.gz',  # due to parallel writer
+    warc_filename: str = 'TEST_warc_by_index-001.warc.gz',
 ):
     # test cli and check output
     index_path = fixture_path / 'filtered_CC-MAIN-2024-30_cdx-00187.gz'
@@ -208,7 +208,7 @@ def test_cli_repackage_csv_roundtrip(tmpdir):
         ]
     )
 
-    warc_path = os.path.join(base_prefix, 'TEST_warc_by_index-000000-001.warc.gz')
+    warc_path = os.path.join(base_prefix, 'TEST_warc_by_index-001.warc.gz')
     _assert_repackaged_warc(warc_path, metadata_record_path)
 
 
@@ -232,7 +232,7 @@ def test_cli_repackage_csv_roundtrip_self_contained(tmpdir):
         ]
     )
 
-    warc_path = os.path.join(base_prefix, 'TEST_warc_by_index-000000-001.warc.gz')
+    warc_path = os.path.join(base_prefix, 'TEST_warc_by_index-001.warc.gz')
     _assert_repackaged_warc(warc_path, metadata_record_path)
 
 
@@ -328,7 +328,7 @@ def test_warc_by_cdx_subprefix_and_metadata(tmpdir):
     )
 
     # Check that WARC file was created with subprefix
-    warc_path = os.path.join(tmpdir, 'TEST-SUB-000000-001.warc.gz')
+    warc_path = os.path.join(tmpdir, 'TEST-SUB-001.warc.gz')
     assert os.path.exists(warc_path)
 
     # Validate metadata in warcinfo record
@@ -359,7 +359,7 @@ def test_warc_by_cdx_without_creator_operator(tmpdir):
     )
 
     # Check that WARC file was created
-    warc_path = os.path.join(tmpdir, 'TEST_NO_META-000000-001.warc.gz')
+    warc_path = os.path.join(tmpdir, 'TEST_NO_META-001.warc.gz')
     assert os.path.exists(warc_path)
 
     # Validate that creator/operator are not in warcinfo record
@@ -383,7 +383,7 @@ def test_cli_warc_by_athena(
     base_prefix = tmpdir
     warc_download_prefix = 's3://commoncrawl'
     extra_args: Optional[List[str]] = None
-    warc_filename: str = 'TEST_warc_by_index-000000-001.extracted.warc.gz'  # due to parallel writer
+    warc_filename: str = 'TEST_warc_by_index-001.warc.gz'
     base_prefix = str(base_prefix)
 
     if extra_args is None:
