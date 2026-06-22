@@ -3,6 +3,7 @@
 	+ `--processes N` multi-process fetching (one event loop per core); range jobs are sharded by WARC filename and the shards are merged into a single `<prefix>.warc.gz` with one warcinfo record (server-side on S3 / streamed locally). `--keep-shards` keeps the shards
 	+ one writer per process (removed the multi-writer-per-process fan-out); `--parallel_readers` sets async readers per process
 	+ optional uvloop event loop via `CDXT_UVLOOP=1`
+	+ read source WARCs from a Hugging Face Storage Bucket: `--warc-download-prefix=hf://buckets/<ns>/<name>` with `--hf-reader fsspec` (HfFileSystem) or `--hf-reader cdn` (async ranged GETs against the CDN resolve URL); repackage output may also be written to an `hf://` bucket (shards staged locally, merged via fsspec). Needs the `hf` extra (`pip install cdx_toolkit[hf]`)
 	+ see docs/notes/warc-fetcher-performance.md for benchmarks and tuning
 
 - 0.9.38

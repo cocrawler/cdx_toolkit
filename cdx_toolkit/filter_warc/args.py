@@ -149,8 +149,19 @@ def add_repackage_args(parser: argparse.ArgumentParser):
     parser.add_argument(
         '--warc-download-prefix',
         action='store',
-        help='prefix for downloading content, automatically set for CC',
+        help='prefix for downloading content, automatically set for CC. Supports '
+             's3:// (fastest, in-region), https:// and hf://buckets/<ns>/<name> '
+             '(Hugging Face Storage Bucket).',
         default='https://data.commoncrawl.org',
+    )
+    parser.add_argument(
+        '--hf-reader',
+        choices=['fsspec', 'cdn'],
+        default='fsspec',
+        help="How to read WARC ranges when --warc-download-prefix is hf:// : "
+             "'fsspec' uses HfFileSystem (handles auth/Xet/CDN; default), 'cdn' uses "
+             "async HTTP ranged GETs against the CDN-fronted resolve URL. Ignored for "
+             "s3:// and https:// prefixes.",
     )
     parser.add_argument(
         '--write-paths-as-metadata-records',

@@ -55,7 +55,7 @@ def _run_worker(cfg: Dict) -> int:
         write_paths_as_metadata_records=cfg['write_paths_as_metadata_records'],
         log_every_n=cfg['log_every_n'],
         # Shard CSV is self-contained (full warc_url), so CsvSource ignores this; it is
-        # still needed so WARCFilter.needs_aws() knows reads come from S3.
+        # still needed so WARCFilter knows the read scheme (S3 vs hf://).
         warc_download_prefix=cfg['warc_download_prefix'],
         n_parallel_readers=cfg['readers'],
         aws_region_name=cfg['aws_region_name'],
@@ -64,6 +64,7 @@ def _run_worker(cfg: Dict) -> int:
         warcinfo_record_id=cfg['warcinfo_record_id'],
         warcinfo_filename=cfg['warcinfo_filename'],
         write_warcinfo=cfg['write_warcinfo'],
+        hf_reader=cfg['hf_reader'],
     )
     return wf.filter()
 
@@ -106,6 +107,7 @@ def run_multiprocess_repackage(
     uvloop: bool,
     warc_download_prefix: Optional[str] = None,
     keep_shards: bool = False,
+    hf_reader: str = 'fsspec',
 ) -> int:
     """Shard -> N worker processes -> merge into a single <prefix>.warc.gz. Returns count."""
     if writer_subprefix:
@@ -120,14 +122,22 @@ def run_multiprocess_repackage(
     try:
         shard_csvs = _split_source_to_shards(source, n_processes, tmp_dir, record_limit)
 
+        # The shard WARC writer supports S3 and local FS only. For an S3 final
+        # destination, shards are written to S3 (merged server-side); otherwise
+        # shards are written locally. When the final destination is a non-S3
+        # fsspec backend (e.g. an hf:// bucket), stage shards in a local dir and
+        # let the final merge stream them to the destination.
+        remote_non_s3 = ('://' in prefix_path) and not is_s3_url(prefix_path)
+        shards_base = os.path.join(tmp_dir, 'shard-out') if remote_non_s3 else prefix_path
+
         configs = []
         shard_outputs = []
         for i in range(n_processes):
             subprefix = f'sh{i:02d}'
-            shard_outputs.append(_shard_filename(prefix_path, subprefix))
+            shard_outputs.append(_shard_filename(shards_base, subprefix))
             configs.append(dict(
                 shard_csv=shard_csvs[i],
-                prefix_path=prefix_path,
+                prefix_path=shards_base,
                 subprefix=subprefix,
                 writer_info=writer_info,
                 write_paths_as_metadata_records=write_paths_as_metadata_records,
@@ -140,6 +150,7 @@ def run_multiprocess_repackage(
                 write_warcinfo=(i == 0),  # only the first shard carries the warcinfo
                 uvloop=uvloop,
                 warc_download_prefix=warc_download_prefix,
+                hf_reader=hf_reader,
             ))
 
         logger.info('Launching %d worker processes x %d readers', n_processes, readers_per_process)

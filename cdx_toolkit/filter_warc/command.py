@@ -1,5 +1,6 @@
 from cdx_toolkit.filter_warc.warc_filter import WARCFilter
 from cdx_toolkit.filter_warc.sources import make_source
+from cdx_toolkit.filter_warc.hf_utils import is_hf_url
 from cdx_toolkit.utils import get_version
 
 
@@ -103,14 +104,18 @@ def run_repackage(args, cmdline):
         prefix_fs.makedirs(prefix_fs._parent(prefix_fs_path), exist_ok=True)
 
     # Multi-process mode: shard the range jobs across processes (one event loop per core)
-    # and merge the per-process shards into a single <prefix>.warc.gz.
-    if getattr(args, 'processes', 1) and args.processes > 1 and not args.no_fetch:
+    # and merge the per-process shards into a single <prefix>.warc.gz. Also used (with a
+    # single shard) for hf:// output, whose write goes through the local-stage + fsspec
+    # merge path since the WARC writer layer itself only supports S3 and local FS.
+    processes = getattr(args, 'processes', 1) or 1
+    use_multiprocess = (processes > 1 or is_hf_url(prefix_path)) and not args.no_fetch
+    if use_multiprocess:
         from cdx_toolkit.filter_warc.multiprocess import run_multiprocess_repackage
 
         readers = args.parallel_readers if args.parallel_readers is not None else args.parallel
         records_n = run_multiprocess_repackage(
             source=source,
-            n_processes=args.processes,
+            n_processes=max(1, processes),
             readers_per_process=readers,
             prefix_path=prefix_path,
             writer_info=info,
@@ -123,6 +128,7 @@ def run_repackage(args, cmdline):
             uvloop=os.environ.get('CDXT_UVLOOP') == '1',
             warc_download_prefix=args.warc_download_prefix,
             keep_shards=args.keep_shards,
+            hf_reader=args.hf_reader,
         )
         logger.info('WARC records extracted: %i', records_n)
         logger.info('Script execution time: %.3f seconds', time.time() - start_time)
@@ -143,6 +149,7 @@ def run_repackage(args, cmdline):
         n_parallel=n_parallel,
         n_parallel_readers=args.parallel_readers,
         max_file_size=args.size,
+        hf_reader=args.hf_reader,
     )
     records_n = warc_filter.filter()
 

@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import os
 import statistics
@@ -11,6 +12,7 @@ from botocore.config import Config
 from cdx_toolkit.filter_warc.s3_utils import (
     is_s3_url,
 )
+from cdx_toolkit.filter_warc.hf_utils import is_hf_url, make_hf_reader
 from cdx_toolkit.filter_warc.data_classes import RangeJob, RangePayload, ThroughputTracker
 from cdx_toolkit.filter_warc.warc_utils import create_new_writer_with_header
 from cdx_toolkit.filter_warc.sources.base import RangeJobSource
@@ -68,6 +70,7 @@ class WARCFilter:
         warcinfo_record_id: Optional[str] = None,
         warcinfo_filename: Optional[str] = None,
         write_warcinfo: bool = True,
+        hf_reader: str = 'fsspec',
     ):
         """Initialize the WARC filter.
 
@@ -134,6 +137,8 @@ class WARCFilter:
         self.warcinfo_record_id = warcinfo_record_id
         self.warcinfo_filename = warcinfo_filename
         self.write_warcinfo = write_warcinfo
+        # Which HF reader to use when warc_download_prefix is hf:// ('fsspec' | 'cdn').
+        self.hf_reader_mode = hf_reader
 
     def filter(self) -> int:
         """Perform the filtering process (calls async method via asyncio.run).
@@ -240,19 +245,27 @@ class WARCFilter:
         range_jobs_queue: asyncio.Queue = asyncio.Queue(maxsize=self.range_jobs_queue_size)
         warc_records_queue: asyncio.Queue = asyncio.Queue(maxsize=self.warc_records_queue_size)
 
-        if self.needs_aws():
-            clients = await self.get_aws_clients()
-            async with clients['read'] as read_aws_client, clients['write'] as write_aws_client:
-                return await self._run_filter_pipeline(
-                    range_jobs_queue=range_jobs_queue,
-                    warc_records_queue=warc_records_queue,
-                    read_s3_client=read_aws_client,
-                    write_s3_client=write_aws_client,
-                )
-        else:
+        read_is_hf = is_hf_url(self.warc_download_prefix)
+
+        async with contextlib.AsyncExitStack() as stack:
+            read_s3_client = write_s3_client = None
+            # S3 read and/or write clients (built together when either side is S3).
+            if self.needs_aws():
+                clients = await self.get_aws_clients()
+                read_s3_client = await stack.enter_async_context(clients['read'])
+                write_s3_client = await stack.enter_async_context(clients['write'])
+
+            # HF reader for hf:// downloads (fsspec or CDN http).
+            hf_reader = None
+            if read_is_hf:
+                hf_reader = await stack.enter_async_context(make_hf_reader(self.hf_reader_mode))
+
             return await self._run_filter_pipeline(
                 range_jobs_queue=range_jobs_queue,
                 warc_records_queue=warc_records_queue,
+                read_s3_client=read_s3_client,
+                write_s3_client=write_s3_client,
+                hf_reader=hf_reader,
             )
 
     def _make_csv_writer(self) -> Optional[RangeJobCsvWriter]:
@@ -309,6 +322,7 @@ class WARCFilter:
         warc_records_queue: asyncio.Queue,
         read_s3_client=None,
         write_s3_client=None,
+        hf_reader=None,
     ) -> int:
         """Run the actual filter pipeline with or without S3 client.
 
@@ -317,6 +331,7 @@ class WARCFilter:
             warc_records_queue: Queue for WARC record payloads.
             read_s3_client: Optional S3 client for reads from S3.
             write_s3_client: Optional S3 client for writes S3.
+            hf_reader: Optional HF reader for hf:// downloads.
 
         Returns:
             int: Number of records written.
@@ -335,6 +350,7 @@ class WARCFilter:
                     range_jobs_queue=range_jobs_queue,
                     warc_records_queue=warc_records_queue,
                     s3_client=read_s3_client,
+                    hf_reader=hf_reader,
                 )
             )
             for i in range(self.num_readers)
@@ -410,6 +426,7 @@ class WARCFilter:
         range_jobs_queue: asyncio.Queue,
         warc_records_queue: asyncio.Queue,
         s3_client=None,
+        hf_reader=None,
     ) -> dict:
         """Read WARC records based on range jobs -> enqueue RangePayload.
 
@@ -418,6 +435,7 @@ class WARCFilter:
             range_jobs_queue: Queue to read RangeJob objects from.
             warc_records_queue: Queue to put RangePayload objects into.
             s3_client: Optional S3 client for reading WARC files from S3.
+            hf_reader: Optional HF reader for reading WARC ranges from hf:// buckets.
 
         Returns:
             dict: Statistics dictionary with reader_id and throughput stats.
@@ -446,6 +464,7 @@ class WARCFilter:
                     self.max_attempts,
                     self.base_backoff_seconds,
                     s3_client=s3_client,
+                    hf_reader=hf_reader,
                 )
                 tracker.add(bytes_count=len(data), records_count=job.records_count)
                 counter += 1
