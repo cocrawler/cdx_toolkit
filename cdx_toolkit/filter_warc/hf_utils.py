@@ -203,7 +203,11 @@ async def make_hf_reader(mode: str):
         timeout = aiohttp.ClientTimeout(total=300, sock_connect=15)
         connector = aiohttp.TCPConnector(limit=0, ttl_dns_cache=300)
         async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-            yield HfHttpReader(session, token=get_token())
+            reader = HfHttpReader(session, token=get_token())
+            try:
+                yield reader
+            finally:
+                await reader.aclose()
     else:
         reader = HfFsspecReader()
         try:
