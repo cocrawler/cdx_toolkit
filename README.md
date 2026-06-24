@@ -305,68 +305,68 @@ Filtering throughput depends on your machine. For reference,
 on an AWS EC2 c5n.xlarge instance filtering all 300 CDX files 
 from CC-MAIN-2024-30 takes ~1.4 hours with 100k URLs in the whitelist. 
 
-## WARC extraction using CDX files
+## WARC extraction / repackaging
 
-You can extract parts of WARC files using the cdxt command line script.
-The WARC extraction can read CDX files from local and remote file 
-systems, like S3 buckets. Multiple CDX files can be defined
-using a glob pattern. For downloading WARC parts from HTTP or S3, you can 
-define the download prefix, e.g., `s3://commoncrawl` for S3 download.
+The `cdxt repackage` command extracts a subset of WARC records (selected by a
+columnar/CDX index) and writes them into one or more new WARC files. Records are
+copied **verbatim** (no recompression). It can read the source WARCs over HTTP or,
+much faster in-region, directly from S3 (`--warc-download-prefix=s3://commoncrawl`),
+and write the output to the local filesystem or S3.
 
-```
-$ cdxt -v --cc  warc_by_cdx \
-    <path_to_cdx> [--cdx-glob <glob pattern, e.g., "*.gz">] \
-    --prefix <output prefix> \
-    --warc-download-prefix=<warc download prefix, e.g., s3://commoncrawl> \
-    --creator <name and contact of creator> \
-    --operator <name and contact of creator> \
-    [--implementation <fsspec or aiobot3, defaults to fsspec>]
-    [--write-paths-as-resource-records <one or more paths for resource records>]
-    [--write-paths-as-resource-records-metadata <one or more paths for metadata of resource records>]
-```
+The records to extract come from a pluggable source, chosen with `--target-source`:
 
-By default, we use a [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html) 
-implementation to write and read to local or remote file systems. 
-For better throughput for S3 read/write, we have also a specific implementation 
-using [aioboto3](https://github.com/terricain/aioboto3) that you can enable with 
-the `--implementation=aioboto3` argument. With aioboto3, we achieved ~ 80 requests / second 
-on an AWS EC2 c5n.xlarge instance.
+- `cdx` — CDX index file(s) (`--cdx-path`, `--cdx-glob`);
+- `sql` — the CC columnar index via `--engine athena` or `--engine duckdb`
+  (filter with `--hostnames` / `--domains`, or raw `--query` / `--query-file`);
+- `csv` — a range-jobs CSV (`--csv-path`) of `warc_filename,warc_record_offset,warc_record_length`.
 
-You can add one or multiple files with metadata as resource records to 
-the extracted WARC. For instance, this is useful to maintain the CDX filter 
-inputs, e.g., the whitelist list. To do this, you need to provide the 
-corresponding file paths as arguments `--write-paths-as-resource-records=s3:///my-s3-bucket/path/to/my-url-whitelist.txt`
-and `--write-paths-as-resource-records-metadata=s3:///my-s3-bucket/path/to/metadata.json`. 
-The metadata file is optional and can have the following optional fields:
+You can materialize the selected ranges to a CSV without fetching
+(`--range-jobs-output FILE --no-fetch`) and fetch them later with `--target-source csv`.
 
-```json
-{
-    "warc_content_type": "str",
-    "uri": "str",
-    "http_headers": {"k": "v"},
-    "warc_headers_dict": {"k": "v"}
-}
-```
+### Multi-core fetching and a single output file
 
-This in one example for a metadata JSON file:
+The fetcher is asyncio-based: many concurrent range reads, but a single event loop
+runs on one CPU core. For large jobs in-region the limiter is request-rate on that
+core. Use `--processes N` (set it to the vCPU count) to run N worker processes, each
+with its own event loop; `--parallel_readers R` sets the async readers per process.
 
-```json
-{
-    "uri": "filter_cdx.gz",
-    "warc_content_type": "application/cdx",
-}
-```
-
-The full WARC extraction command could look like this:
+The range jobs are sharded by WARC filename across the processes, each process writes
+one shard, and the shards are **merged into a single `<prefix>.warc.gz`** (server-side
+on S3, or streamed locally) with a single `warcinfo` record. Pass `--keep-shards` to
+keep the per-process shards instead.
 
 ```
-$ cdxt -v --cc  warc_by_cdx \
-    s3://my-s3-bucket/filtered-cdxs --cdx-glob "*.gz" \
-    --prefix /local/path/filtered-warcs/ \
+$ CDXT_UVLOOP=1 cdxt -v repackage \
+    --target-source csv --csv-path range-jobs.csv \
+    --prefix s3://my-bucket/path/homepages \
+    --warc-download-prefix=s3://commoncrawl \
+    --processes 4 --parallel_readers 48 \
+    --creator "..." --operator "..." --is-part-of "CC-MAIN-2026-21"
+# -> writes a single s3://my-bucket/path/homepages.warc.gz
+```
+
+Setting `CDXT_UVLOOP=1` uses the [uvloop](https://github.com/MagicStack/uvloop) event
+loop (install `uvloop` separately) for a small single-core speedup.
+
+On an AWS EC2 c5n.xlarge (4 vCPU) in us-east-1, reading from `s3://commoncrawl`, a
+~1 GiB / ~35k-record homepages job runs at ~1100 records/s (~450/s per core, scaling
+~linearly with `--processes`). See
+[docs/notes/warc-fetcher-performance.md](docs/notes/warc-fetcher-performance.md) for the
+full analysis and tuning guidance.
+
+### Metadata records
+
+You can add one or more files as WARC `metadata` records at the top of the output
+(after the `warcinfo` record) with `--write-paths-as-metadata-records`. This is useful
+to carry, e.g., the filter/whitelist inputs alongside the extracted records:
+
+```
+$ cdxt -v repackage \
+    --target-source cdx s3://my-bucket/filtered-cdxs --cdx-glob "*.gz" \
+    --prefix /local/path/filtered-warcs \
     --warc-download-prefix=s3://commoncrawl \
     --creator foo --operator bob \
-    --write-paths-as-resource-records=s3:///my-s3-bucket/path/to/my-url-whitelist.txt \
-    --write-paths-as-resource-records-metadata=s3:///my-s3-bucket/path/to/metadata.json
+    --write-paths-as-metadata-records /path/to/url-whitelist.txt /path/to/metadata.json
 ```
 
 ## TODO

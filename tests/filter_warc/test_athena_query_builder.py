@@ -1,12 +1,12 @@
 import pytest
 
-from cdx_toolkit.filter_warc.athena_job_generator import (
+from cdx_toolkit.filter_warc.sources.sql_base import (
     build_athena_query,
     escape_sql_literal,
     validate_result_columns,
     join_warc_url,
-    run_athena_query,
 )
+from cdx_toolkit.filter_warc.sources.athena import run_athena_query, iter_range_jobs
 
 
 class _FakeAthenaClient:
@@ -43,6 +43,26 @@ def test_build_query_hostnames():
     assert 'LIMIT' not in q
 
 
+def test_build_query_domains_only():
+    q = build_athena_query(url_host_registered_domains=['example.com'])
+    assert "url_host_registered_domain = 'example.com'" in q
+    assert "url_host_tld = 'com'" in q
+    assert 'url_host_name' not in q
+
+
+def test_build_query_hostnames_and_domains():
+    q = build_athena_query(['www.example.com'], url_host_registered_domains=['example.org'])
+    assert "url_host_name = 'www.example.com'" in q
+    assert "url_host_registered_domain = 'example.org'" in q
+    assert "url_host_tld = 'com'" in q
+    assert "url_host_tld = 'org'" in q
+
+
+def test_build_query_requires_host_or_domain():
+    with pytest.raises(ValueError):
+        build_athena_query()
+
+
 def test_build_query_with_crawls():
     q = build_athena_query(['example.com'], crawls=['CC-MAIN-2025-33', 'CC-MAIN-2025-30'])
     assert "crawl IN ('CC-MAIN-2025-33', 'CC-MAIN-2025-30')" in q
@@ -51,6 +71,20 @@ def test_build_query_with_crawls():
 def test_build_query_limit():
     assert 'LIMIT 10' in build_athena_query(['example.com'], limit=10)
     assert 'LIMIT' not in build_athena_query(['example.com'], limit=0)
+
+
+def test_build_query_orders_by_default():
+    q = build_athena_query(['example.com'])
+    assert 'ORDER BY warc_filename, warc_record_offset' in q
+
+
+def test_build_query_order_by_false():
+    assert 'ORDER BY' not in build_athena_query(['example.com'], order_by=False)
+
+
+def test_build_query_order_by_precedes_limit():
+    q = build_athena_query(['example.com'], limit=10)
+    assert q.index('ORDER BY') < q.index('LIMIT')
 
 
 def test_build_query_requires_hostnames():
@@ -108,6 +142,56 @@ def test_join_warc_url_empty_prefix():
 def test_join_warc_url_absolute_filename_passthrough():
     assert join_warc_url('https://data.commoncrawl.org', 's3://cc/x.warc.gz') == 's3://cc/x.warc.gz'
     assert join_warc_url('', 'https://host/x.warc.gz') == 'https://host/x.warc.gz'
+
+
+class _FakePaginator:
+    """Yields Athena get_query_results-style pages (first row is the header)."""
+
+    def __init__(self, pages):
+        self._pages = pages
+
+    def paginate(self, **kwargs):
+        return iter(self._pages)
+
+
+class _FakeResultsClient:
+    def __init__(self, pages):
+        self._pages = pages
+
+    def get_paginator(self, name):
+        assert name == 'get_query_results'
+        return _FakePaginator(self._pages)
+
+
+def _athena_page(columns, *value_rows):
+    header = {'Data': [{'VarCharValue': c} for c in columns]}
+    data = [{'Data': [{'VarCharValue': v} for v in row]} for row in value_rows]
+    return {'ResultSet': {'Rows': [header] + data}}
+
+
+def test_iter_range_jobs_carries_extra_columns():
+    pages = [_athena_page(
+        ['warc_filename', 'warc_record_offset', 'warc_record_length', 'content_languages', 'url'],
+        ['crawl-data/x.warc.gz', '100', '200', 'eng', 'https://example.com/page'],
+    )]
+    client = _FakeResultsClient(pages)
+    jobs = list(iter_range_jobs(client, 'qid', 'https://data.commoncrawl.org'))
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.url == 'https://data.commoncrawl.org/crawl-data/x.warc.gz'
+    assert job.offset == 100 and job.length == 200
+    assert job.filename == 'crawl-data/x.warc.gz'
+    # extra carries only the non-required columns (page URL distinct from warc URL)
+    assert job.extra == {'content_languages': 'eng', 'url': 'https://example.com/page'}
+
+
+def test_iter_range_jobs_no_extra_columns_is_none():
+    pages = [_athena_page(
+        ['warc_filename', 'warc_record_offset', 'warc_record_length'],
+        ['crawl-data/x.warc.gz', '1', '2'],
+    )]
+    jobs = list(iter_range_jobs(_FakeResultsClient(pages), 'qid', 'https://data.commoncrawl.org'))
+    assert jobs[0].extra is None
 
 
 def test_run_athena_query_logs_sql(caplog):

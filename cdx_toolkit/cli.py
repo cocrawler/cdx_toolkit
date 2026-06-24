@@ -12,8 +12,8 @@ from cdx_toolkit.utils import get_version, setup_cdx_fetcher_and_kwargs
 from cdx_toolkit.filter_cdx.command import run_filter_cdx
 from cdx_toolkit.filter_cdx.args import add_filter_cdx_args
 
-from cdx_toolkit.filter_warc.command import run_warcer_by_cdx
-from cdx_toolkit.filter_warc.args import add_warcer_by_cdx_args
+from cdx_toolkit.filter_warc.command import run_repackage
+from cdx_toolkit.filter_warc.args import add_repackage_args
 
 
 LOGGER = logging.getLogger(__name__)
@@ -124,12 +124,12 @@ def main(args=None):
     warc.add_argument('url')
     warc.set_defaults(func=warcer)
 
-    warc_by_cdx = subparsers.add_parser(
-        'warc_by_cdx',
-        help='iterate over capture content based on an CDX index file, creating a warc'
+    repackage = subparsers.add_parser(
+        'repackage',
+        help='repackage WARC ranges from a CDX/SQL/CSV source into a new WARC'
     )
-    add_warcer_by_cdx_args(warc_by_cdx)
-    warc_by_cdx.set_defaults(func=run_warcer_by_cdx)
+    add_repackage_args(repackage)
+    repackage.set_defaults(func=run_repackage)
 
     filter_cdx = subparsers.add_parser('filter_cdx', help='Filter CDX files based on SURT prefixes whitelist')
     add_filter_cdx_args(filter_cdx)

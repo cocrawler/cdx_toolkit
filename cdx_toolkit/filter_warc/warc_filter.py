@@ -1,29 +1,28 @@
 import asyncio
+import contextlib
 import logging
+import os
 import statistics
 import sys
-from typing import List, Literal, Optional, Dict
+from typing import List, Optional, Dict
 
 
 from botocore.config import Config
 
-from cdx_toolkit.filter_warc.athena_job_generator import get_range_jobs_from_athena
 from cdx_toolkit.filter_warc.s3_utils import (
     is_s3_url,
 )
+from cdx_toolkit.filter_warc.hf_utils import is_hf_url, make_hf_reader
 from cdx_toolkit.filter_warc.data_classes import RangeJob, RangePayload, ThroughputTracker
 from cdx_toolkit.filter_warc.warc_utils import create_new_writer_with_header
-from cdx_toolkit.filter_warc.cdx_utils import (
-    iter_cdx_index_from_path,
-)
+from cdx_toolkit.filter_warc.sources.base import RangeJobSource
+from cdx_toolkit.filter_warc.sources.csv import RangeJobCsvWriter
 from cdx_toolkit.filter_warc.warc_utils import get_bytes_from_warc_record, get_metadata_record_from_path
 
 
 _STOP = object()
 
 logger = logging.getLogger(__name__)
-
-TargetSourceType = Literal['cdx', 'athena']
 
 
 class WARCFilter:
@@ -47,11 +46,10 @@ class WARCFilter:
         self,
         prefix_path: str,
         writer_info: Dict,
-        target_source: TargetSourceType = 'cdx',
-        cdx_paths: Optional[List[str]] = None,
-        athena_database: Optional[str] = None,
-        athena_query: Optional[str] = None,
-        athena_s3_output_location: Optional[str] = None,
+        source: RangeJobSource,
+        range_jobs_output: Optional[str] = None,
+        no_fetch: bool = False,
+        csv_self_contained: bool = False,
         writer_subprefix: Optional[str] = None,
         write_paths_as_metadata_records: Optional[List[str]] = None,
         record_limit: int = 0,
@@ -59,27 +57,31 @@ class WARCFilter:
         warc_download_prefix: Optional[str] = None,
         n_parallel: int = 1,
         n_parallel_readers: Optional[int] = None,
-        n_parallel_writers: Optional[int] = None,
         max_attempts: int = 5,
         base_backoff_seconds: float = 0.5,
         # writer_kwargs: Optional[Dict] = None,
         range_jobs_queue_size: int = 1000,
         warc_records_queue_size: int = 200,
-        fetcher_to_consumer_ratio: int = 6,
         aws_region_name: str = 'us-east-1',
         warc_version: str = '1.0',
         content_type: Optional[str] = None,
         min_part_size: int = 5 * 1024 * 1024,  # 5 MiB (for upload)
         max_file_size: Optional[int] = 1 * 1024 * 1024 * 1024,  # 1 GiB (for WARC outputs)
+        warcinfo_record_id: Optional[str] = None,
+        warcinfo_filename: Optional[str] = None,
+        write_warcinfo: bool = True,
+        hf_reader: str = 'fsspec',
     ):
         """Initialize the WARC filter.
 
         Args:
-            target_source: Source of filter targets (Athena query or CDX files).
-            cdx_paths: List of paths to CDX index files.
-            athena_database: Database for Athena query.
-            athena_query: Prepared Athena SQL string to execute (built by the caller).
-            athena_s3_output_location: S3 output location for Athena query.
+            source: RangeJobSource that yields the WARC ranges to repackage.
+            range_jobs_output: Optional path; if set, each generated RangeJob is
+                written to this CSV (materialization).
+            no_fetch: If True, only generate range jobs (and write range_jobs_output);
+                skip fetching/writing WARC records entirely.
+            csv_self_contained: If True, range_jobs_output stores full URLs instead of
+                relative filenames.
             prefix_path: Output path prefix for filtered WARC files.
             writer_info: Dictionary containing writer metadata.
             writer_subprefix: Optional subprefix for writer output paths.
@@ -87,26 +89,23 @@ class WARCFilter:
             record_limit: Maximum number of records to process (0 for unlimited).
             log_every_n: Log progress every N records.
             warc_download_prefix: Optional prefix to prepend to WARC URLs.
-            n_parallel: Number of parallel workers (default for readers/writers).
-            n_parallel_readers: Number of parallel reader tasks (overrides n_parallel).
-            n_parallel_writers: Number of parallel writer tasks (overrides n_parallel).
+            n_parallel: Number of async readers per process (one writer per process).
+            n_parallel_readers: Number of async reader tasks (overrides n_parallel).
             max_attempts: Maximum retry attempts for failed operations.
             base_backoff_seconds: Base backoff time in seconds for retries.
             writer_kwargs: Optional additional kwargs for writers.
             range_jobs_queue_size: Maximum size of range jobs queue.
             warc_records_queue_size: Maximum size of WARC records queue.
-            fetcher_to_consumer_ratio: Ratio of readers to writers for auto-scaling.
             aws_region_name: AWS region name for S3 operations.
             warc_version: WARC format version (e.g., '1.0' or '1.1').
             content_type: Optional content type for WARC output.
             min_part_size: Minimum part byte size for multipart uploads (default: 5 MiB).
             max_file_size: Maximum byte size for individual WARC files (default: 1 GiB).
         """
-        self.cdx_paths = cdx_paths
-        self.target_source: TargetSourceType = target_source
-        self.athena_database = athena_database
-        self.athena_s3_output_location = athena_s3_output_location
-        self.athena_query = athena_query
+        self.source = source
+        self.range_jobs_output = range_jobs_output
+        self.no_fetch = no_fetch
+        self.csv_self_contained = csv_self_contained
         self.prefix_path = prefix_path
         self.writer_info = writer_info
         self.writer_subprefix = writer_subprefix
@@ -119,25 +118,27 @@ class WARCFilter:
         self.range_jobs_queue_size = range_jobs_queue_size
         self.warc_records_queue_size = warc_records_queue_size
         self.aws_region_name = aws_region_name
-        self.fetcher_to_consumer_ratio = fetcher_to_consumer_ratio
         self.max_attempts = max_attempts
         self.base_backoff_seconds = base_backoff_seconds
 
+        # Many async readers feed a single writer. Writing is a cheap verbatim byte copy
+        # (+ >=5 MiB MPU parts) that one coroutine sustains easily; multi-core scaling and
+        # output sharding are handled by running multiple *processes* (see
+        # filter_warc/multiprocess.py), not multiple writers on one event loop.
         self.n_parallel = n_parallel
         self.num_readers = n_parallel_readers if n_parallel_readers is not None else n_parallel
-        self.num_writers = (
-            n_parallel_writers
-            if n_parallel_writers is not None
-            else max(int(self.num_readers / self.fetcher_to_consumer_ratio), 1)
-        )
 
-        # self.gzip = self.cdx_paths[0].endswith('.gz') if self.cdx_paths else False
         self.gzip = True
 
         self.warc_version = warc_version
         self.content_type = content_type
         self.min_part_size = min_part_size
         self.max_file_size = max_file_size
+        self.warcinfo_record_id = warcinfo_record_id
+        self.warcinfo_filename = warcinfo_filename
+        self.write_warcinfo = write_warcinfo
+        # Which HF reader to use when warc_download_prefix is hf:// ('fsspec' | 'cdn').
+        self.hf_reader_mode = hf_reader
 
     def filter(self) -> int:
         """Perform the filtering process (calls async method via asyncio.run).
@@ -145,25 +146,32 @@ class WARCFilter:
         Returns:
             int: Number of records written, or -1 if interrupted.
         """
+        runner = asyncio.run
+        if os.environ.get('CDXT_UVLOOP') == '1':
+            try:
+                import uvloop
+
+                runner = uvloop.run
+                logger.info('Using uvloop event loop')
+            except ImportError:
+                logger.warning('CDXT_UVLOOP=1 but uvloop is not installed; using default asyncio loop')
         try:
-            return asyncio.run(self.filter_async())
+            return runner(self.filter_async())
         except KeyboardInterrupt:
             logger.warning('Interrupted by user.')
 
         return -1
 
     def needs_aws(self) -> bool:
-        """Returns true if AWS (S3/Athena) is needed at any stage.
+        """Returns true if the read/write (stage 2/3) S3 clients are needed.
 
-        Returns:
-            bool: True if AWS client is needed for any operation.
+        Sources own their own stage-1 resource (Athena client / DuckDB connection /
+        fsspec), so this only concerns WARC reads and output writes. With no_fetch
+        there are no reads/writes at all.
         """
-        return (
-            self.target_source == 'athena'  # stage 1
-            or (self.cdx_paths is not None and len(self.cdx_paths) > 0 and is_s3_url(self.cdx_paths[0]))  # stage 1
-            or is_s3_url(self.warc_download_prefix)  # stage 3
-            or is_s3_url(self.prefix_path)  # stage 3
-        )
+        if self.no_fetch:
+            return False
+        return is_s3_url(self.warc_download_prefix) or is_s3_url(self.prefix_path)
 
     def get_boto3_base_config(self) -> Dict:
         """Get boto3 base configuration for AWS client.
@@ -184,10 +192,10 @@ class WARCFilter:
         )
 
     async def get_aws_clients(self) -> Optional[Dict]:
-        """Return S3/Athena clients for job/read/write if needed.
+        """Return async S3 clients for WARC reads/writes if needed.
 
-        Returns:
-            Optional[aioboto3.Session.client]: S3/Athena client context manager if S3/Athena is needed, None otherwise.
+        Stage-1 clients/connections are owned by the source, so this only builds the
+        read/write S3 clients used to fetch WARC ranges and write output.
 
         Raises:
             SystemExit: If S3 is needed but Python version is < 3.9.
@@ -198,22 +206,8 @@ class WARCFilter:
                 sys.exit(1)
 
             import aioboto3
-            import boto3
 
             session = aioboto3.Session()
-
-            # Lightweight config for CDX index reads
-            job_config = Config(
-                max_pool_connections=5,
-                read_timeout=60,
-                **self.get_boto3_base_config(),
-            )
-
-            if self.target_source == 'athena':
-                # Athena does not need an async client
-                job_client = boto3.client('athena', config=job_config)
-            else:
-                job_client = session.client('s3', config=job_config)
 
             # High-throughput config for range reads
             read_config = Config(
@@ -223,16 +217,15 @@ class WARCFilter:
                 **self.get_boto3_base_config(),
             )
 
-            # Optimized config for multipart uploads
+            # Optimized config for multipart uploads (single writer)
             write_config = Config(
-                max_pool_connections=self.num_writers * 4,
+                max_pool_connections=8,
                 read_timeout=120,
                 connect_timeout=10,
                 **self.get_boto3_base_config(),
             )
 
             return {
-                'job': job_client,
                 'read': session.client('s3', config=read_config),
                 'write': session.client('s3', config=write_config),
             }
@@ -245,86 +238,109 @@ class WARCFilter:
         Returns:
             int: Number of records written.
         """
+        # Materialize-only: just drain the source into the range-jobs CSV.
+        if self.no_fetch:
+            return await self._run_materialize_only()
+
         range_jobs_queue: asyncio.Queue = asyncio.Queue(maxsize=self.range_jobs_queue_size)
         warc_records_queue: asyncio.Queue = asyncio.Queue(maxsize=self.warc_records_queue_size)
 
-        if self.needs_aws():
-            clients = await self.get_aws_clients()
+        read_is_hf = is_hf_url(self.warc_download_prefix)
 
-            # Handle mixed async/sync clients - Athena client is sync, S3 clients are async
-            if self.target_source == 'athena':
-                job_aws_client = clients['job']  # Sync client, no context manager needed
-                async with clients['read'] as read_aws_client, clients['write'] as write_aws_client:
-                    return await self._run_filter_pipeline(
-                        range_jobs_queue=range_jobs_queue,
-                        warc_records_queue=warc_records_queue,
-                        job_aws_client=job_aws_client,
-                        read_s3_client=read_aws_client,
-                        write_s3_client=write_aws_client,
-                    )
-            else:
-                async with clients['job'] as job_aws_client, clients['read'] as read_aws_client, clients[
-                    'write'
-                ] as write_aws_client:
-                    return await self._run_filter_pipeline(
-                        range_jobs_queue=range_jobs_queue,
-                        warc_records_queue=warc_records_queue,
-                        job_aws_client=job_aws_client,
-                        read_s3_client=read_aws_client,
-                        write_s3_client=write_aws_client,
-                    )
-        else:
+        async with contextlib.AsyncExitStack() as stack:
+            read_s3_client = write_s3_client = None
+            # S3 read and/or write clients (built together when either side is S3).
+            if self.needs_aws():
+                clients = await self.get_aws_clients()
+                read_s3_client = await stack.enter_async_context(clients['read'])
+                write_s3_client = await stack.enter_async_context(clients['write'])
+
+            # HF reader for hf:// downloads (fsspec or CDN http).
+            hf_reader = None
+            if read_is_hf:
+                hf_reader = await stack.enter_async_context(make_hf_reader(self.hf_reader_mode))
+
             return await self._run_filter_pipeline(
                 range_jobs_queue=range_jobs_queue,
                 warc_records_queue=warc_records_queue,
+                read_s3_client=read_s3_client,
+                write_s3_client=write_s3_client,
+                hf_reader=hf_reader,
             )
+
+    def _make_csv_writer(self) -> Optional[RangeJobCsvWriter]:
+        if self.range_jobs_output is None:
+            return None
+        return RangeJobCsvWriter(self.range_jobs_output, self_contained=self.csv_self_contained)
+
+    async def _produce_range_jobs(self, range_jobs_queue: Optional[asyncio.Queue], csv_writer) -> int:
+        """Drive the (sync) source in a worker thread, feeding the async queue.
+
+        Owns counting, the record limit, and (when a queue is present) emitting one
+        _STOP sentinel per reader in a finally -- so readers never hang even if the
+        source raises mid-iteration."""
+        loop = asyncio.get_running_loop()
+        count = 0
+
+        def drain() -> int:
+            nonlocal count
+            for job in self.source.iter_range_jobs():
+                if csv_writer is not None:
+                    csv_writer.write(job)
+                if range_jobs_queue is not None:
+                    asyncio.run_coroutine_threadsafe(range_jobs_queue.put(job), loop).result()
+                count += 1
+                if self.record_limit and count >= self.record_limit:
+                    logger.warning('Limit reached at %i', count)
+                    break
+            return count
+
+        try:
+            await asyncio.to_thread(drain)
+        finally:
+            if csv_writer is not None:
+                csv_writer.close()
+            if range_jobs_queue is not None:
+                for _ in range(self.num_readers):
+                    await range_jobs_queue.put(_STOP)
+
+        logger.info('Generated %d range jobs', count)
+        return count
+
+    async def _run_materialize_only(self) -> int:
+        """--no-fetch: generate range jobs and write only the range-jobs CSV."""
+        csv_writer = self._make_csv_writer()
+        if csv_writer is None:
+            logger.warning('--no-fetch set without --range-jobs-output: nothing to do')
+        count = await self._produce_range_jobs(range_jobs_queue=None, csv_writer=csv_writer)
+        logger.info('Materialized %d range jobs (no WARC fetch)', count)
+        return count
 
     async def _run_filter_pipeline(
         self,
         range_jobs_queue: asyncio.Queue,
         warc_records_queue: asyncio.Queue,
-        job_aws_client=None,
         read_s3_client=None,
         write_s3_client=None,
+        hf_reader=None,
     ) -> int:
         """Run the actual filter pipeline with or without S3 client.
 
         Args:
-            range_jobs_queue: Queue for range jobs from CDX index.
+            range_jobs_queue: Queue for range jobs from the source.
             warc_records_queue: Queue for WARC record payloads.
-            job_aws_client: Optional AWS (S3/Athena) client for jobs generation.
             read_s3_client: Optional S3 client for reads from S3.
             write_s3_client: Optional S3 client for writes S3.
+            hf_reader: Optional HF reader for hf:// downloads.
 
         Returns:
             int: Number of records written.
         """
-        # Fetch file paths and ranges (offset, length) from index files
-        logger.info('Starting job generator, %d WARC readers, %d WARC writers', self.num_readers, self.num_writers)
+        logger.info('Starting job generator, %d WARC readers, 1 WARC writer', self.num_readers)
 
-        # Generate range jobs from different target sources
-        if self.target_source == 'cdx':
-            job_generators = asyncio.create_task(
-                self.generate_range_jobs_from_cdx(
-                    range_jobs_queue,
-                    s3_client=job_aws_client,
-                )
-            )
-        elif self.target_source == 'athena':
-            job_generators = asyncio.create_task(
-                get_range_jobs_from_athena(
-                    client=job_aws_client,
-                    query=self.athena_query,
-                    database=self.athena_database,
-                    s3_output_location=self.athena_s3_output_location,
-                    job_queue=range_jobs_queue,
-                    queue_stop_object=_STOP,
-                    warc_download_prefix=self.warc_download_prefix,
-                    num_fetchers=self.num_readers,
-                )
-            )
-        else:
-            raise ValueError(f'Invalid target source: {self.target_source}')
+        # Generate range jobs from the configured source (bridged sync->async in a thread).
+        csv_writer = self._make_csv_writer()
+        job_generators = asyncio.create_task(self._produce_range_jobs(range_jobs_queue, csv_writer))
 
         # Read WARC records based on file paths and ranges
         warc_readers = [
@@ -334,32 +350,29 @@ class WARCFilter:
                     range_jobs_queue=range_jobs_queue,
                     warc_records_queue=warc_records_queue,
                     s3_client=read_s3_client,
+                    hf_reader=hf_reader,
                 )
             )
             for i in range(self.num_readers)
         ]
 
-        # Write WARC records
-        warc_writers = [
-            asyncio.create_task(
-                self.write_warc_records(
-                    writer_id=i,
-                    warc_records_queue=warc_records_queue,
-                    s3_client=write_s3_client,
-                )
+        # Write WARC records (a single writer owns the output shard for this process)
+        warc_writer = asyncio.create_task(
+            self.write_warc_records(
+                warc_records_queue=warc_records_queue,
+                s3_client=write_s3_client,
             )
-            for i in range(self.num_writers)
-        ]
+        )
 
         # Start writer coordination task
         writer_coordinator = asyncio.create_task(self._coordinate_writer_shutdown(warc_readers, warc_records_queue))
 
         await job_generators
-        logger.info('Range jobs submitted, monitoring readers and writers')
+        logger.info('Range jobs submitted, monitoring readers and writer')
 
         # Wait for all tasks to complete
         readers_results = await asyncio.gather(*warc_readers)
-        writers_results = await asyncio.gather(*warc_writers)
+        writer_result = await warc_writer
         await writer_coordinator
 
         readers_records = sum([result['stats']['total_records'] for result in readers_results])
@@ -373,18 +386,14 @@ class WARCFilter:
         logger.info(f'All WARC readers completed: {readers_records} records')
         logger.info(f'Total reader throughput: {readers_mb_per_sec:.2f} MB/s; {readers_records_per_sec:.2f} rec/s')
 
-        writers_records = sum([result['stats']['total_records'] for result in writers_results])
-        writers_mb_per_sec = self.num_writers * statistics.mean(
-            [result['stats']['mb_per_sec'] for result in writers_results]
-        )
-        writers_records_per_sec = self.num_writers * statistics.mean(
-            [result['stats']['records_per_sec'] for result in writers_results]
+        writer_stats = writer_result['stats']
+        logger.info(f"WARC writer completed: {writer_stats['total_records']} records")
+        logger.info(
+            f"Total writer throughput: {writer_stats['mb_per_sec']:.2f} MB/s; "
+            f"{writer_stats['records_per_sec']:.2f} rec/s"
         )
 
-        logger.info(f'All WARC writers completed: {writers_records} records')
-        logger.info(f'Total writer throughput: {writers_mb_per_sec:.2f} MB/s; {writers_records_per_sec:.2f} rec/s')
-
-        return writers_records
+        return writer_stats['total_records']
 
     async def _coordinate_writer_shutdown(self, warc_readers: List[asyncio.Task], warc_records_queue: asyncio.Queue):
         """Coordinate efficient shutdown of writers as readers complete.
@@ -407,72 +416,9 @@ class WARCFilter:
                 completed_readers = len(warc_readers) - len(pending)
                 logger.debug(f'Readers completed: {completed_readers}/{len(warc_readers)}')
 
-        # All readers completed - signal writers to stop
-        logger.info('All readers completed, signaling writers to stop')
-
-        # Send stop signals to all writers
-        for _ in range(self.num_writers):
-            await warc_records_queue.put(_STOP)
-
-    async def generate_range_jobs_from_single_cdx(
-        self,
-        cdx_path: str,
-        range_jobs_queue: asyncio.Queue,
-        count: int = 0,
-    ) -> int:
-        """Read a CDX file and generate range jobs based on URLs and offsets."""
-        for warc_url, offset, length in iter_cdx_index_from_path(
-            cdx_path, warc_download_prefix=self.warc_download_prefix
-        ):
-            # Convert the CDX record back to a RangeJob
-            job = RangeJob(url=warc_url, offset=offset, length=length, records_count=1)
-            await range_jobs_queue.put(job)
-            count += 1
-
-            if self.record_limit > 0 and count >= self.record_limit:
-                logger.warning('Index limit reached at %i', count)
-                break
-
-        return count
-
-    async def generate_range_jobs_from_cdx(
-        self,
-        range_jobs_queue: asyncio.Queue,
-        s3_client=None,
-    ):
-        """Read the CDX paths, parse lines -> RangeJob (WARC files and offets) -> key_queue.
-
-        Args:
-            range_jobs_queue: Queue to put RangeJob objects into.
-            s3_client: Optional S3 client for reading CDX indexes from S3.
-        """
-
-        logger.info('Range index limit: %i', self.record_limit)
-        count = 0
-
-        # Iterate over index files
-        # TODO this could be done in parallel
-        for index_path in self.cdx_paths:
-            # Fetch range queries from index
-            try:
-                count += await self.generate_range_jobs_from_single_cdx(
-                    cdx_path=index_path,
-                    range_jobs_queue=range_jobs_queue,
-                    count=count,
-                )
-
-            except Exception as e:
-                logger.error('Failed to read CDX index from %s: %s', index_path, e)
-
-            if self.record_limit > 0 and count >= self.record_limit:
-                logger.warning('Limit reached at %i', count)
-                break
-
-        # signal fetchers to stop
-        for _ in range(self.num_readers):
-            await range_jobs_queue.put(_STOP)
-
-        logger.info('Enqueued %d jobs from %s', count, index_path)
+        # All readers completed - signal the writer to stop
+        logger.info('All readers completed, signaling writer to stop')
+        await warc_records_queue.put(_STOP)
 
     async def read_warc_records(
         self,
@@ -480,6 +426,7 @@ class WARCFilter:
         range_jobs_queue: asyncio.Queue,
         warc_records_queue: asyncio.Queue,
         s3_client=None,
+        hf_reader=None,
     ) -> dict:
         """Read WARC records based on range jobs -> enqueue RangePayload.
 
@@ -488,6 +435,7 @@ class WARCFilter:
             range_jobs_queue: Queue to read RangeJob objects from.
             warc_records_queue: Queue to put RangePayload objects into.
             s3_client: Optional S3 client for reading WARC files from S3.
+            hf_reader: Optional HF reader for reading WARC ranges from hf:// buckets.
 
         Returns:
             dict: Statistics dictionary with reader_id and throughput stats.
@@ -516,6 +464,7 @@ class WARCFilter:
                     self.max_attempts,
                     self.base_backoff_seconds,
                     s3_client=s3_client,
+                    hf_reader=hf_reader,
                 )
                 tracker.add(bytes_count=len(data), records_count=job.records_count)
                 counter += 1
@@ -565,19 +514,18 @@ class WARCFilter:
 
     async def write_warc_records(
         self,
-        writer_id: int,
         warc_records_queue: asyncio.Queue,
         s3_client=None,
     ) -> dict:
-        """Write WARC records. Each writer owns ONE shard MPU and appends ranges to it.
+        """Write WARC records. The single writer owns the output WARC (one shard per
+        process) and appends ranges to it, rotating by --size when set.
 
         Args:
-            writer_id: Unique identifier for this writer task.
             warc_records_queue: Queue to read RangePayload objects from.
             s3_client: Optional S3 client for writing WARC files to S3.
 
         Returns:
-            dict: Statistics dictionary with writer_id and throughput stats.
+            dict: Statistics dictionary with throughput stats.
         """
         # File rotation tracking
         current_file_sequence = 1
@@ -585,7 +533,6 @@ class WARCFilter:
 
         new_writer_kwargs = dict(
             s3_client=s3_client,
-            writer_id=writer_id,
             output_path_prefix=self.prefix_path,
             max_attempts=self.max_attempts,
             base_backoff_seconds=self.base_backoff_seconds,
@@ -595,6 +542,9 @@ class WARCFilter:
             gzip=self.gzip,
             content_type=self.content_type,
             min_part_size=self.min_part_size,
+            warcinfo_record_id=self.warcinfo_record_id,
+            warcinfo_filename=self.warcinfo_filename,
+            write_warcinfo=self.write_warcinfo,
         )
 
         # Initialize first writer with header
@@ -621,8 +571,7 @@ class WARCFilter:
                     if item is _STOP:
                         stats = tracker.get_stats()
                         logger.info(
-                            'WARC writer %d stopping. Stats: %.1fs, %d items, %.1f MB written, %.2f MB/s write speed',
-                            writer_id,
+                            'WARC writer stopping. Stats: %.1fs, %d items, %.1f MB written, %.2f MB/s write speed',
                             stats['elapsed'],
                             stats['total_requests'],
                             stats['total_bytes'] / (1024 * 1024),
@@ -648,10 +597,10 @@ class WARCFilter:
                         tracker.add(bytes_count=len(item.data), records_count=item.job.records_count)
 
                         # Log progress every N items
-                        self.log_writer(writer_id=writer_id, counter=counter, tracker=tracker)
+                        self.log_writer(counter=counter, tracker=tracker)
 
                 except Exception:
-                    logger.exception('WARC writer %d failed on %s', writer_id, getattr(item, 'job', None))
+                    logger.exception('WARC writer failed on %s', getattr(item, 'job', None))
                     should_stop = False
                 finally:
                     warc_records_queue.task_done()
@@ -661,7 +610,7 @@ class WARCFilter:
         finally:
             await writer.close()
 
-        return {'writer_id': writer_id, 'stats': tracker.get_stats()}
+        return {'stats': tracker.get_stats()}
 
     def log_reader(self, reader_id: int, counter: int, tracker: ThroughputTracker):
         """Log progress every N items."""
@@ -676,13 +625,12 @@ class WARCFilter:
                 stats['requests_per_sec'],
             )
 
-    def log_writer(self, writer_id: int, counter: int, tracker: ThroughputTracker):
+    def log_writer(self, counter: int, tracker: ThroughputTracker):
         """Log progress every N items."""
         if self.log_every_n > 0 and counter % self.log_every_n == 0:
             stats = tracker.get_stats()
             logger.info(
-                'WARC Writer %d: %d items, %.1f MB written, %.2f MB/s',
-                writer_id,
+                'WARC Writer: %d items, %.1f MB written, %.2f MB/s',
                 counter,
                 stats['total_bytes'] / (1024 * 1024),
                 stats['mb_per_sec'],

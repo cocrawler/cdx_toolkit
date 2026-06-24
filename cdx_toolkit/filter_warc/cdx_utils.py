@@ -27,7 +27,7 @@ def get_index_as_string_from_path(
         return f.read()
 
 
-def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int]:
+def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int, str]:
     cols = line.split(' ', maxsplit=2)
 
     if len(cols) == 3:
@@ -49,10 +49,10 @@ def read_cdx_line(line: str, warc_download_prefix: str) -> Tuple[str, int, int]:
 
     warc_url = warc_download_prefix + '/' + filename
 
-    return (warc_url, offset, length)
+    return (warc_url, offset, length, filename)
 
 
-def iter_cdx_index_from_path(index_path: str, warc_download_prefix: str) -> Iterable[Tuple[str, int, int]]:
+def iter_cdx_index_from_path(index_path: str, warc_download_prefix: str) -> Iterable[Tuple[str, int, int, str]]:
     """
     Iterate CDX records from a file path (gzipped; local or remote).
     """

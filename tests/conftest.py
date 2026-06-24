@@ -30,6 +30,12 @@ try:
 except ImportError:  # pragma: no cover - exercised in minimal installs
     _HAS_FSSPEC = False
 
+try:
+    import duckdb  # noqa: F401
+    _HAS_DUCKDB = True
+except ImportError:  # pragma: no cover - exercised in minimal installs
+    _HAS_DUCKDB = False
+
 import functools
 from typing import Dict, Optional
 import requests
@@ -160,6 +166,13 @@ def requires_aws_athena(func):
             not check_aws_athena_access(), reason='AWS Athena access not available (no credentials or permissions)'
         )(func)
     )
+
+
+def requires_duckdb(func):
+    """Pytest decorator that skips a test if the optional duckdb dependency is missing."""
+    return pytest.mark.skipif(
+        not _HAS_DUCKDB, reason='duckdb is not installed; install cdx_toolkit[duckdb] to enable DuckDB tests.'
+    )(func)
 
 
 @pytest.fixture

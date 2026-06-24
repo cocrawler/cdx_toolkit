@@ -5,8 +5,12 @@ from cdx_toolkit.filter_warc.data_classes import ThroughputTracker
 from tests.conftest import TEST_DATA_PATH
 
 from cdx_toolkit.filter_warc.warc_filter import WARCFilter
+from cdx_toolkit.filter_warc.sources.cdx import CdxSource
 
 fixture_path = TEST_DATA_PATH / 'warc_by_cdx'
+
+# A throwaway source for unit tests that only exercise reader/writer/rotate/log methods.
+_FAKE_SOURCE = CdxSource(['/fake/path'], 'https://data.commoncrawl.org')
 
 
 def test_filter_keyboard_interrupt_handling(caplog):
@@ -16,7 +20,7 @@ def test_filter_keyboard_interrupt_handling(caplog):
     # Set log level to capture WARNING messages
     caplog.set_level(logging.WARNING, logger='cdx_toolkit.filter_warc.warc_filter')
 
-    warc_filter = WARCFilter(cdx_paths=['/fake/path'], prefix_path='/fake/prefix', writer_info={'writer_id': 1})
+    warc_filter = WARCFilter(source=_FAKE_SOURCE, prefix_path='/fake/prefix', writer_info={'writer_id': 1})
 
     # Mock filter_async to raise KeyboardInterrupt
     with patch.object(warc_filter, 'filter_async', side_effect=KeyboardInterrupt('Simulated user interrupt')):
@@ -35,7 +39,7 @@ def test_rotate_files_no_rotation_needed():
 
     async def run_test():
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'],
+            source=_FAKE_SOURCE,
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=1000,  # 1KB limit
@@ -52,7 +56,6 @@ def test_rotate_files_no_rotation_needed():
             current_file_sequence=current_file_sequence,
             current_file_size=current_file_size,
             added_byte_size=added_byte_size,
-            writer_id=1,
             output_path_prefix='/fake/output',
             max_attempts=3,
             base_backoff_seconds=1.0,
@@ -76,7 +79,7 @@ def test_rotate_files_rotation_needed_without_resource_records():
 
     async def run_test():
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'],
+            source=_FAKE_SOURCE,
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=1000,  # 1KB limit
@@ -99,7 +102,6 @@ def test_rotate_files_rotation_needed_without_resource_records():
                 current_file_sequence=current_file_sequence,
                 current_file_size=current_file_size,
                 added_byte_size=added_byte_size,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -118,7 +120,6 @@ def test_rotate_files_rotation_needed_without_resource_records():
             # New writer should be created
             mock_create.assert_called_once_with(
                 sequence=current_file_sequence + 1,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -134,7 +135,7 @@ def test_rotate_files_rotation_needed_with_metadata_records():
 
     async def run_test():
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'],
+            source=_FAKE_SOURCE,
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=1000,  # 1KB limit
@@ -159,7 +160,6 @@ def test_rotate_files_rotation_needed_with_metadata_records():
                     current_file_sequence=current_file_sequence,
                     current_file_size=current_file_size,
                     added_byte_size=added_byte_size,
-                    writer_id=1,
                     output_path_prefix='/fake/output',
                     max_attempts=3,
                     base_backoff_seconds=1.0,
@@ -189,7 +189,7 @@ def test_rotate_files_no_max_file_size_set():
 
     async def run_test():
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'],
+            source=_FAKE_SOURCE,
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=None,  # No limit
@@ -206,7 +206,6 @@ def test_rotate_files_no_max_file_size_set():
             current_file_sequence=current_file_sequence,
             current_file_size=current_file_size,
             added_byte_size=added_byte_size,
-            writer_id=1,
             output_path_prefix='/fake/output',
             max_attempts=3,
             base_backoff_seconds=1.0,
@@ -230,7 +229,7 @@ def test_rotate_files_edge_case_exact_limit():
 
     async def run_test():
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'],
+            source=_FAKE_SOURCE,
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=1000,  # 1KB limit
@@ -247,7 +246,6 @@ def test_rotate_files_edge_case_exact_limit():
             current_file_sequence=current_file_sequence,
             current_file_size=current_file_size,
             added_byte_size=added_byte_size,
-            writer_id=1,
             output_path_prefix='/fake/output',
             max_attempts=3,
             base_backoff_seconds=1.0,
@@ -271,7 +269,7 @@ def test_rotate_files_edge_case_just_over_limit():
 
     async def run_test():
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'],
+            source=_FAKE_SOURCE,
             prefix_path='/fake/prefix',
             writer_info={'writer_id': 1},
             max_file_size=1000,  # 1KB limit
@@ -293,7 +291,6 @@ def test_rotate_files_edge_case_just_over_limit():
                 current_file_sequence=current_file_sequence,
                 current_file_size=current_file_size,
                 added_byte_size=added_byte_size,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -317,7 +314,7 @@ def test_rotate_files_kwargs_passed_through():
 
     async def run_test():
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'], prefix_path='/fake/prefix', writer_info={'writer_id': 1}, max_file_size=1000
+            source=_FAKE_SOURCE, prefix_path='/fake/prefix', writer_info={'writer_id': 1}, max_file_size=1000
         )
 
         mock_writer = AsyncMock()
@@ -333,7 +330,6 @@ def test_rotate_files_kwargs_passed_through():
                 current_file_sequence=1,
                 current_file_size=800,
                 added_byte_size=300,
-                writer_id=99,
                 output_path_prefix='/custom/output',
                 max_attempts=5,
                 base_backoff_seconds=2.5,
@@ -347,7 +343,6 @@ def test_rotate_files_kwargs_passed_through():
             # Verify all kwargs are passed through
             mock_create.assert_called_once_with(
                 sequence=2,  # incremented from 1
-                writer_id=99,
                 output_path_prefix='/custom/output',
                 max_attempts=5,
                 base_backoff_seconds=2.5,
@@ -370,7 +365,7 @@ def test_rotate_files_logging(caplog):
         caplog.set_level(logging.INFO, logger='cdx_toolkit.filter_warc.warc_filter')
 
         warc_filter = WARCFilter(
-            cdx_paths=['/fake/path'], prefix_path='/fake/prefix', writer_info={'writer_id': 1}, max_file_size=1000
+            source=_FAKE_SOURCE, prefix_path='/fake/prefix', writer_info={'writer_id': 1}, max_file_size=1000
         )
 
         mock_writer = AsyncMock()
@@ -386,7 +381,6 @@ def test_rotate_files_logging(caplog):
                 current_file_sequence=5,
                 current_file_size=800,
                 added_byte_size=300,
-                writer_id=1,
                 output_path_prefix='/fake/output',
                 max_attempts=3,
                 base_backoff_seconds=1.0,
@@ -402,26 +396,30 @@ def test_rotate_files_logging(caplog):
 
 def test_log_writer(caplog):
     """Test log writer."""
+    import logging
+    caplog.set_level(logging.INFO, logger='cdx_toolkit.filter_warc.warc_filter')
 
     warc_filter = WARCFilter(
-        cdx_paths=['/fake/path'],
+        source=_FAKE_SOURCE,
         prefix_path='/fake/prefix',
         writer_info={'writer_id': 1},
         log_every_n=2,
     )
     tracker = ThroughputTracker()
-    warc_filter.log_writer(1, 0, tracker)
-    warc_filter.log_writer(1, 1, tracker)
-    warc_filter.log_writer(1, 2, tracker)
+    warc_filter.log_writer(0, tracker)
+    warc_filter.log_writer(1, tracker)
+    warc_filter.log_writer(2, tracker)
 
-    assert caplog.text.count('WARC Writer 1') == 2
+    assert caplog.text.count('WARC Writer') == 2
 
 
 def test_log_reader(caplog):
     """Test log reader."""
+    import logging
+    caplog.set_level(logging.INFO, logger='cdx_toolkit.filter_warc.warc_filter')
 
     warc_filter = WARCFilter(
-        cdx_paths=['/fake/path'],
+        source=_FAKE_SOURCE,
         prefix_path='/fake/prefix',
         writer_info={'writer_id': 1},
         log_every_n=2,

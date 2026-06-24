@@ -12,6 +12,10 @@ requires = ['requests', 'warcio', 'fsspec[s3]', 'aioboto3', 'surt', 'tqdm', 'url
 
 test_requirements = ['pytest', 'pytest-cov', 'flake8', 'responses']
 optional_s3_requirements = ['fsspec[s3]', 'botocore']
+optional_duckdb_requirements = ['duckdb']
+# hf:// bucket reads/writes for repackage: HfFileSystem (fsspec) and the async
+# CDN reader (aiohttp; usually already present via aioboto3).
+optional_hf_requirements = ['huggingface_hub>=0.30', 'aiohttp']
 
 package_requirements = ['twine', 'setuptools', 'setuptools-scm']
 
@@ -19,10 +23,16 @@ dev_requirements = ['pre-commit']
 
 extras_require = {
     's3': optional_s3_requirements,
+    'duckdb': optional_duckdb_requirements,
+    'hf': optional_hf_requirements,
     'test': test_requirements,  # setup no longer tests, so make them an extra
     'package': package_requirements,
     'dev': package_requirements,
-    'all': test_requirements + package_requirements + dev_requirements + optional_s3_requirements,
+    'all': (
+        test_requirements + package_requirements + dev_requirements
+        + optional_s3_requirements + optional_duckdb_requirements
+        + optional_hf_requirements
+    ),
 }
 
 scripts = ['scripts/cdx_size', 'scripts/cdx_iter']

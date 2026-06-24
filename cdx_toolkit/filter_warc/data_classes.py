@@ -1,8 +1,9 @@
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from cdx_toolkit.filter_warc.s3_utils import is_s3_url, parse_s3_uri, with_retries
-from typing import Tuple
+from cdx_toolkit.filter_warc.hf_utils import is_hf_url
+from typing import Optional, Tuple
 
 from cdx_toolkit.myrequests import myrequests_get
 
@@ -47,6 +48,14 @@ class RangeJob:
     offset: int
     length: int
     records_count: int = 1
+    # Relative WARC filename (e.g. crawl-data/...warc.gz) as known by the source,
+    # used when materializing a non-self-contained range-jobs CSV. `url` stays
+    # authoritative for fetching.
+    filename: Optional[str] = None
+    # Extra columns from a raw SQL --query (e.g. content_languages), kept only for
+    # CSV materialization / analysis. Never used for fetching. Excluded from
+    # equality/hash so RangeJob stays hashable despite the dict value.
+    extra: Optional[dict] = field(default=None, compare=False)
 
     def is_s3(self):
         return is_s3_url(self.url)
@@ -57,13 +66,17 @@ class RangeJob:
         else:
             raise ValueError('Cannot get bucket and key from a HTTP job')
 
+    def is_hf(self):
+        return is_hf_url(self.url)
+
     async def ranged_get_bytes(
         self,
         max_attempts: int,
         base_backoff_seconds: float,
         s3_client=None,
+        hf_reader=None,
     ) -> bytes:
-        """Ranged get request to S3 with retries and backoff or HTTP."""
+        """Ranged get request to S3 (aioboto3), an HF bucket, or HTTP."""
         offset = self.offset
         length = self.length
 
@@ -79,6 +92,18 @@ class RangeJob:
                 base_backoff_seconds=base_backoff_seconds,
             )
             return await resp['Body'].read()
+
+        elif self.is_hf():
+            # read from a Hugging Face bucket (hf://) via the configured HF reader
+            if hf_reader is None:
+                raise ValueError('hf:// range read requires an hf_reader (none was provided)')
+            return await hf_reader.ranged_get(
+                self.url,
+                offset,
+                length,
+                max_attempts=max_attempts,
+                base_backoff_seconds=base_backoff_seconds,
+            )
 
         else:
             # read from HTTP
