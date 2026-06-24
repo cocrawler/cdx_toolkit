@@ -119,6 +119,34 @@ def _merge_s3(dest: str, sources: list, aws_region_name: str) -> int:
     return size
 
 
+# A single CopyObject can copy at most 5 GiB; larger objects need a multipart copy.
+_MAX_SINGLE_COPY = 5 * 1024 * 1024 * 1024
+
+
+def copy_object(dest: str, source: str, aws_region_name: str = 'us-east-1') -> int:
+    """Copy one object to ``dest``. Returns dest size.
+
+    Used to renumber per-shard WARC files into the final global ``-NNN.warc.gz`` series.
+    S3 → S3 is server-side (``CopyObject``, or a multipart ranged copy when the source
+    exceeds the 5 GiB single-copy limit); anything else streams via fsspec (covers
+    local → local and local → hf:// staging).
+    """
+    if is_s3_url(dest) and is_s3_url(source):
+        s3 = boto3.client('s3', region_name=aws_region_name)
+        sb, sk = parse_s3_uri(source)
+        db, dk = parse_s3_uri(dest)
+        size = s3.head_object(Bucket=sb, Key=sk)['ContentLength']
+        if size <= _MAX_SINGLE_COPY:
+            s3.copy_object(Bucket=db, Key=dk, CopySource={'Bucket': sb, 'Key': sk})
+            return size
+        # > 5 GiB: reuse the concurrent multipart merge with a single source.
+        return _merge_s3(dest, [source], aws_region_name)
+    with fsspec.open(source, 'rb') as fi, fsspec.open(dest, 'wb') as fo:
+        shutil.copyfileobj(fi, fo, length=8 * 1024 * 1024)
+    out_fs, _ = fsspec.core.url_to_fs(dest)
+    return out_fs.size(dest) or 0
+
+
 def _merge_s3_streaming(s3, dest_bucket, dest_key, sources) -> int:
     mpu = s3.create_multipart_upload(Bucket=dest_bucket, Key=dest_key)
     upload_id = mpu['UploadId']

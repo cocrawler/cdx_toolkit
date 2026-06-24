@@ -126,6 +126,7 @@ def run_repackage(args, cmdline):
             max_attempts=5,
             record_limit=limit,
             uvloop=os.environ.get('CDXT_UVLOOP') == '1',
+            max_file_size=args.size,
             warc_download_prefix=args.warc_download_prefix,
             keep_shards=args.keep_shards,
             hf_reader=args.hf_reader,
