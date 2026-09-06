@@ -32,6 +32,6 @@ jobs:
             }
         env:
           # These are organization secrets
-a          #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_PRIVATE }}
+          #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_PRIVATE }}
           #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_PUBLIC }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_TEST }}
