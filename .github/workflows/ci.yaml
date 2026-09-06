@@ -66,7 +66,7 @@ jobs:
 
       - name: Configure AWS credentials from OIDC (disabled for forks)
         if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::837454214164:role/GitHubActions-Role
           aws-region: us-east-1
