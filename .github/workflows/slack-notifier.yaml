@@ -1,0 +1,36 @@
+name: Slack Notification
+
+on:
+  pull_request:
+    types: [opened, closed]
+  issues:
+    types: [opened]
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    # This line ensures the job is entirely skipped if Dependabot triggered it
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Send notification to Slack
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "GitHub Alert: *${{ github.event.repository.name }}*",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "User *${{ github.actor }}* triggered an event.\n*Action:* ${{ github.event.action }}\n*Link:* ${{ github.event.pull_request.html_url || github.event.issue.html_url }}"
+                  }
+                }
+              ]
+            }
+        env:
+          # These are organization secrets
+          #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_PRIVATE }}
+          #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_PUBLIC }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_TEST }}
