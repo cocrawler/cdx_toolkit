@@ -15,8 +15,8 @@ jobs:
     steps:
       - name: Send notification to Slack
         uses: slackapi/slack-github-action@v4.0.0
-        webhook-type: incoming-webhook
         with:
+          webhook-type: incoming-webhook
           payload: |
             {
               "text": "GitHub Alert: *${{ github.event.repository.name }}*",
