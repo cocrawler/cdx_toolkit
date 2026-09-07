@@ -1,0 +1,10 @@
+com,example)/
+edu,si)/
+com,youtube)/
+gov,archives)/
+gov,census)/
+com,741,onlinedegrees)/online_university_degree_program.html
+com,72pines,star)/2007/06/25/%e6%8f%90%e5%8f%96%e5%85%ac%e7%a7%af%e9%87%91/trackback
+fr,missiondefrance,bibliotheque)/
+fr,mnhn,biodiv)/fr/taxonomy
+fr,mobilierpourchr,wip)/produit/t-837

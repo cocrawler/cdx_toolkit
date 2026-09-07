@@ -9,6 +9,12 @@ import cdx_toolkit
 
 from cdx_toolkit.utils import get_version, setup_cdx_fetcher_and_kwargs
 
+from cdx_toolkit.filter_cdx.command import run_filter_cdx
+from cdx_toolkit.filter_cdx.args import add_filter_cdx_args
+
+from cdx_toolkit.filter_warc.command import run_warcer_by_cdx
+from cdx_toolkit.filter_warc.args import add_warcer_by_cdx_args
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -117,6 +123,17 @@ def main(args=None):
     )
     warc.add_argument('url')
     warc.set_defaults(func=warcer)
+
+    warc_by_cdx = subparsers.add_parser(
+        'warc_by_cdx',
+        help='iterate over capture content based on an CDX index file, creating a warc'
+    )
+    add_warcer_by_cdx_args(warc_by_cdx)
+    warc_by_cdx.set_defaults(func=run_warcer_by_cdx)
+
+    filter_cdx = subparsers.add_parser('filter_cdx', help='Filter CDX files based on SURT prefixes whitelist')
+    add_filter_cdx_args(filter_cdx)
+    filter_cdx.set_defaults(func=run_filter_cdx)
 
     size = subparsers.add_parser('size', help='imprecise count of how many results are available')
     size.add_argument('--details', action='store_true', help='show details of each subindex')
@@ -232,6 +249,8 @@ def warcer(cmd: Namespace, cmdline: str):
             if obj.is_revisit():
                 LOGGER.warning('revisit record being resolved for url %s %s', url, timestamp)
             writer.write_record(record)
+
+    writer.close()
 
 
 def sizer(cmd: Namespace, cmdline):
