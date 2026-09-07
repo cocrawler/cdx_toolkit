@@ -14,11 +14,17 @@ permissions:
   contents: read
   pull-requests: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # 'queue: max' ensures old runs finish in order instead of being canceled
+  queue: max
+
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
+      max-parallel: 1
       matrix:
         python-version: [
           '3.9', '3.10', '3.11', '3.12', '3.13', '3.14'

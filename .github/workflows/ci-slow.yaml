@@ -2,12 +2,17 @@ name: CI-slow
 
 on: workflow_dispatch
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # 'queue: max' ensures old runs finish in order instead of being canceled
+  queue: max
+
 jobs:
   unit-tests:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      #max-parallel: 1
+      max-parallel: 1
       matrix:
         include:
           - python-version: '3.11'
