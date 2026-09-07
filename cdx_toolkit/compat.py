@@ -15,10 +15,10 @@ def munge_filter(filter, source):
                 if f.startswith(bad):
                     raise ValueError('ia does not support the filter '+bad)
             for k, v in fields_to_ia.items():
-                f = re.sub(r'\b'+k+':', v+':', f, 1)
+                f = re.sub(r'\b'+k+':', v+':', f, count=1)
         else:  # assume cc or other are both pywb
             for k, v in fields_to_pywb.items():
-                f = re.sub(r'\b'+k+':', v+':', f, 1)
+                f = re.sub(r'\b'+k+':', v+':', f, count=1)
         # other sources (e.g. source=url-of-a-wayback) are not transformed
         ret.append(f)
     return ret
